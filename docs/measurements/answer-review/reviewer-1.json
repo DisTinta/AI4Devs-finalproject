@@ -1,0 +1,319 @@
+{
+  "reviewer": 1,
+  "model": "claude-opus-5-5",
+  "date": "2026-11-03",
+  "sourcesRead": [
+    "openspec/changes/answer-review/tasks.md",
+    "docs/measurements/answer-review/criterion.md",
+    "docs/measurements/context/questions.json",
+    "docs/measurements/context/answers/acme-shop.json",
+    "docs/measurements/context/answers/task-api.json",
+    "fixtures/acme-shop/app/Events/DiscountApplied.php",
+    "fixtures/acme-shop/app/Events/OrderPlaced.php",
+    "fixtures/acme-shop/app/Facades/Pricing.php",
+    "fixtures/acme-shop/app/Http/Controllers/CheckoutController.php",
+    "fixtures/acme-shop/app/Http/Controllers/Controller.php",
+    "fixtures/acme-shop/app/Http/Controllers/OrderController.php",
+    "fixtures/acme-shop/app/Http/Middleware/EnsureCartNotEmpty.php",
+    "fixtures/acme-shop/app/Http/Requests/StoreOrderRequest.php",
+    "fixtures/acme-shop/app/Jobs/RecalculateTotals.php",
+    "fixtures/acme-shop/app/Listeners/RecordDiscountAudit.php",
+    "fixtures/acme-shop/app/Listeners/SendOrderConfirmation.php",
+    "fixtures/acme-shop/app/Models/Coupon.php",
+    "fixtures/acme-shop/app/Models/Customer.php",
+    "fixtures/acme-shop/app/Models/Order.php",
+    "fixtures/acme-shop/app/Models/OrderLine.php",
+    "fixtures/acme-shop/app/Models/Product.php",
+    "fixtures/acme-shop/app/Observers/OrderObserver.php",
+    "fixtures/acme-shop/app/Providers/AppServiceProvider.php",
+    "fixtures/acme-shop/app/Providers/EventServiceProvider.php",
+    "fixtures/acme-shop/app/Services/CarrierGateway.php",
+    "fixtures/acme-shop/app/Services/CouponValidator.php",
+    "fixtures/acme-shop/app/Services/DiscountService.php",
+    "fixtures/acme-shop/app/Services/PriceCalculator.php",
+    "fixtures/acme-shop/app/Services/ShippingService.php",
+    "fixtures/acme-shop/app/Services/TaxService.php",
+    "fixtures/acme-shop/app/Support/Money.php",
+    "fixtures/acme-shop/routes/api.php",
+    "fixtures/acme-shop/routes/web.php",
+    "fixtures/acme-shop/config/app.php",
+    "fixtures/acme-shop/config/services.php",
+    "fixtures/acme-shop/config/shop.php",
+    "fixtures/acme-shop/database/factories/OrderFactory.php",
+    "fixtures/acme-shop/database/migrations/2024_01_10_000001_create_customers_table.php",
+    "fixtures/acme-shop/database/migrations/2024_01_10_000002_create_products_table.php",
+    "fixtures/acme-shop/database/migrations/2024_01_10_000003_create_coupons_table.php",
+    "fixtures/acme-shop/database/migrations/2024_01_10_000004_create_orders_table.php",
+    "fixtures/acme-shop/database/migrations/2024_01_10_000005_create_order_lines_table.php",
+    "fixtures/acme-shop/database/seeders/DatabaseSeeder.php",
+    "fixtures/acme-shop/composer.json",
+    "fixtures/task-api/src/app.ts",
+    "fixtures/task-api/src/config/env.ts",
+    "fixtures/task-api/src/controllers/health.controller.ts",
+    "fixtures/task-api/src/controllers/tasks.controller.ts",
+    "fixtures/task-api/src/domain/errors.ts",
+    "fixtures/task-api/src/domain/pagination.ts",
+    "fixtures/task-api/src/domain/task-priority.ts",
+    "fixtures/task-api/src/domain/task-status.ts",
+    "fixtures/task-api/src/domain/task.entity.ts",
+    "fixtures/task-api/src/plugins/db.ts",
+    "fixtures/task-api/src/plugins/error-handler.ts",
+    "fixtures/task-api/src/plugins/swagger.ts",
+    "fixtures/task-api/src/repositories/in-memory-task.repository.ts",
+    "fixtures/task-api/src/repositories/task.repository.ts",
+    "fixtures/task-api/src/routes/health.routes.ts",
+    "fixtures/task-api/src/routes/index.ts",
+    "fixtures/task-api/src/routes/tasks.routes.ts",
+    "fixtures/task-api/src/schemas/index.ts",
+    "fixtures/task-api/src/schemas/pagination.schema.ts",
+    "fixtures/task-api/src/schemas/task.schema.ts",
+    "fixtures/task-api/src/server.ts",
+    "fixtures/task-api/src/services/id.ts",
+    "fixtures/task-api/src/services/task.filters.ts",
+    "fixtures/task-api/src/services/task.service.ts",
+    "fixtures/task-api/src/types/index.ts",
+    "fixtures/task-api/package.json"
+  ],
+  "answers": [
+    {
+      "project": "acme-shop",
+      "questionId": "Q01",
+      "verdict": "correct",
+      "reason": "PriceCalculator::compute toma el subtotal (suma de lineTotal de las líneas, app/Models/Order.php:45-50), resta el descuento, calcula el impuesto sobre esa base descontada y suma el envío (app/Services/PriceCalculator.php:27-34). Todas las afirmaciones, incluido el orden descuento antes de impuesto, están respaldadas por el código."
+    },
+    {
+      "project": "acme-shop",
+      "questionId": "Q02",
+      "verdict": "correct",
+      "reason": "CouponValidator::percentFor devuelve 0 si el código falta, no existe, no está activo o ha expirado, y si no devuelve percent_off (app/Services/CouponValidator.php:16-32); isRedeemable devuelve percentFor > 0 (app/Services/CouponValidator.php:35-38). Las afirmaciones coinciden con el código."
+    },
+    {
+      "project": "acme-shop",
+      "questionId": "Q03",
+      "verdict": "partial",
+      "reason": "Lo central es cierto: created despacha RecalculateTotals y lanza OrderPlaced (app/Observers/OrderObserver.php:16-19). Pero atribuye el log de confirmación al evento OrderPlaced, que solo transporta el pedido (app/Events/OrderPlaced.php:14-20; quien registra es app/Listeners/SendOrderConfirmation.php:21), y dice que Pricing registra los totales, cuando el log lo hace el trabajo (app/Jobs/RecalculateTotals.php:34)."
+    },
+    {
+      "project": "acme-shop",
+      "questionId": "Q04",
+      "verdict": "correct",
+      "reason": "discountFor suma lealtad, cupón y bono de volumen (5% con más de 5 líneas), lo limita al 30% y lanza DiscountApplied si el descuento es mayor que cero (app/Services/DiscountService.php:34-48, 60-64); RecordDiscountAudit lo registra en el log (app/Listeners/RecordDiscountAudit.php:16-21). Llamar «evento» al listener no cambia el comportamiento afirmado, que es cierto."
+    },
+    {
+      "project": "acme-shop",
+      "questionId": "Q05",
+      "verdict": "partial",
+      "reason": "Es cierto que TaxService recibe la base ya descontada (app/Services/PriceCalculator.php:29-31). Pero la pregunta pide cómo calcula el impuesto y la respuesta omite el cálculo en sí: tipo por país de envío desde config('shop.tax_rates') con tipo por defecto, aplicado como porcentaje de la base (app/Services/TaxService.php:22-25)."
+    },
+    {
+      "project": "acme-shop",
+      "questionId": "Q06",
+      "verdict": "partial",
+      "reason": "Lo central es correcto: si la base supera el umbral el envío es cero, si no se usa la tarifa plana por país de CarrierGateway (app/Services/ShippingService.php:24-33; app/Services/CarrierGateway.php:22-26). Pero afirma que se compara el «monto total» del pedido, cuando se compara la base descontada antes de impuestos y envío (app/Services/PriceCalculator.php:29-32)."
+    },
+    {
+      "project": "acme-shop",
+      "questionId": "Q07",
+      "verdict": "partial",
+      "reason": "Es cierto que es un trabajo en cola que calcula el total con Pricing y que OrderObserver lo despacha al crear y al pasar a 'paid' (app/Jobs/RecalculateTotals.php:20-37; app/Observers/OrderObserver.php:16-26). Es falso que se dispare «a través de listeners y controladores»: solo lo despacha el observer, y ningún listener ni controlador lo invoca (app/Http/Controllers/CheckoutController.php:19-33)."
+    },
+    {
+      "project": "acme-shop",
+      "questionId": "Q08",
+      "verdict": "correct",
+      "reason": "SendOrderConfirmation escucha OrderPlaced (app/Providers/EventServiceProvider.php:21-22), calcula el total con Pricing::compute y registra en el log order_id y total (app/Listeners/SendOrderConfirmation.php:17-24). La respuesta lo describe bien."
+    },
+    {
+      "project": "acme-shop",
+      "questionId": "Q09",
+      "verdict": "correct",
+      "reason": "Money es un objeto valor con cents y currency, con aritmética, comparación y rechazo de monedas mezcladas (app/Support/Money.php:14-74); fromFloat convierte a céntimos y percentage redondea al céntimo (app/Support/Money.php:27-30, 52-55). El accessor subtotal de Order suma las líneas con Money (app/Models/Order.php:45-50) y los descuentos se calculan con Money según líneas y cupón (app/Services/DiscountService.php:34-42)."
+    },
+    {
+      "project": "acme-shop",
+      "questionId": "Q10",
+      "verdict": "correct",
+      "reason": "El middleware comprueba que el campo lines de la petición sea un array no vacío y, si no, responde 422 EMPTY_CART (app/Http/Middleware/EnsureCartNotEmpty.php:19-25). La respuesta, breve, es cierta."
+    },
+    {
+      "project": "acme-shop",
+      "questionId": "Q11",
+      "verdict": "partial",
+      "reason": "Los campos validados y la mayoría de reglas son correctos (app/Http/Requests/StoreOrderRequest.php:24-30). Pero afirma que shipping_country debe existir en una lista de países, cuando solo es required|string|size:2 (app/Http/Requests/StoreOrderRequest.php:25), y que unit_price_cents debe ser positivo, cuando admite 0 (app/Http/Requests/StoreOrderRequest.php:30)."
+    },
+    {
+      "project": "acme-shop",
+      "questionId": "Q12",
+      "verdict": "partial",
+      "reason": "Es cierto que CheckoutController crea el pedido y devuelve su total (app/Http/Controllers/CheckoutController.php:19-32) y que la ruta POST /checkout lleva a él (routes/web.php:13-15). Pero nombra un «servicio PricingService» que no existe: lo que usan CheckoutController y OrderController es la fachada Pricing (app/Facades/Pricing.php:20; app/Http/Controllers/OrderController.php:18)."
+    },
+    {
+      "project": "acme-shop",
+      "questionId": "Q13",
+      "verdict": "incorrect",
+      "reason": "La respuesta es UNKNOWN y la pregunta espera respuesta. routes/api.php define GET /orders hacia OrderController@index y GET /orders/{order} hacia OrderController@show (routes/api.php:12-13)."
+    },
+    {
+      "project": "acme-shop",
+      "questionId": "Q14",
+      "verdict": "partial",
+      "reason": "Lo central es cierto: Pricing es una fachada con accessor 'pricing' (app/Facades/Pricing.php:20-25) ligada a PriceCalculator (app/Providers/AppServiceProvider.php:43-47), donde está compute (app/Services/PriceCalculator.php:25). La afirmación sobre las pruebas de tests/Feature/OrderPricingTest.php solo dice lo que hace un fichero de tests, sin comportamiento comprobable en el código de la aplicación, así que es secundaria y sin respaldo."
+    },
+    {
+      "project": "acme-shop",
+      "questionId": "Q15",
+      "verdict": "partial",
+      "reason": "Lo central es cierto: RecordDiscountAudit registra en el log el descuento aplicado (order_id y amount) (app/Listeners/RecordDiscountAudit.php:16-21). Pero afirma que RecordDiscountAudit envía el evento DiscountApplied, cuando lo escucha; quien lo lanza es DiscountService (app/Services/DiscountService.php:44-45)."
+    },
+    {
+      "project": "acme-shop",
+      "questionId": "Q16",
+      "verdict": "correct",
+      "reason": "Order declara customer (belongsTo Customer), lines (hasMany OrderLine) y coupon (belongsTo Coupon por coupon_code) (app/Models/Order.php:25-39). La respuesta enumera las tres."
+    },
+    {
+      "project": "acme-shop",
+      "questionId": "Q17",
+      "verdict": "correct",
+      "reason": "CarrierGateway resuelve en __call los métodos flatRateFor y devuelve la tarifa por país desde la configuración (app/Services/CarrierGateway.php:20-29), y ShippingService la usa así (app/Services/ShippingService.php:31). Las afirmaciones son ciertas."
+    },
+    {
+      "project": "acme-shop",
+      "questionId": "Q18",
+      "verdict": "partial",
+      "reason": "Es cierto que config/shop.php define tipos de impuesto y el umbral de envío gratuito (config/shop.php:14-22), pero la pregunta pide los valores y la respuesta no da ninguno: omite el país por defecto ES, el tipo por defecto 21, los tipos por país, el umbral 75 y las tarifas de envío (config/shop.php:10-31)."
+    },
+    {
+      "project": "acme-shop",
+      "questionId": "Q19",
+      "verdict": "correct",
+      "reason": "UNKNOWN a una pregunta que espera unknown, y el fixture no implementa reembolsos: las rutas de pedidos solo listan y muestran (routes/api.php:12-13) y el ciclo de vida del pedido solo reacciona a crear y pagar (app/Observers/OrderObserver.php:16-26)."
+    },
+    {
+      "project": "acme-shop",
+      "questionId": "Q20",
+      "verdict": "correct",
+      "reason": "UNKNOWN a una pregunta que espera unknown, y el fixture no envía SMS: la confirmación del pedido solo escribe en el log (app/Listeners/SendOrderConfirmation.php:21-24) y los servicios configurados son mailgun y s3 (config/services.php:13-28)."
+    },
+    {
+      "project": "task-api",
+      "questionId": "Q01",
+      "verdict": "incorrect",
+      "reason": "La respuesta es UNKNOWN y la pregunta espera respuesta. taskRoutes adjunta a cada ruta un esquema Zod de querystring, params o body (src/routes/tasks.routes.ts:18-30), que Fastify valida con el validatorCompiler de Zod (src/app.ts:25)."
+    },
+    {
+      "project": "task-api",
+      "questionId": "Q02",
+      "verdict": "correct",
+      "reason": "buildPage devuelve un objeto con items, total, page y pageSize, que son los parámetros que la respuesta enumera (src/domain/pagination.ts:13-18). No menciona el cálculo de pageCount (src/domain/pagination.ts:19), pero la pregunta no lo pide de forma explícita y nada de lo afirmado es falso."
+    },
+    {
+      "project": "task-api",
+      "questionId": "Q03",
+      "verdict": "incorrect",
+      "reason": "La pregunta pide qué transiciones son válidas y la respuesta no da ninguna: solo dice dónde se definen. Las transiciones son todo→in_progress/archived, in_progress→blocked/done/todo/archived, blocked→in_progress/archived, done→archived y ninguna desde archived (src/domain/task-status.ts:13-19)."
+    },
+    {
+      "project": "task-api",
+      "questionId": "Q04",
+      "verdict": "correct",
+      "reason": "update obtiene la tarea con get, comprueba canTransition si cambia el estado, fusiona la entrada sin campos undefined, conserva id y createdAt, sella updatedAt y llama a repository.update (src/services/task.service.ts:45-61). Las afirmaciones son ciertas."
+    },
+    {
+      "project": "task-api",
+      "questionId": "Q05",
+      "verdict": "correct",
+      "reason": "applyFilters descarta las tareas que no cumplen status, priority, tag o search y devuelve las que cumplen todos los criterios dados (src/services/task.filters.ts:10-18). La respuesta lo describe correctamente."
+    },
+    {
+      "project": "task-api",
+      "questionId": "Q06",
+      "verdict": "correct",
+      "reason": "sortTasks ordena una copia con compareBy y la dirección asc/desc (src/services/task.filters.ts:27-29); compareBy compara por prioridad, fecha de vencimiento, updatedAt o createdAt (src/services/task.filters.ts:32-43). Las afirmaciones secundarias sobre buildPage y su uso en InMemoryTaskRepository tras filtrar también son ciertas (src/repositories/in-memory-task.repository.ts:26-27)."
+    },
+    {
+      "project": "task-api",
+      "questionId": "Q07",
+      "verdict": "incorrect",
+      "reason": "La respuesta es UNKNOWN y la pregunta espera respuesta. InMemoryTaskRepository guarda las tareas en un Map por id, cargado desde la semilla, y las crea, actualiza y borra con set y delete (src/repositories/in-memory-task.repository.ts:12-46)."
+    },
+    {
+      "project": "task-api",
+      "questionId": "Q08",
+      "verdict": "partial",
+      "reason": "Es cierto que registerErrorHandler distingue tipos de error y los convierte en respuestas HTTP, pero la pregunta pide cómo y la respuesta omite la conversión: ZodError a 400 VALIDATION_ERROR con detalles, DomainError a su statusCode y code, y el resto a 500 INTERNAL_ERROR (src/plugins/error-handler.ts:12-36)."
+    },
+    {
+      "project": "task-api",
+      "questionId": "Q09",
+      "verdict": "correct",
+      "reason": "La interfaz Task tiene exactamente id, title, description, status, priority, tags, dueDate, createdAt y updatedAt (src/domain/task.entity.ts:8-18), y el fichero define también CreateTaskInput y UpdateTaskInput (src/domain/task.entity.ts:20-36)."
+    },
+    {
+      "project": "task-api",
+      "questionId": "Q10",
+      "verdict": "incorrect",
+      "reason": "Afirma que las prioridades existentes son high, medium y low, pero también existe urgent (src/domain/task-priority.ts:5, 13), y la pregunta pide explícitamente qué prioridades existen. Es cierto que priorityRank traduce la prioridad a un número mediante PRIORITY_RANK (src/domain/task-priority.ts:20-22)."
+    },
+    {
+      "project": "task-api",
+      "questionId": "Q11",
+      "verdict": "correct",
+      "reason": "errors.ts define DomainError, que lleva statusCode y code (src/domain/errors.ts:6-15), TaskNotFoundError con 404 (src/domain/errors.ts:17-20) e IllegalStatusTransitionError con 409 (src/domain/errors.ts:23-26). La respuesta coincide."
+    },
+    {
+      "project": "task-api",
+      "questionId": "Q12",
+      "verdict": "incorrect",
+      "reason": "Afirma un endpoint GET /tasks/list que no existe: el listado es GET /tasks (src/routes/tasks.routes.ts:18), y escribe /tasks:id en lugar de /tasks/:id (src/routes/tasks.routes.ts:20-30). Métodos y handlers son correctos, pero las rutas que da no son las registradas."
+    },
+    {
+      "project": "task-api",
+      "questionId": "Q13",
+      "verdict": "correct",
+      "reason": "loadEnv parsea su argumento, por defecto process.env, con el esquema Zod envSchema (src/config/env.ts:9-20), y server.ts lo llama sin argumentos (src/server.ts:9). Las afirmaciones son ciertas."
+    },
+    {
+      "project": "task-api",
+      "questionId": "Q14",
+      "verdict": "correct",
+      "reason": "HealthController.check responde { status: 'ok' } (src/controllers/health.controller.ts:4-5) y está montado en GET /health (src/routes/health.routes.ts:6)."
+    },
+    {
+      "project": "task-api",
+      "questionId": "Q15",
+      "verdict": "correct",
+      "reason": "delete llama a repository.delete(id) y lanza TaskNotFoundError si no se borró nada (src/services/task.service.ts:64-67). La respuesta coincide."
+    },
+    {
+      "project": "task-api",
+      "questionId": "Q16",
+      "verdict": "incorrect",
+      "reason": "Solo title es obligatorio: description es nullish y status, priority y tags tienen valor por defecto (src/schemas/task.schema.ts:20-25). La respuesta afirma que se exigen title, description, status, priority y tags, y que description es obligatorio, lo que el código contradice."
+    },
+    {
+      "project": "task-api",
+      "questionId": "Q17",
+      "verdict": "correct",
+      "reason": "newId devuelve randomUUID() de node:crypto (src/services/id.ts:7-9) y TaskService.create lo usa como id de la tarea nueva (src/services/task.service.ts:32)."
+    },
+    {
+      "project": "task-api",
+      "questionId": "Q18",
+      "verdict": "partial",
+      "reason": "Es cierto que buildApp crea Fastify, fija los compiladores de validación y serialización, registra el manejador de errores y las rutas (src/app.ts:23-31). Pero la pregunta pide qué registra y la respuesta omite registerDb, que decora el repositorio y el servicio de tareas en la instancia (src/app.ts:29; src/plugins/db.ts:11-15)."
+    },
+    {
+      "project": "task-api",
+      "questionId": "Q19",
+      "verdict": "correct",
+      "reason": "UNKNOWN a una pregunta que espera unknown, y el fixture no autentica usuarios: ninguna ruta lleva hook ni comprobación de autenticación (src/routes/tasks.routes.ts:18-30; src/app.ts:22-33). JWT_SECRET solo se parsea en la configuración y no se usa (src/config/env.ts:13)."
+    },
+    {
+      "project": "task-api",
+      "questionId": "Q20",
+      "verdict": "correct",
+      "reason": "UNKNOWN a una pregunta que espera unknown, y el fixture no envía correos ni asigna tareas: la entidad Task no tiene asignado (src/domain/task.entity.ts:8-18) y no hay dependencia de correo (package.json:18-23)."
+    }
+  ]
+}
