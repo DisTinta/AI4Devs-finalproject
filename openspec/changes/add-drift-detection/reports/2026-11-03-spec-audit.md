@@ -1,0 +1,239 @@
+CHANGES REQUIRED
+
+# Spec audit: add-drift-detection (DIS-71)
+
+- Date: 2026-11-03
+- Change: `openspec/changes/add-drift-detection/` (proposal, design D1–D19, delta `specs/drift-detection/spec.md` with 28 scenarios, tasks 0–13)
+- Ticket: DIS-71 (sub-issue, In Progress) and parent DIS-48 (CM-HU-20), both loaded from Linear with their comments. DIS-48 has no comments.
+- First audit.
+
+## Questions for the author
+
+1. **AC 1 of DIS-71 vs D13.** The `[enhanced]` AC 1 asks for "`provenance` válida para `provenanceSchema`". D13 replaces that with an exported `driftProvenanceSchema` that keys spans by path instead of file id. The substance is kept (model, prompt hash, non-empty input spans, instant). The agent made this decision and wrote it in a Linear comment. Do you accept the deviation? If not, the change has to add a store read that maps a path to its file id, which is a port change. This is the alternative D13 rejects.
+2. **Parent AC 3 vs D8.** DIS-48 says that in `evaluation` mode, `drift acme-shop` serves the golden Q5 report without calling the model. The core `drift` of this change answers `llm-required` for every project in evaluation mode, before any read. Confirm that DIS-73 will serve the golden Q5 from the CLI without changing this core branch. If DIS-73 needs the golden lookup inside core, as `explain` does with the answer cache, D8 would have to be reopened.
+
+## 1. Scope against the ticket
+
+Clean. Everything in the proposal, the spec and the tasks follows from DIS-71's `[original]` (three modules, a scripted-LLM DoD, no CLI) and its `[enhanced]` part. The parent's CLI, golden Q5 and `query_log` row are explicitly left to DIS-73. Three small additions do not come from the ticket. Each is justified and kept small, so none of them is invented scope:
+- D16: two private helpers of `statement-schema.ts` are exported, for reuse.
+- D14: one comment in `explain.ts` is reworded (but see finding B5).
+- D15: `.env*` files are excluded from prompts, for least data.
+
+The additive report fields (`droppedClaims`, `excerpt`) go beyond the `[enhanced]` §3 shape. The ticket should be aligned with them (see "Corrections → Linear").
+
+## 2. Inherited acceptance criteria
+
+All five ACs of DIS-71 `[enhanced]` have a requirement and a scenario:
+- AC1 → "Drift over the indexed acme-shop" / "The two planted contradictions…"
+- AC2 → "A claim the code confirms is not a contradiction"
+- AC3 → the three "Unknown drift answers" scenarios
+- AC4 → "An invalid extraction…", "A claim outside the document is dropped", "A contradicted verdict citing an unknown id…", "…without evidence or statement…"
+- AC5 → the four "Verification of a contradiction" scenarios plus "An unknown or unindexed project fails…" and "A failing answer call propagates unchanged"
+
+The parent's ACs that DIS-71 inherits are covered: at least two contradictions typed `INFERENCE` with provenance; a confirmed claim not reported; `verification` on both sides; `no-docs`. The parent's golden Q5, `query_log` row and CLI belong to DIS-73. AC1's `provenanceSchema` wording is the deviation in Question 1. **No blocking finding.**
+
+## 3. Missing scenarios
+
+- **B6 (blocking): secret redaction has no scenario and no test.** "Claim extraction" requires the document lines "as the indexing redacts them (secrets redacted)". "Context of a claim" requires the configuration files' "redacted content". No scenario covers either, and no task lists even an extra case. It is the privacy guarantee of the change (proposal → Impact → Privacy). Correction: add a scenario (in the "Claim extraction" requirement, test in `tests/unit/drift/doc-claims.spec.ts`) covering both prompts. Text under Corrections.
+- Improvable: the following MUST behaviours are covered only by "extra cases" in tasks (3.5, 4.3, 4.7), not by scenarios. They are tested, so this is acceptable, but they are invisible in the spec:
+  - the truncation of a document over `MAX_EVIDENCE_TEXT_CHARS`
+  - fence unwrapping
+  - `MAX_CONFIG_SPANS`, `MAX_CONFIG_LINES`, the budget fit, and the single configuration read
+- Improvable: "Drift request" has no scenario case for "a request that is not an object" (`null`, an array). Add it to the list of the first scenario, naming `request`.
+- Improvable: "Documents checked by a call" requires the repository root to be "joined to the workspace root when relative", with no scenario. The acme-shop integration (relative seed root) covers it implicitly. Say so in task 6.1.
+
+## 4. Ambiguity
+
+- `design.md` → Risks, third bullet: "a short term like `tax` matches many files". Improvable, because it is a risk note, not a requirement. Replace it with "a short term like `tax` can match every configuration file of the project; at most `MAX_CONFIG_SPANS` (3) are added, in path byte order".
+- No other occurrence of fast, easy, secure, efficient, many, appropriate or robust in the proposal, the spec or the tasks.
+
+## 5. Open decisions
+
+- **B1 (blocking): `claimsChecked` of a `contradicted` claim that verification drops.** The spec says:
+  - a claim with no context counts as checked;
+  - `consistent` and `unrelated` count as checked;
+  - an invalid confrontation does not count;
+  - the "unknown id" scenario implies that a reported contradiction counts.
+
+  It does not say whether a `contradicted` claim still counts when the claim is dropped because its document citation is broken, or because every code citation is broken. A test of "A broken document citation drops the contradiction" or "A contradiction whose only code citation is broken…" will pin it. Fix it in the "Verification of a contradiction" requirement, and add `claimsChecked` 1 to the THEN of both scenarios. Text under Corrections.
+- **B2 (blocking): a stored document or configuration file missing at the indexed commit.**
+  - The spec ("Drift failures…") propagates "any failure of the document, configuration or context-pack reads", so `SourceUnavailable` `missing` aborts the whole run.
+  - Task 5.8 tests "a failure of the batched document read **other than `missing`** propagates", which implies `missing` is handled some other way.
+  - Neither artifact says what that other way is (skip the document with an event? `file-missing`?).
+
+  Decide in the spec and align task 5.8. Proposed default, the simplest one and coherent with the spec: `missing` propagates like any other read failure, and task 5.8 says "a failure of the batched document read, including `missing`, propagates unchanged".
+- **B3 (blocking): the budget the configuration spans fit into.** D4 says "while `estimateTokens(text)` fits `tokenBudget − pack.tokens`". The spec says "the budget left by the pack". `pack.tokens` (`packages/core/src/context/context-pack.ts:206`) counts every fitted span, **including the `doc` spans this change removes**. Decide whether the remaining budget is `tokenBudget − Σ tokens of the kept (non-doc) spans` or `tokenBudget − pack.tokens`. Task 4.3's extra case ("does not fit the budget left by the pack") pins it. Fix it in the spec ("Context of a claim") and in D4. Recommended: subtract the kept spans only, because the removed spans are never sent.
+- **B4 (blocking): quarantine subcodes and the schema-violation event are undecided, and the design contradicts itself.**
+  - D16 exports `unfenced` and `discard` "so the two drift schemas build the same `SchemaViolationEvent` (size, SHA-256, issues capped)". D17 and the spec never put a `schema_violation` event in the report. The report only carries `drift_doc_skipped` and `drift_claim_skipped` with a subcode. The event that `discard` builds is thrown away.
+  - The subcode rule is the **private** `shapeSubcode` (`packages/core/src/explain/statement-schema.ts:90-94`), which D16 does not export. Its `empty_evidence` rule only matches issues whose path `endsWith('.evidenceIds')` with code `too_small`. In the confrontation schema the path is the top-level `evidenceIds` (no leading dot), and D5's `superRefine` raises `custom` issues. With the rule as it is, "contradicted with no ids" would come out `invalid_shape`, not `empty_evidence`.
+  - The size limit (`MAX_MODEL_OUTPUT_BYTES`, `output_too_large`) is not stated for either drift output.
+  - `discard` returns `ModelOutputResult`, which is typed to explain's `ModelOutput` (`statement-schema.ts:46,118`).
+
+  Fix in design D5, D16 and D17 and in the spec:
+  - whether a `schema_violation` event is reported (wrapped in `drift_check_event`) or only the subcode;
+  - which helper computes the subcode (export `shapeSubcode` too, or a drift-local rule);
+  - the exact subcode for each failure: blank statement → `invalid_shape`, `[]` ids → `empty_evidence`, 11 ids → `limit_exceeded`, output over 65,536 bytes → `output_too_large`;
+  - the signature of the exported helpers (returning a `SchemaViolationEvent`, not a `ModelOutputResult`).
+- Improvable: the evidence id of the extraction's sanitisation events. D3 passes the document through `sanitizeForPrompt('', [span])`. That function names it `E1` in its `untrusted_content_flagged` and `untrusted_content_truncated` events (`sanitize.ts:85` → `evidenceIdAt(0)`). The prompt wraps the same text as `D1`, and D6 reports the document citation as `D1`. Say in D3 and D17 that extraction events carry `evidenceId` `E1` (or rewrite it to `D1` while wrapping), so task 3.1's test does not decide it.
+- Improvable: a claim on line 1 of a document whose first line exceeds `MAX_EVIDENCE_TEXT_CHARS` (D3's line-cut case). The spec's document-citation excerpt is "the redacted text of its lines", that is the whole line. That uncut line then goes into the confrontation prompt with no bound. State either that the citation carries `cut: 'line-cut'` and the cut text (the way `verifyCitations` already supports), or that such a claim is dropped.
+- Improvable: precedence when the request is invalid **and** the workspace root is relative. D1 validates the request first. Say so in "Drift request".
+
+## 6. Contradictions inside the change
+
+- B4 (above): D16's justification contradicts D17 and the spec, which do not report the event.
+- B2 (above): task 5.8 contradicts the spec's "Drift failures" requirement.
+- Improvable: D6 says that when the document citation is broken, "the code side is not checked (no `verify` call)". The spec's "Verification of a contradiction" requirement does not say this. Its scenario "A broken document citation drops the contradiction" asserts neither the absence of `verify` calls nor the absence of code `evidence_broken` events. Move the rule into the spec and the THEN.
+- Improvable: the spec says "lines matching an instruction pattern flagged". `sanitizeForPrompt` flags only the **first** matching line per pattern (`sanitize.ts:147-153`). Reword the spec to "the first line matching each instruction pattern is flagged, as in `explain`".
+- Improvable: D17 fixes the event shapes:
+  - `drift_check_event { docPath, claimIndex?, event }`
+  - `drift_doc_skipped { docPath, reason, subcode? }`
+  - `drift_claim_skipped { docPath, claimIndex, reason, subcode }`
+
+  The spec only says "wrapped with the document path and … the claim's index". The field names the scenarios assert should live in the spec ("Drift report").
+
+## 7. Contradictions with the project
+
+- **B5 (blocking): the "until DIS-71" statements.** D14 keeps `contradiction: false` and rewords only `packages/core/src/explain/explain.ts:375`. The same promise ("nothing produces contrary evidence until DIS-71") is pinned elsewhere, and becomes misleading once DIS-71 merges:
+  - `openspec/specs/confidence-score/spec.md` → "Published weights", scenario "The confidence document states its limits": it pins the sentence «La señal de contradicción vale 0 en todas las respuestas hasta DIS-71», tested at `tests/unit/knowledge/confidence-doc.spec.ts:84`.
+  - `docs/CONFIDENCE.md:79`
+  - `readme.md:1131` («hasta que DIS-71 produzca evidencia contraria»)
+  - `docs/project-context.md:1118`
+  - `openspec/specs/explain/spec.md:601` ("no component produces contrary evidence yet (DIS-71)")
+  - `packages/core/src/explain/claim-items.ts:82,106`
+  - `packages/core/src/knowledge/confidence.ts:30`. This file is in an **analyzer-fingerprint input** (`packages/cli/src/seed/fingerprint.ts:34`), so editing it forces `seed:build`.
+
+  The implementer is left to choose which ones to touch. Decide in D14 and the tasks. Recommended:
+  - keep every pinned or fingerprinted text unchanged (`confidence.ts`, `docs/CONFIDENCE.md` and the confidence-score spec, which would otherwise need a MODIFIED delta and an edit to `confidence-doc.spec.ts`);
+  - reword only the free-text places (`explain.ts:375`, `claim-items.ts:82,106`, `docs/project-context.md:1118`, `readme.md:1131`) to "`drift` (DIS-71) finds contradictions but does not store them, so the signal stays 0";
+  - list in D14 the texts left unchanged and why.
+
+  Alternatively, drop the comment rewording entirely and leave all texts as they are, with the reason recorded in D14.
+- Improvable: the `docs/backend-standards.md` §8 ceiling reads its spend from `query_log.cost_usd`. `drift` writes no row (D7, D10), so a run of up to 130 `answer` calls plus `verify` calls is invisible to `withDailyBudget`, both during the run and after it, until DIS-73 writes the row. This also applies to the live run of task 10.2. Add a Risks entry and say in 10.2 that the live run's spend is not counted against the ceiling.
+- Improvable: proposal → Impact names `UNSTORED_FILE_ID` among the exports. `docs/backend-standards.md` §3 asks for explicit outputs, so exporting an internal sentinel widens `@codemind/core` for no caller. Keep it module-internal unless a test needs it, and justify it in D13 if it stays.
+- No contradiction with ADR 20261013: `drift` reads no claims. `openspec/specs/graph-schema` already allows `capability = 'drift'`, and this change writes no row. Merging by the agent in 13.7 is the documented exception in `docs/AUTONOMOUS-RUN.md` §5 and the table near line 135.
+
+## 8. Contrast with the real code
+
+- Verified, and correct:
+  - `sanitizeForPrompt`, `verifyCitations` and `verifyAnswer` never read `fileId` (`packages/core/src/verify/` has no match; `sanitize.ts` spreads the span).
+  - `readIndexState` throws `ProjectNotFound` for an unknown id and returns paths in byte order (`packages/core/src/ports/StorePort.ts:98-110`).
+  - `questionTerms` of the line-31 claim includes `ship` and `free`, which `config/shop.php:22` holds.
+  - In path byte order, only `composer.json` and `config/shop.php` among acme-shop's configuration files match those terms, so `MAX_CONFIG_SPANS = 3` does not cut `config/shop.php`.
+  - `verifyCitations` supports the cut citations that D3 relies on.
+  - The in-memory source tree supports the "after" stage that task 5.6 needs.
+- B3 and B4 above come from the code (`context-pack.ts:206`, `statement-schema.ts:46,90-94,118`).
+- Improvable: `buildContextPack` calls `getProject` and reads its files again for each claim, up to 120 packs per run. That is acceptable, but `commit` in the report (the "the indexed commit every file was read at" rule) assumes no reindex happens during the run. Note it in Risks.
+- Improvable: task 1.1 does not list the `verificationContents` option that task 5.6 relies on. In `explain-doubles.ts:97`, the switch is "after the first `complete`". `drift` makes several model calls, and the configuration and pack reads happen after the first one. Define the switch in 1.1 as "after the first confrontation call".
+- Improvable: the scenario "Document spans are left out of a claim's context" assumes a symbol of `docs/guide.md`. The PHP analyzer produces no symbols in Markdown, and in the real graph doc spans enter through `describes` edges. The in-memory store can hold such a symbol, so the test works. Saying "a span of `docs/guide.md` reached through a `describes` edge" would match the real path.
+
+## 9. Task size
+
+- Improvable: task 3.2 creates `drift-prompts.ts` (extraction), all of `doc-claims.ts` and the document reading in `drift.ts`. Task 5.2 does the whole verification, contradiction building, provenance, event ordering, meter and clock in one GREEN. Task 6.1 sets up the full integration harness and scripts. Each is at the edge of a single turn. Split 5.2 into:
+  - 5.2a: verification and the contradiction
+  - 5.2b: provenance and event order
+  - 5.2c: meter and clock
+
+  Split 3.2 into prompt, then schema and extraction.
+- The other tasks fit.
+
+## 10. Mandatory steps
+
+Clean.
+- Step 0 is the branch (`feature/dis-71-drift-detection`, commit scope `DIS-71`).
+- The mandatory sections carry their labels: 8 Review existing tests, 9 Run tests and verify data state (report path and template named), 10 Manual interface testing with AGENT MUST EXECUTE, 11 Documentation, 13 Pre-merge review with AGENT MUST EXECUTE (last; three checks in order; fixes on the same PR; archive before merge).
+- E2E is declared not applicable with a reason (10.7).
+- Mutating effects: the change writes nothing. 0.4, 9.5 and 10.4 compare counts. 10.1 records counts around the conditional `db:seed`. The scratchpad script is deleted.
+- Minor: 10.1 should say that `db:seed` reloads the seed idempotently, which is the restoration.
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| Drift request | An invalid drift request is rejected before the store | 1.2, 1.3 |
+| Drift request | A relative workspace root is rejected before the store | 1.4 |
+| Unknown drift answers | Evaluation mode answers llm-required without reading anything | 1.5 |
+| Unknown drift answers | A project without documents answers no-docs | 1.6 |
+| Unknown drift answers | A docPath that is not a stored document answers no-docs | 1.7 |
+| Documents checked by a call | Documents are checked in byte order and the rest is skipped by the limit | 3.6 |
+| Documents checked by a call | A docPath checks only that document | 3.7 |
+| Documents checked by a call | An unknown or unindexed project fails without calling the model | 3.8 |
+| Claim extraction | The document is sent numbered and as untrusted data | 3.1, 3.2 |
+| Claim extraction | An invalid extraction skips the document and the next one is checked | 3.3 |
+| Claim extraction | A claim outside the document is dropped | 3.4 |
+| Claim extraction | Claims beyond the per-document limit are omitted | 3.5 |
+| Claim extraction | (missing: secret redaction, B6) | — (to add with B6) |
+| Context of a claim | Document spans are left out of a claim's context | 4.1, 4.2 |
+| Context of a claim | A configuration file that shares a term with the claim joins the context | 4.3 |
+| Context of a claim | A claim with no context is checked without a model call | 4.4 |
+| Confrontation of a claim | A consistent claim is checked and not reported | 4.5 |
+| Confrontation of a claim | A contradicted verdict citing an unknown id skips the claim | 4.6 |
+| Confrontation of a claim | A contradicted verdict without evidence or statement skips the claim | 4.7 |
+| Verification of a contradiction | A contradiction whose only code citation is broken is not reported | 5.3 |
+| Verification of a contradiction | A contradiction keeps only its valid code citations | 5.4 |
+| Verification of a contradiction | An unavailable verifier leaves the evidence cited | 5.5 |
+| Verification of a contradiction | A broken document citation drops the contradiction | 5.6 |
+| Drift report | The report of a contradiction carries both citations, its type and its provenance | 5.1, 5.2 |
+| Drift report | The usage adds every answer and verify call of the run | 5.7 |
+| Drift failures, logging and writes | A failing answer call propagates unchanged | 5.8 |
+| Drift failures, logging and writes | A drift run writes nothing | 5.9 |
+| Drift over the indexed acme-shop | The two planted contradictions of the pricing document are found | 6.1, 6.2 |
+| Drift over the indexed acme-shop | A claim the code confirms is not a contradiction | 6.3 |
+
+All 28 existing scenarios have a task, and task 8.2's per-file count (16/4/6/2) matches. The only hole is the redaction scenario that B6 requires. It is already counted as blocking under point 3. When it is added, task 8.2's count becomes 29, with 5 in `doc-claims.spec.ts`.
+
+## Corrections to apply
+
+### `specs/drift-detection/spec.md`
+
+1. **Requirement "Claim extraction" (B6).** Add the scenario:
+   ```
+   #### Scenario: Secrets are redacted before any drift prompt
+   - **GIVEN** a document `docs/setup.md` whose line 4 holds `password = "s3cr3t-value"` and a claim on lines 1–5 whose confrontation context includes the configuration file `config/services.php` whose line 3 holds `'secret' => 'sk_live_abcdef123456'`
+   - **WHEN** `drift` checks it
+   - **THEN** neither the extraction prompt nor the confrontation prompt holds `s3cr3t-value` or `sk_live_abcdef123456`, each line being sent as the indexing redacts it
+   ```
+   Use whatever secret shapes `redactedLines` actually redacts. Copy them from the existing redaction tests.
+2. **Requirement "Verification of a contradiction" (B1, and the improvable item of point 6).** Append: "The document citation SHALL be checked first; when it is broken, the code side SHALL not be checked (no code `evidence_broken` event and no `verify` call). A `contradicted` claim SHALL count in `claimsChecked` whether or not its contradiction survives verification." Add "the document's `claimsChecked` is 1, and no `verify` call was made" to the THEN of "A broken document citation drops the contradiction". Add "the document's `claimsChecked` is 1" to "A contradiction whose only code citation is broken is not reported". If the decision is the opposite (not counted), write it that way instead, but write it.
+3. **Requirement "Drift failures, logging and writes" (B2).** Make it explicit: "…any failure of the document, configuration or context-pack reads, including `SourceUnavailable` reason `missing` for a stored file absent at the indexed commit…".
+4. **Requirement "Context of a claim" (B3).** Replace "each only while its estimated tokens fit the budget left by the pack" with "each only while its estimated tokens fit the token budget minus the tokens of the pack's kept (non-`doc`) spans and of the configuration spans already added".
+5. **Requirements "Claim extraction" and "Confrontation of a claim" (B4).**
+   - State: "an output over `MAX_MODEL_OUTPUT_BYTES` (65,536 UTF-8 bytes) is discarded with subcode `output_too_large`".
+   - In Confrontation, state the subcode of each failure: blank statement in a `contradicted` verdict → `invalid_shape`; empty `evidenceIds` in a `contradicted` verdict → `empty_evidence`; more than 10 ids → `limit_exceeded`; a repeated id → `duplicate_evidence_id`; an id not in the prompt → `unknown_evidence_id`.
+   - Add to the THEN of "A contradicted verdict without evidence or statement skips the claim": "with subcode `empty_evidence` and `invalid_shape` respectively".
+   - State whether a `schema_violation` event is in `events`, consistently with D17.
+6. **Requirement "Claim extraction" (point 6).** Replace "lines matching an instruction pattern flagged" with "the first line matching each instruction pattern flagged, as in `explain`". State the evidence id the extraction's sanitisation events carry (`E1`, or `D1` if the design rewrites it).
+7. **Requirement "Drift report" (point 6).** Insert the event shapes of D17 verbatim (`drift_check_event { docPath, claimIndex?, event }`, `drift_doc_skipped { docPath, reason: 'invalid-model-output' | 'limit', subcode? }`, `drift_claim_skipped { docPath, claimIndex, reason: 'invalid-model-output', subcode }`). Add `schema_violation` to them if B4 decides to report it.
+8. **Requirement "Drift request".** Add "a request that is `null`" to the list of the first scenario (naming `request`). Add: "request validation precedes the workspace-root check".
+9. **Line-cut case (point 5).** In "Claim extraction" or "Verification of a contradiction", say how a claim on a cut first line is cited (with `cut: 'line-cut'` and the cut text) or that it is dropped.
+
+### `design.md`
+
+1. **D4 (B3).** Replace "`tokenBudget − pack.tokens`" with the rule chosen in spec correction 4.
+2. **D5, D16, D17 (B4).**
+   - D16: name every exported helper and its exact signature (e.g. `discardModelOutput(text, subcode, issues): SchemaViolationEvent` and `modelOutputSubcode(issues)` if `shapeSubcode` is exported), and remove or rewrite the sentence "so the two drift schemas build the same `SchemaViolationEvent`" if that event is not reported.
+   - D5: list the subcode of each failure as in spec correction 5. Note that the `custom` issues of `superRefine` and the top-level `evidenceIds` path do not match `shapeSubcode`'s `.evidenceIds` rule.
+   - D17: say whether `schema_violation` is wrapped into `events`.
+3. **D14 (B5).** Replace the decision text with the list of every "until DIS-71" occurrence (`explain.ts:375`, `claim-items.ts:82,106`, `knowledge/confidence.ts:30` (fingerprint input), `docs/CONFIDENCE.md:79` (pinned by the confidence-score spec and `confidence-doc.spec.ts:84`), `readme.md:1131`, `docs/project-context.md:1118`, `openspec/specs/explain/spec.md:601`), stating for each whether it is reworded or left, and why. Recommended: reword only the unpinned, non-fingerprinted ones.
+4. **D3.** State the evidence id of the extraction's sanitisation events (point 5). Also state the line-cut handling of the document citation.
+5. **D13.** Make `UNSTORED_FILE_ID` module-internal, or justify the export.
+6. **Risks.**
+   - Replace "matches many files" (point 4).
+   - Add: "`drift` writes no `query_log` row, so `withDailyBudget` does not see its spend (up to 130 `answer` calls plus `verify` calls per run) until DIS-73 logs it."
+   - Add: "only the first `MAX_EVIDENCE_TEXT_CHARS` (8,000) code points of a document are checked."
+   - Add: "a reindex during a run could make the per-claim packs read another commit than the report's `commit`."
+
+### `tasks.md`
+
+1. **Task 5.8 (B2).** Replace "a failure of the batched document read other than `missing` propagates" with "a failure of the batched document read, including `SourceUnavailable` `missing`, propagates unchanged".
+2. **Task 3.5 or a new task 3.5b (B6).** Add "RED → GREEN: test "Secrets are redacted before any drift prompt"". Update 8.2 to 29 scenarios, with 5 in `doc-claims.spec.ts`.
+3. **Task 5.10 (B5).** Extend it to the list decided in D14, naming each file. If `docs/CONFIDENCE.md` or `confidence-doc.spec.ts` change, name them in 8.1 first. If `knowledge/confidence.ts` changes, add `npm run seed:build` and the seed commit in 9.3 and 9.5 (fingerprint input). Recommended: do not touch them.
+4. **Task 4.7 (B4).** Add the extra cases of an output over 65,536 bytes (`output_too_large`) for both prompts and of 11 evidence ids (`limit_exceeded`).
+5. **Task 1.1.** Add the `verificationContents` and `verificationFailures` options, and define their switch as "reads after the first confrontation call".
+6. **Tasks 3.2 and 5.2.** Split as in point 9.
+7. **Task 6.1.** Note that the relative seed root covers the "joined to the workspace root" clause.
+8. **Task 10.2.** Note that a live run's spend is not visible to `withDailyBudget` (no `query_log` row). **Task 10.1:** say that `db:seed` is the idempotent restoration.
+
+### Linear (written in Spanish; the `[original]` block is not touched)
+
+- **DIS-71, `[enhanced]` part, §2 AC 1.** Once the author answers Question 1, replace «`provenance` válida para `provenanceSchema`» with «`provenance` válida para `driftProvenanceSchema` (los spans de entrada por ruta: `{ path, startLine, endLine }`; ver D13)». In §3 "Informe", add `droppedClaims` to `DriftDocument` and `excerpt` to the claim and to each evidence.
+- **DIS-71, new comment:** «*(Texto del agente, spec-audit, 2026-11-03.)* Auditoría de la spec de `add-drift-detection`: CHANGES REQUIRED, 6 hallazgos bloqueantes: B1 `claimsChecked` de una afirmación `contradicted` que la verificación descarta; B2 un fichero guardado que falta en el commit indexado (`missing`); B3 el presupuesto que queda para los ficheros de configuración; B4 los subcódigos de la cuarentena y el evento `schema_violation`; B5 las frases «hasta DIS-71» de `docs/CONFIDENCE.md`, `readme.md`, `confidence.ts` y la spec `confidence-score`; B6 falta un escenario de redacción de secretos. Dos preguntas para la autora: la desviación de D13 respecto al criterio 1 (`provenanceSchema`) y si DIS-73 servirá el golden Q5 en evaluación sin cambiar la rama `llm-required` del núcleo.»
