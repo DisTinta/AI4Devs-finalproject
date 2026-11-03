@@ -62,10 +62,13 @@ store read or database table changes.
 ## Impact
 
 - **Code**: new `packages/core/src/drift/` (`doc-claims.ts`, `contradiction.ts`, `drift.ts`,
-  `drift-report.ts`, `drift-request.ts`, `drift-prompts.ts`, `index.ts`), re-exported from
-  `packages/core/src/index.ts`. One comment in `packages/core/src/explain/explain.ts` that says no
-  component produces contrary evidence "until DIS-71" is reworded (design D14); no behaviour of
-  `explain` changes.
+  `drift-report.ts`, `drift-request.ts`, `drift-prompts.ts`, `drift-quarantine.ts`, `index.ts`),
+  re-exported from `packages/core/src/index.ts` (the internal `UNSTORED_FILE_ID` and
+  `driftShapeSubcode` are not). `unfenced` of `packages/core/src/explain/statement-schema.ts` is
+  exported as `unfenceModelOutput` (design D16). The free-text sentences that say no component
+  produces contrary evidence "until DIS-71" are reworded in `explain.ts`, `claim-items.ts`,
+  `docs/project-context.md` and `readme.md`; the pinned or fingerprinted ones are left (design D14).
+  No behaviour of `explain` changes.
 - **Tests**: new `tests/unit/drift/`, `tests/integration/drift/acme-shop.spec.ts` and the double
   `tests/support/drift-doubles.ts`. No existing test is expected to change (tasks step 8 lists the
   ones that must stay green unchanged).

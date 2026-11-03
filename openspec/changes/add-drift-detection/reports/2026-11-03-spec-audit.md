@@ -237,3 +237,89 @@ All 28 existing scenarios have a task, and task 8.2's per-file count (16/4/6/2) 
 
 - **DIS-71, `[enhanced]` part, §2 AC 1.** Once the author answers Question 1, replace «`provenance` válida para `provenanceSchema`» with «`provenance` válida para `driftProvenanceSchema` (los spans de entrada por ruta: `{ path, startLine, endLine }`; ver D13)». In §3 "Informe", add `droppedClaims` to `DriftDocument` and `excerpt` to the claim and to each evidence.
 - **DIS-71, new comment:** «*(Texto del agente, spec-audit, 2026-11-03.)* Auditoría de la spec de `add-drift-detection`: CHANGES REQUIRED, 6 hallazgos bloqueantes: B1 `claimsChecked` de una afirmación `contradicted` que la verificación descarta; B2 un fichero guardado que falta en el commit indexado (`missing`); B3 el presupuesto que queda para los ficheros de configuración; B4 los subcódigos de la cuarentena y el evento `schema_violation`; B5 las frases «hasta DIS-71» de `docs/CONFIDENCE.md`, `readme.md`, `confidence.ts` y la spec `confidence-score`; B6 falta un escenario de redacción de secretos. Dos preguntas para la autora: la desviación de D13 respecto al criterio 1 (`provenanceSchema`) y si DIS-73 servirá el golden Q5 en evaluación sin cambiar la rama `llm-required` del núcleo.»
+
+## Resolution of run 1
+
+*Agent's text (correction round 1, autonomous run, 2026-11-03).* Every decision below is recorded in
+`design.md` → Follow-ups (R1–R11) with its destination. `openspec validate add-drift-detection
+--strict` passes after the edits.
+
+### Questions for the author
+
+- **Question 1 (AC 1 vs D13): decided by the agent.** The deviation is accepted: provenance keyed by
+  path (`driftProvenanceSchema`) keeps the substance of AC 1 without a port change for a provenance
+  nobody stores. D13 records it; the `[enhanced]` AC 1 and §3 "Informe" of DIS-71 are aligned in
+  Linear (`driftProvenanceSchema`, `droppedClaims`, `excerpt`). Follow-up R10 (A).
+- **Question 2 (parent AC 3 vs D8): decided by the agent.** DIS-73 serves the golden Q5 from the CLI
+  in `evaluation` mode and does not change the core `llm-required` branch; if it needs otherwise, it
+  reopens D8 in its own change. D8 records it, and a Spanish comment on DIS-73 says so. Follow-up R8
+  (B → DIS-73).
+
+### Blocking findings
+
+- **B1: fixed.** A `contradicted` claim counts in `claimsChecked` whether or not its contradiction
+  survives verification. Spec "Verification of a contradiction" states it; both scenarios ("A broken
+  document citation…", "A contradiction whose only code citation is broken…") assert `claimsChecked`
+  1. D6, R1.
+- **B2: fixed.** `SourceUnavailable` `missing` in the batched document or configuration read
+  propagates. Spec "Drift failures, logging and writes" names it; task 5.8 tests it for both reads.
+  D6, R2.
+- **B3: fixed.** The configuration spans fit `tokenBudget` minus the kept (non-`doc`) pack spans and
+  the configuration spans already added; a file that does not fit is skipped and the next one tried.
+  Spec "Context of a claim", D4 and task 4.3. R3.
+- **B4: fixed.** No `schema_violation` event is reported (spec "Drift report", D17). Only
+  `unfenceModelOutput` is exported; `discard` and `shapeSubcode` stay private, and a drift-local
+  `driftShapeSubcode` (`limit_exceeded` when every issue is `too_big`, else `invalid_shape`) lives in
+  `drift-quarantine.ts` (D16). The check order and subcode of each failure are in D5 and in the spec
+  (size → `output_too_large`; not JSON → `invalid_json`; shape → `limit_exceeded` or `invalid_shape`;
+  blank statement → `invalid_shape`; `[]` ids → `empty_evidence`; repeated id →
+  `duplicate_evidence_id`; unknown id → `unknown_evidence_id`). The scenario "A contradicted verdict
+  without evidence or statement…" asserts `empty_evidence` and `invalid_shape`; tasks 3.5 and 4.7 add
+  the `output_too_large` and 11-id cases. R4.
+- **B5: fixed.** D14 lists every "until DIS-71" text and its action: reworded in `explain.ts:375`,
+  `claim-items.ts:82,106`, `docs/project-context.md:1118` and `readme.md:1131`; left in
+  `knowledge/confidence.ts:30` (fingerprint input), `docs/CONFIDENCE.md:79` (pinned by the
+  `confidence-score` spec and `confidence-doc.spec.ts:84`; no delta) and
+  `openspec/specs/explain/spec.md:601` (no delta). Tasks 5.10, 8.1 and 11.3 follow it. R5.
+- **B6: fixed.** New scenario "Secrets are redacted before any drift prompt" in "Claim extraction"
+  (an AWS access key id in the document and in a configuration file, absent from both prompts and
+  replaced by the redaction marker); task 4.8; task 8.2 now counts 29 scenarios, 5 in
+  `doc-claims.spec.ts`.
+
+### Improvable findings
+
+- MUST behaviours covered only by extra cases (point 3): **decided by the agent**, kept as extra
+  cases of tasks 3.5, 4.3 and 4.7, not scenarios; the spec now states them (truncation, fence,
+  `MAX_CONFIG_SPANS`, `MAX_CONFIG_LINES`, budget fit, single read). R11 (D, accepted).
+- Request that is not an object (point 3): **fixed**, `null` added to the first scenario, naming
+  `request`.
+- Relative root joined to the workspace root (point 3): **fixed**, task 6.1 notes the seed's relative
+  root covers it.
+- "matches many files" (point 4): **fixed**, Risks reworded with `MAX_CONFIG_SPANS` and byte order.
+- Evidence id of the extraction's sanitisation events (point 5): **fixed**, rewritten to `D1` (spec
+  "Claim extraction", D3, task 3.2a and 3.5). R6.
+- Claim on a cut first line (point 5): **fixed**, every claim of a document whose first line exceeds
+  the limit is dropped (spec "Claim extraction", D3, task 3.5). R7.
+- Precedence of request validation over the workspace-root check (point 5): **fixed** in "Drift
+  request".
+- D6 rule absent from the spec (point 6): **fixed**, "Verification of a contradiction" states that the
+  code side is not checked after a broken document citation; its scenario asserts no code
+  `evidence_broken` event and no `verify` call.
+- First matching line per instruction pattern (point 6): **fixed** in "Claim extraction".
+- Event shapes in the spec (point 6): **fixed**, "Drift report" carries the three shapes of D17.
+- Spend invisible to `withDailyBudget` (point 7): **fixed**, Risks entry and task 10.2 note.
+- `UNSTORED_FILE_ID` export (point 7): **fixed**, module-internal (D13, task 1.3, proposal). R9.
+- Reindex during a run (point 8): **fixed**, Risks entry.
+- `verificationContents` switch (point 8): **fixed**, task 1.1 defines `verificationContents` and
+  `verificationFailures` for the reads after the first confrontation call.
+- Doc span through a `describes` edge (point 8): **fixed**, scenario "Document spans are left out of a
+  claim's context" reworded; task 1.1 lets the double hold `describes` edges.
+- Task size (point 9): **fixed**, task 3.2 split into 3.2a (prompt) and 3.2b (schema and extraction),
+  task 5.2 into 5.2a, 5.2b and 5.2c.
+- `db:seed` as the restoration (point 10): **fixed** in task 10.1.
+- Risk "only the first 8,000 code points are checked" (Corrections → design): **fixed**, Risks entry.
+
+### Linear
+
+- DIS-71 `[enhanced]` §2 AC 1 and §3 "Informe" aligned as the audit asked; the `[original]` block is
+  untouched. A Spanish comment summarises this round. A Spanish comment on DIS-73 records R8.

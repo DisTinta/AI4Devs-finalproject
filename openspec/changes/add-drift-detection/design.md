@@ -2,7 +2,8 @@
 
 See `proposal.md` → Why. The design decisions D1–D12 were taken by the agent as lead engineer while
 enriching DIS-71 (autonomous run, 2026-11-03; Linear comment on DIS-71) and are carried here; D13–D16
-were taken while proposing. All of them are the agent's text.
+were taken while proposing, and the round-1 decisions of the spec audit (Follow-ups R1–R11) are folded
+into D3–D8 and D13–D17. All of them are the agent's text.
 
 What the change builds on, as it is today on `final-project-CRN`:
 
@@ -68,15 +69,19 @@ get `drift_doc_skipped` `limit` and are not read.
 commit and redacted with `redactedLines` (the rule of the pack and the verifier). It is turned into
 one whole-file `ContextSpan` (kind `doc`, D13) and passed through `sanitizeForPrompt` with an empty
 question, which gives the flags, the cut at `MAX_EVIDENCE_TEXT_CHARS` and the sanitisation events with
-no new code. A cut ends the span at its kept last line (`endLine`), and that is "the last line sent"
-of the spec: a claim ending after it is dropped (`droppedClaims`). A document whose first line alone
-exceeds the limit is cut inside that line, so only claims on line 1 can be kept. The prompt (`drift-prompts.ts`,
-`buildExtractionPrompt`) has a fixed system message and a user message JSON
+no new code. `sanitizeForPrompt` names its only span `E1` in those events (`evidenceIdAt(0)`); the
+prompt wraps the document as `D1`, so `extractClaims` rewrites the `evidenceId` of each extraction
+event to `D1` before wrapping it (round 1, Follow-up R6): in every drift event the document is `D1`. A
+cut ends the span at its kept last line (`endLine`), and that is "the last line sent whole" of the
+spec: a claim ending after it is dropped (`droppedClaims`). A document whose first line alone exceeds
+the limit is cut inside that line (`cut: 'line-cut'`); no line of it is sent whole, so every claim of
+it is dropped (round 1, Follow-up R7). Hence every kept claim's lines are whole lines inside the 8,000
+code points sent, and its document citation is the redacted text of those whole lines, bounded. The
+prompt (`drift-prompts.ts`, `buildExtractionPrompt`) has a fixed system message and a user message JSON
 `{ "document": { "path", "lines": "<<<UNTRUSTED_DATA D1>>>\n11\t…\n<<<END_UNTRUSTED_DATA D1>>>" } }`,
 each line neutralised and prefixed by its number and a tab. The output schema is a strict Zod object
-in `doc-claims.ts` reusing the fence unwrapping and the `SchemaViolationEvent` construction of
-`statement-schema.ts` (the two private helpers `unfenced` and `discard` are exported from it for this,
-unchanged in behaviour; D16). Limits exported: `MAX_EXTRACTED_CLAIMS = 50` (schema bound, an output
+in `doc-claims.ts`; the quarantine reuses the fence unwrapping of `statement-schema.ts` (exported as
+`unfenceModelOutput`, D16) and the drift-local subcode rule of D16. Limits exported: `MAX_EXTRACTED_CLAIMS = 50` (schema bound, an output
 with more is `limit_exceeded`), `MAX_DOC_CLAIMS = 12` (confronted), `MAX_CLAIM_CHARS = 500`.
 No new LLM purpose: extraction is an `answer` call, so the adapter's model choice and the meter's
 `generation` bucket apply.
@@ -93,8 +98,11 @@ files: the paths of the index state with `fileKindOf(path) === 'config'` whose n
 first confrontation that needs them), redacted; a file matches a claim when
 `normaliseText(redactedContent)` contains any of `questionTerms(claim.text)`. Matching files not
 already in the pack, in byte order, at most `MAX_CONFIG_SPANS = 3`, each a whole-file span of its
-first `MAX_CONFIG_LINES = 200` lines (`spanText`), `origin: 'heuristic'`, `distance: 1`, included while
-`estimateTokens(text)` fits `tokenBudget − pack.tokens`. A context with no span ⇒ no call, the claim
+first `MAX_CONFIG_LINES = 200` lines (`spanText`), `origin: 'heuristic'`, `distance: 1`, added only
+when `estimateTokens(text)` fits `tokenBudget − Σ tokens of the pack's kept (non-doc) spans − Σ tokens
+of the configuration spans already added`; a file that does not fit is skipped and the next matching
+one is still tried. Not `tokenBudget − pack.tokens`: `pack.tokens` (`context-pack.ts:206`) also counts
+the `doc` spans this step removes, which are never sent (round 1, Follow-up R3). A context with no span ⇒ no call, the claim
 is checked (no contradiction). Without this addition `config/shop.php` (the €75 value), which has no
 symbol, never reaches the model.
 
@@ -106,10 +114,25 @@ One `answer` call per claim with context. `buildConfrontationPrompt(claim, citat
 fixed system message; user message JSON `{ "claim": wrapped(neutralised text), "document": { path,
 startLine, endLine, text: wrapped }, "evidence": [ … as in explain's prompt … ] }`, the spans
 sanitised by `sanitizeForPrompt(claim.text, spans)` (the claim is the "question": its flags and the
-spans' events come from there). Output schema strict: `verdict` enum, `statement` ≤ 500 code points,
-`evidenceIds` ≤ 10 distinct known ids; a `superRefine` turns a `contradicted` with a blank statement
-or no ids into `invalid_shape`/`empty_evidence`; unknown ids → `unknown_evidence_id`, duplicates →
-`duplicate_evidence_id` (the explain quarantine's subcodes and order).
+spans' events come from there). Quarantine (`parseConfrontationOutput`), checks in this order, each
+with its subcode from the closed set `SCHEMA_VIOLATION_SUBCODES` (round 1, Follow-up R4):
+
+1. more than `MAX_MODEL_OUTPUT_BYTES` (65,536) UTF-8 bytes → `output_too_large`;
+2. `JSON.parse(unfenceModelOutput(text))` fails → `invalid_json`;
+3. the strict Zod object (`verdict` enum, `statement` string ≤ 500 code points without U+0000,
+   `evidenceIds` array ≤ 10 strings) fails → `driftShapeSubcode(issues)`: `limit_exceeded` when every
+   issue is `too_big` (statement over 500, 11 ids), otherwise `invalid_shape`;
+4. `contradicted` with a blank statement (empty after trimming) → `invalid_shape`;
+5. `contradicted` with `evidenceIds` `[]` → `empty_evidence`;
+6. any verdict citing an id twice → `duplicate_evidence_id`;
+7. any verdict citing an id its prompt does not hold → `unknown_evidence_id`.
+
+Steps 4–5 are plain checks after the parse, not a `superRefine`: `shapeSubcode` of `explain` matches
+only issues whose path ends with `.evidenceIds`, which a top-level `evidenceIds` path or a `custom`
+issue never does, so reusing it would turn "contradicted with no ids" into `invalid_shape`. The
+extraction quarantine (`parseClaimsOutput`) runs steps 1–3 with the same rule (51 claims or a text of
+501 code points → `limit_exceeded`; an extra field, a line 0, `endLine < startLine`, U+0000 →
+`invalid_shape`).
 
 ### D6. Verification and type (enrich D6)
 
@@ -119,8 +142,15 @@ entail), under the id `D1` in its `evidence_broken` event. The code side is one 
 `{ text: statement, type: 'INFERENCE', spans, evidenceIds }` passed to `verifyAnswer` with the
 prompt's id → span map, so broken citations, the semantic check, the cache and the
 `entailment_unverified` events are exactly `explain`'s. The document citation is checked first; when
-it is broken the code side is not checked (no `verify` call). The contradiction's `type` is always
-`INFERENCE` (a judgement between two sources), whatever the entailment policy says.
+it is broken the code side is not checked (no code `evidence_broken` event and no `verify` call); the
+spec states this rule and its scenario asserts it. The contradiction's `type` is always `INFERENCE` (a
+judgement between two sources), whatever the entailment policy says. A `contradicted` claim counts in
+`claimsChecked` whether or not its contradiction survives the verification: it was checked, and the
+verification only decides whether it is reported (round 1, Follow-up R1). A stored file missing at the
+indexed commit in the batched document or configuration read (`SourceUnavailable` `missing`) is not
+special-cased: it propagates like any other read failure, since the index state and the commit
+disagree and the run cannot be trusted (round 1, Follow-up R2). In the verification read a missing
+file stays `evidence_broken`, as in `explain`.
 
 ### D7. No persistence (enrich D7, destination D)
 
@@ -132,7 +162,10 @@ stored contradictions would mix with the prior claims `explain` reads (`findClai
 
 `evaluation` ⇒ `{ status: 'unknown', reason: 'llm-required' }` before any read (cheaper and honest:
 nothing can be judged without a model; the golden Q5 of DIS-73 is a CLI concern). No documents ⇒
-`no-docs`. Both are values, not errors.
+`no-docs`. Both are values, not errors. Decided in round 1 (Follow-up R8, answer to the audit's
+Question 2): DIS-73 serves the golden Q5 report from the CLI in `evaluation` mode, before or instead of
+calling core `drift`, and does not change this core branch; if DIS-73 finds it needs the golden lookup
+inside core, it reopens D8 in its own change.
 
 ### D9. Failure isolation (enrich D9)
 
@@ -170,11 +203,16 @@ span) cannot hold them. Since the report is not persisted (D7), the contradictio
 `{ model, promptHash, inputSpans: [{ path, startLine, endLine }], createdAt }`, validated by an exported
 `driftProvenanceSchema` (same rules as `provenanceSchema` with `path` — a non-empty string — in place
 of `fileId`). Internally, the whole-file spans of documents and configuration files are `ContextSpan`
-values whose `fileId` is the exported constant `UNSTORED_FILE_ID = ''`: `sanitizeForPrompt`,
+values whose `fileId` is the constant `UNSTORED_FILE_ID = ''`, shared by the files of
+`packages/core/src/drift/` but not re-exported by `drift/index.ts` nor by `@codemind/core` (round 1,
+Follow-up R9: no caller outside the module needs it, and `docs/backend-standards.md` §3 asks for
+explicit outputs): `sanitizeForPrompt`,
 `verifyCitations` and `verifyAnswer` never read `fileId` (checked: `grep fileId` over
 `explain/sanitize.ts` and `verify/` finds nothing), and nothing of `drift` writes a claim. The report
 never exposes a `fileId`. This deviates from the ticket's AC 1 wording ("`provenance` válida para
 `provenanceSchema`"); the substance (model, prompt hash, non-empty input spans, instant) is kept.
+Accepted in round 1 (Follow-up R10, answer to the audit's Question 1): the deviation stands and the
+`[enhanced]` AC 1 of DIS-71 is aligned to `driftProvenanceSchema`.
 
 *Alternative rejected:* a new store read `listFiles(projectId)` with ids — a port change, a Postgres
 query, the in-memory double and the `calls` assertions of `tests/unit/explain/explain.spec.ts` (as
@@ -185,8 +223,25 @@ later story persists contradictions.
 
 `explain.ts` passes `{ contradiction: false }` to `confidence` with the comment "No component produces
 contrary evidence until DIS-71". `drift` produces contradictions but does not persist them (D7), so
-`explain` still has none to read; the comment is reworded to say so (no code or behaviour change). If a
-later story persists them, it decides whether they lower the confidence of overlapping answers.
+`explain` still has none to read, and the signal stays 0. If a later story persists them, it decides
+whether they lower the confidence of overlapping answers.
+
+Every text that promises something "until DIS-71" (round 1, Follow-up R5), and what this change does
+with it:
+
+| Place | Action | Why |
+|---|---|---|
+| `packages/core/src/explain/explain.ts:375` (comment) | Reworded | Free text, not pinned, not a fingerprint input |
+| `packages/core/src/explain/claim-items.ts:82` (JSDoc) and `:106` (comment) | Reworded | Same |
+| `docs/project-context.md:1118` | Reworded (with task 11.1) | Same |
+| `readme.md:1131` | Reworded | Same; the only sentence of `readme.md` this change edits |
+| `packages/core/src/knowledge/confidence.ts:30` | Left | Analyzer-fingerprint input (`packages/cli/src/seed/fingerprint.ts:34`): editing it forces `seed:build` for a comment |
+| `docs/CONFIDENCE.md:79` | Left | Pinned verbatim by the main spec `confidence-score` and `tests/unit/knowledge/confidence-doc.spec.ts:84`; this change has no `confidence-score` delta, so the main spec cannot be edited |
+| `openspec/specs/explain/spec.md:601` | Left | Main spec without a delta in this change; "no component produces contrary evidence yet" stays true for what `explain` reads |
+
+The reworded texts say: "`drift` (DIS-71) finds contradictions but does not store them, so the
+signal stays 0". The left texts are a known staleness, recorded here; whoever persists contradictions
+updates them with the confidence-score delta.
 
 ### D15. `.env*` files never enter a prompt (propose)
 
@@ -194,13 +249,19 @@ later story persists them, it decides whether they lower the confidence of overl
 secrets, but a configuration prompt does not need environment templates, so names starting with `.env`
 are excluded from the configuration context: the least data sent to the model.
 
-### D16. Two quarantine helpers exported (propose)
+### D16. One quarantine helper exported; a drift-local subcode rule (propose, revised in round 1)
 
-`unfenced(text)` and `discard(text, subcode, issues)` of `statement-schema.ts` are exported (renamed
-`unfenceModelOutput` and `discardModelOutput`) so the two drift schemas build the same
-`SchemaViolationEvent` (size, SHA-256, issues capped) without a copy. Behaviour of
+Only `unfenced(text)` of `statement-schema.ts` is exported, renamed
+`unfenceModelOutput(text: string): string`, so the two drift schemas unwrap a fenced output with the
+one rule of `explain` (DIS-72 C9) without a copy. `discard` stays private: it returns `explain`'s
+`ModelOutputResult` (typed to `ModelOutput`), and drift reports no `schema_violation` event (D17), so
+it has no use for it. `shapeSubcode` stays private too: its `empty_evidence` rule matches only
+`.evidenceIds` paths (D5). Instead `packages/core/src/drift/drift-quarantine.ts` holds
+`driftShapeSubcode(issues: readonly { code: string }[]): 'limit_exceeded' | 'invalid_shape'`
+(`limit_exceeded` when every issue is `too_big`) and the size check against `MAX_MODEL_OUTPUT_BYTES`,
+used by both drift quarantines; neither is re-exported by `drift/index.ts`. Behaviour of
 `parseModelOutput` unchanged; its tests (`tests/unit/explain/statement-schema.spec.ts`) stay green
-unchanged.
+unchanged (round 1, Follow-up R4).
 
 ### D17. Events of the report
 
@@ -209,7 +270,10 @@ Inner events keep `explain`'s shapes (`SanitizationEvent`, `EvidenceBrokenEvent`
 wrapped: `{ type: 'drift_check_event', docPath, claimIndex?, event }`. The two drift events are
 `{ type: 'drift_doc_skipped', docPath, reason: 'invalid-model-output' | 'limit', subcode? }` and
 `{ type: 'drift_claim_skipped', docPath, claimIndex, reason: 'invalid-model-output', subcode }`. None
-holds text from the document, the claims or the model output (the subcode only).
+holds text from the document, the claims or the model output (the subcode only). No
+`schema_violation` event is reported, wrapped or not: the skip event and its subcode are the whole
+record of a discarded output, and the report reaches no log in this change (round 1, Follow-up R4).
+The spec's "Drift report" requirement carries these shapes verbatim.
 
 ### D18. Usage and clock
 
@@ -232,13 +296,25 @@ revert. No ADR (destination D).
 - [The model may extract vague or non-checkable claims] → only `contradicted` with verified evidence on
   both sides is reported; the type is always `INFERENCE`; the DoD is the scripted run, and live quality
   is measured by DIS-73's golden Q5.
-- [Configuration matching by term substring is coarse (a short term like `tax` matches many files)] →
-  at most 3 files, 200 lines each, inside the token budget; byte order makes it deterministic.
+- [Configuration matching by term substring is coarse (a short term like `tax` can match every
+  configuration file of the project)] → at most `MAX_CONFIG_SPANS` (3) are added, in path byte order,
+  200 lines each, inside the token budget.
+- [`drift` writes no `query_log` row, so `withDailyBudget`, which reads its spend from
+  `query_log.cost_usd` (`docs/backend-standards.md` §8), does not see the spend of a run (up to 130
+  `answer` calls plus `verify` calls), neither during it nor after it, until DIS-73 logs it; this also
+  applies to the optional live run of task 10.2] → the limits are exported, `docPath` narrows a run,
+  and DIS-73 owns the row (E10).
+- [Only the first `MAX_EVIDENCE_TEXT_CHARS` (8,000) code points of a document are checked] → the cut
+  is reported (`untrusted_content_truncated`), and `docPath` lets a caller check one document.
+- [A reindex during a run could make the per-claim packs (`buildContextPack` reads `getProject` and
+  the files again for each claim) read another commit than the report's `commit`] → accepted: a run is
+  short and the CLI of DIS-73 is a single process; the report's `commit` is the one of the documents
+  and the verification.
 - [`fileId: ''` inside internal spans could leak into a write if a later change persists drift output]
   → `UNSTORED_FILE_ID` is named and documented, `ClaimItem` validation (`inputSpanSchema`, UUID) would
   reject it, and D13 says persistence needs a file-id read first.
-- [Exporting two quarantine helpers widens `@codemind/core`'s surface] → they are pure and already the
-  single rule; mutation testing covers them through both callers.
+- [Exporting a quarantine helper widens `explain`'s module surface] → only `unfenceModelOutput`, pure
+  and already the single rule; mutation testing covers it through both callers.
 
 ## Migration Plan
 
@@ -267,5 +343,16 @@ All rows are the agent's text (autonomous run, 2026-11-03). No row has destinati
 | P1 | (D13) Provenance by path (`driftProvenanceSchema`), not `provenanceSchema`; internal spans of documents and configuration files carry `UNSTORED_FILE_ID`. Deviation from the wording of AC 1, recorded on DIS-71. | A |
 | P2 | (D14) `explain` keeps `contradiction: false`; its comment is reworded. | D — accepted |
 | P3 | (D15) `.env*` configuration files are excluded from the context. | A |
-| P4 | (D16) `unfenced`/`discard` exported from `statement-schema.ts` as `unfenceModelOutput`/`discardModelOutput`. | A |
+| P4 | (D16) `unfenced` exported from `statement-schema.ts` as `unfenceModelOutput` (revised in round 1: `discard` stays private, see R4). | A |
 | P5 | (D19) No ADR. | D — accepted |
+| R1 | (Audit run 1, B1; D6) A `contradicted` claim counts in `claimsChecked` whether or not its contradiction survives the verification. | A |
+| R2 | (Audit run 1, B2; D6) `SourceUnavailable` `missing` in the batched document or configuration read propagates like any other read failure; task 5.8 tests it. | A |
+| R3 | (Audit run 1, B3; D4) Configuration spans fit `tokenBudget` minus the kept (non-`doc`) pack spans and the configuration spans already added, not `pack.tokens`. | A |
+| R4 | (Audit run 1, B4; D5, D16, D17) No `schema_violation` event in the report; subcodes fixed per check (size, JSON, shape, blank statement, empty ids, duplicate, unknown); drift-local `driftShapeSubcode`; only `unfenceModelOutput` exported. | A |
+| R5 | (Audit run 1, B5; D14) "until DIS-71" texts: reword `explain.ts`, `claim-items.ts`, `docs/project-context.md`, `readme.md`; leave `confidence.ts` (fingerprint input), `docs/CONFIDENCE.md` (pinned by the `confidence-score` spec and its test) and `openspec/specs/explain/spec.md` (no delta). | A (rewording); D — accepted (the texts left) |
+| R6 | (Audit run 1, improvable; D3) The extraction's sanitisation events carry evidence id `D1` (rewritten from `E1`). | A |
+| R7 | (Audit run 1, improvable; D3) A document whose first line exceeds `MAX_EVIDENCE_TEXT_CHARS` has no line sent whole: every claim of it is dropped. | A |
+| R8 | (Audit run 1, Question 2; D8) DIS-73 serves the golden Q5 from the CLI in `evaluation` mode without changing the core `llm-required` branch; a Spanish comment on DIS-73 records it. | B — DIS-73 |
+| R9 | (Audit run 1, improvable; D13) `UNSTORED_FILE_ID` is module-internal (not re-exported by `drift/index.ts` or `@codemind/core`). | A |
+| R10 | (Audit run 1, Question 1; D13) The deviation from AC 1 (`driftProvenanceSchema` instead of `provenanceSchema`) is accepted; the `[enhanced]` AC 1 and §3 "Informe" of DIS-71 are aligned (`droppedClaims`, `excerpt`). | A |
+| R11 | (Audit run 1, improvable) The behaviours tested only as extra cases (document truncation, fence unwrapping, `MAX_CONFIG_SPANS`, `MAX_CONFIG_LINES`, budget fit, single configuration read) are now stated in the spec's requirements but stay extra cases of tasks 3.5, 4.3 and 4.7, not scenarios: they are tested, and the 1:1 map stays small. | D — accepted |
