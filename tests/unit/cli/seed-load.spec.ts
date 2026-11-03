@@ -7,10 +7,12 @@ import { ProjectNameTaken } from '@codemind/core';
 import type { LoadedSample, SeedToLoad } from '@codemind/adapter-store-postgres';
 import { DatabaseUnavailable } from '../../../packages/cli/src/compose-index';
 import type { OpenTransaction } from '../../../packages/cli/src/compose-index';
-import { readGoldenFiles, runSeedLoad } from '../../../packages/cli/src/seed-load';
+import { readDriftGoldenFiles, readGoldenFiles, runSeedLoad } from '../../../packages/cli/src/seed-load';
 import { renderGoldenFile } from '../../../packages/cli/src/cache/golden-file';
 import { cachedAnswer } from '../../support/cached-answer';
 import { goldenFile } from '../../support/golden-file';
+import { driftGoldenFile } from '../../support/drift-golden-file';
+import { renderDriftGoldenFile } from '../../../packages/cli/src/cache/drift-golden-file';
 
 // Spec: openspec/changes/seed-load-and-projects/specs/seed-load/spec.md → "Command contract and
 // configuration". Each `it` named after a scenario is that scenario; the others are extra cases. The
@@ -402,6 +404,7 @@ describe('runSeedLoad', () => {
       stderr: { write: () => undefined },
       repoRoot: dir,
       seedPath: join(dir, 'graph-dump.sql'),
+      driftDir: join(dir, 'no-drift-files'),
       openTransaction: async () => ({
         client,
         commit: async () => void log.push('commit'),
@@ -439,6 +442,7 @@ describe('runSeedLoad', () => {
       stderr: { write: () => undefined },
       repoRoot: dir,
       seedPath: join(dir, 'graph-dump.sql'),
+      driftDir: join(dir, 'no-drift-files'),
       openTransaction: async () => ({ client: {} as ClientBase, commit: async () => undefined, rollback: async () => undefined, release: async () => undefined }),
       load: async () => [ACME],
       cacheStore: () => {
@@ -448,6 +452,99 @@ describe('runSeedLoad', () => {
     });
     expect(exit).toBe(0);
     expect(built).toBe(0);
+  });
+
+  // Spec: openspec/changes/add-cli-drift/specs/seed-load/spec.md (DIS-73) → "Golden drift files are checked before connecting".
+  it('An invalid golden drift file fails before connecting', async () => {
+    // Arrange
+    const valid = driftGoldenFile();
+    const [entry] = valid.entries;
+    const cases: [string, string][] = [
+      ['acme-shop.json', '{"format": 1,'],
+      ['other-api.json', renderDriftGoldenFile(driftGoldenFile({ project: 'other-api' }))],
+      ['other.json', renderDriftGoldenFile(valid)],
+      ['acme-shop.json', JSON.stringify({ ...valid, entries: [entry, { ...entry, id: 'Q6' }] })],
+      ['acme-shop.json', JSON.stringify({ ...valid, entries: [{ ...entry, response: { ...entry!.response, events: [] } }] })],
+      ['acme-shop.json', JSON.stringify({ ...valid, entries: [{ ...entry, key: 'pricing' }] })],
+    ];
+    for (const [name, content] of cases) {
+      const driftDir = join(dir, 'seeds', 'drift');
+      rmSync(driftDir, { recursive: true, force: true });
+      mkdirSync(driftDir, { recursive: true });
+      writeFileSync(join(driftDir, name), content);
+
+      // Act
+      const result = await run();
+
+      // Assert
+      expect(result.exit).toBe(1);
+      expect(errorOf(result)).toEqual({
+        code: 'INVALID_SEED',
+        message: `seeds/drift/${name} is not a loadable codemind golden file`,
+        details: { reason: 'cache', file: `seeds/drift/${name}` },
+      });
+      expect(result.log).toEqual([]);
+    }
+  });
+
+  it('saves every golden drift entry under its key after the golden answers, in the same transaction', async () => {
+    // Arrange
+    const cacheDir = join(dir, 'seeds', 'cache');
+    const driftDir = join(dir, 'seeds', 'drift');
+    mkdirSync(cacheDir, { recursive: true });
+    mkdirSync(driftDir, { recursive: true });
+    const golden = goldenFile();
+    const driftFile = driftGoldenFile();
+    writeFileSync(join(cacheDir, 'acme-shop.json'), renderGoldenFile(golden));
+    writeFileSync(join(driftDir, 'acme-shop.json'), renderDriftGoldenFile(driftFile));
+    writeFileSync(join(dir, 'graph-dump.sql'), SEED);
+    const log: string[] = [];
+    const saves: unknown[][] = [];
+
+    // Act
+    const exit = await runSeedLoad({
+      env: VALID_ENV,
+      stdout: { write: () => undefined },
+      stderr: { write: () => undefined },
+      repoRoot: dir,
+      seedPath: join(dir, 'graph-dump.sql'),
+      openTransaction: async () => ({
+        client: {} as ClientBase,
+        commit: async () => void log.push('commit'),
+        rollback: async () => void log.push('rollback'),
+        release: async () => void log.push('release'),
+      }),
+      load: async () => [ACME],
+      cacheStore: () => ({
+        saveCacheEntry: async (...args: unknown[]) => {
+          log.push('save');
+          saves.push(args);
+        },
+      }),
+    });
+
+    // Assert
+    expect(exit).toBe(0);
+    expect(saves).toEqual([
+      ...golden.entries.map((entry) => [ACME_ID, entry.questionNormalized, entry.response]),
+      [ACME_ID, 'drift:', driftFile.entries[0]!.response],
+    ]);
+    expect(log.slice(-2)).toEqual(['commit', 'release']);
+  });
+
+  it('reads only the .json files directly in the golden drift directory, in name order', () => {
+    const driftDir = join(dir, 'drift');
+    mkdirSync(join(driftDir, 'old'), { recursive: true });
+    writeFileSync(join(driftDir, 'task-api.json'), renderDriftGoldenFile(driftGoldenFile({ project: 'task-api' })));
+    writeFileSync(join(driftDir, 'acme-shop.json'), renderDriftGoldenFile(driftGoldenFile()));
+    writeFileSync(join(driftDir, 'README.md'), '{');
+    writeFileSync(join(driftDir, 'old', 'acme-shop.json'), '{');
+
+    const files = readDriftGoldenFiles(driftDir, ['acme-shop', 'task-api'], dir);
+
+    expect(files.map((file) => file.project)).toEqual(['acme-shop', 'task-api']);
+    expect(readDriftGoldenFiles(join(dir, 'absent'), ['acme-shop'], dir)).toEqual([]);
+    expect(() => readDriftGoldenFiles(join(driftDir, 'README.md'), ['acme-shop'], dir)).toThrow();
   });
 
   it('reads only the .json files directly in the golden directory, in name order', () => {

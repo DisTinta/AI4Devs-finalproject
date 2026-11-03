@@ -12,23 +12,11 @@ import {
   renderDriftGoldenFile,
 } from '../../../packages/cli/src/cache/drift-golden-file';
 import type { DriftGoldenFile } from '../../../packages/cli/src/cache/drift-golden-file';
-import { goldenDriftReport } from '../../support/drift-doubles';
+import { driftGoldenFile } from '../../support/drift-golden-file';
 
 // Spec: openspec/changes/add-cli-drift/specs/drift-golden/spec.md (DIS-73), requirements "Golden drift
 // file format" and "Golden drift fingerprint". The `it` named after a scenario is that scenario; the
 // rest are extra cases. The fingerprint tree is temporary, as in answer-fingerprint.spec.ts.
-
-/** A valid golden drift file value; each call returns a fresh object. */
-function driftGoldenFile(): DriftGoldenFile {
-  return {
-    format: 1,
-    project: 'acme-shop',
-    seed: { analyzerFingerprint: `sha256:${'a'.repeat(64)}`, contractFingerprint: `sha256:${'b'.repeat(64)}` },
-    driftFingerprint: `sha256:${'c'.repeat(64)}`,
-    generatedWith: { model: 'scripted-model', verifyModel: 'scripted-model' },
-    entries: [{ id: 'Q5', key: 'drift:', response: goldenDriftReport() as never, reviews: [] }],
-  };
-}
 
 const CONTEXT = { seedProjectNames: ['acme-shop', 'task-api'], fileName: 'acme-shop.json' };
 

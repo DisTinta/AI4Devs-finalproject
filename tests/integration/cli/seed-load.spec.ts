@@ -7,6 +7,7 @@ import { afterAll, expect, it } from 'vitest';
 import { createGitSourceTree } from '@codemind/adapter-git';
 import { createPostgresStore } from '@codemind/adapter-store-postgres';
 import { buildApp } from '../../../packages/api/src/app';
+import { renderDriftGoldenFile } from '../../../packages/cli/src/cache/drift-golden-file';
 import { renderGoldenFile } from '../../../packages/cli/src/cache/golden-file';
 import type { GoldenFile } from '../../../packages/cli/src/cache/golden-file';
 import type { OpenTransaction } from '../../../packages/cli/src/compose-index';
@@ -14,6 +15,7 @@ import { runSeedLoad } from '../../../packages/cli/src/seed-load';
 import type { SeedLoadDeps } from '../../../packages/cli/src/seed-load';
 import { seedProjects } from '../../../packages/cli/src/seed/parse-seed';
 import { cachedAnswer } from '../../support/cached-answer';
+import { driftGoldenFile } from '../../support/drift-golden-file';
 import { goldenEntry, goldenFile } from '../../support/golden-file';
 import { sampleGraph } from '../../support/sample-graph';
 import { createScriptedLlm } from '../../support/scripted-llm';
@@ -36,6 +38,8 @@ const SAMPLE_LINES = [
   '  task-api  typescript/fastify  102 nodes · 100 edges',
 ];
 const WORKSPACE_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+/** A golden drift directory that does not exist: the scenarios that count `cache_entry` rows do not load the versioned golden drift report (DIS-73). */
+const MISSING_DRIFT_DIR = join(tmpdir(), 'codemind-no-such-golden-drift-dir');
 /** Temporary golden directories of the golden scenarios (DIS-26), removed at the end. */
 const goldenDirs: string[] = [];
 
@@ -308,7 +312,12 @@ describeWithDatabase('db:seed (integration)', () => {
   }
 
   /** Loads the versioned seed with the golden directory `cacheDir` and the optional cache store seam. */
-  async function loadGolden(client: Client, cacheDir: string, cacheStore?: SeedLoadDeps['cacheStore']): Promise<Run> {
+  async function loadGolden(
+    client: Client,
+    cacheDir: string,
+    cacheStore?: SeedLoadDeps['cacheStore'],
+    driftDir: string = MISSING_DRIFT_DIR,
+  ): Promise<Run> {
     let stdout = '';
     let stderr = '';
     const exit = await runSeedLoad({
@@ -317,6 +326,7 @@ describeWithDatabase('db:seed (integration)', () => {
       stderr: { write: (chunk: string) => void (stderr += chunk) },
       openTransaction: savepointTransaction(client),
       cacheDir,
+      driftDir,
       ...(cacheStore === undefined ? {} : { cacheStore }),
     });
     return { exit, stdout, stderr };
@@ -463,5 +473,43 @@ describeWithDatabase('db:seed (integration)', () => {
     expect(JSON.parse(result.stderr)).toEqual({ error: { code: 'INTERNAL', message: 'seed load failed; the database is unchanged', details: {} } });
     expect(saves).toBe(2);
     expect(await snapshot(db(), [])).toEqual(before);
+
+    // The second run: a golden drift directory whose `drift:` save fails.
+    const driftDir = goldenDir({ 'acme-shop.json': renderDriftGoldenFile(driftGoldenFile()) });
+    const failingDrift: SeedLoadDeps['cacheStore'] = (connection) => {
+      const real = createPostgresStore(connection);
+      return {
+        saveCacheEntry: async (projectId, key, response) => {
+          if (key === 'drift:') throw new Error('disk full');
+          await real.saveCacheEntry(projectId, key, response);
+        },
+      };
+    };
+    const second = await loadGolden(db(), cacheDir, failingDrift, driftDir);
+    expect(second.exit).toBe(1);
+    expect(second.stdout).toBe('');
+    expect(JSON.parse(second.stderr)).toEqual({ error: { code: 'INTERNAL', message: 'seed load failed; the database is unchanged', details: {} } });
+    expect(await snapshot(db(), [])).toEqual(before);
+  });
+
+  // Spec: openspec/changes/add-cli-drift/specs/seed-load/spec.md (DIS-73) → "Golden drift files are checked before connecting".
+  it('A golden drift report is loaded under its key', async () => {
+    // Arrange: a valid golden drift file whose fingerprints are not the current ones (they are not checked).
+    await db().query('DELETE FROM project');
+    const file = driftGoldenFile();
+    const driftDir = goldenDir({ 'acme-shop.json': renderDriftGoldenFile(file) });
+    const emptyCacheDir = goldenDir();
+
+    for (let run = 1; run <= 2; run += 1) {
+      // Act
+      const result = await loadGolden(db(), emptyCacheDir, undefined, driftDir);
+
+      // Assert
+      expect(result.exit, `run ${run}`).toBe(0);
+      expect(result.stdout).toBe(`${SAMPLE_LINES.join('\n')}\n`);
+      expect(result.stderr).toBe('');
+      const rows = await cacheRows(db(), ACME_ID);
+      expect(rows).toEqual([{ question_normalized: 'drift:', response: file.entries[0]!.response, hit_count: 0, last_hit_at: null }]);
+    }
   });
 });
