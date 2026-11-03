@@ -740,3 +740,259 @@ context-measurement --strict` passes after the edits. The spec now has 11 requir
   the enhanced part of DIS-81.
 - GET requests with no body — fixed: D9 states `body: ''` and `headers: {}`; task 4.1 asserts them.
 - Scenario counts in 8.2 and 13.8 — fixed: 41.
+
+---
+
+## Run 3 (2026-11-03)
+
+CHANGES REQUIRED
+
+**Questions for the author:** none. Both blocking findings are engineering decisions. In this autonomous run the agent may settle them as lead engineer, as long as each answer is marked as the agent's text.
+
+**What this run judged.** The change as it stands after correction round 2:
+- `proposal.md`, `design.md` (D1–D14, P1–P31), `specs/context-measurement/spec.md` (11 requirements, 41 scenarios), `specs/graph-quality/spec.md` and `tasks.md`.
+- DIS-81 (description and all six comments) and its parent DIS-53 (description and its comment of 2026-10-28), loaded from Linear.
+
+**Earlier decisions.** P16–P31 are marked as the agent's text and do not contradict the ticket or the project, so they are accepted. One case was checked specifically: the DIS-53 comment of 2026-10-28 says «las preguntas de la Tabla 1 siguen siendo de la autora». DIS-81's enhanced D1 replaces that, citing the no-author-work rule, and the sub-issue bounds the change, so this is not a conflict.
+
+## 1. Scope against the ticket
+
+Clean.
+- Everything follows from DIS-81 (enhanced D1–D8 and the audit decisions recorded there), or from the Entrega 1 review note "Medir el verificador" that was moved onto DIS-81 (D13).
+- The conditional rewrite of §0.3 (P30) is bounded: it happens only when the measurement contradicts that sentence. It is recorded in a Spanish comment on DIS-81.
+- Nothing widens the change to Table 2 or to DIS-82.
+
+## 2. Inherited acceptance criteria
+
+Clean.
+- DIS-81 AC 1–5 and its DoD map to requirements with scenarios (point 11).
+- Parent DIS-53 AC 2 maps to "Measurement outputs".
+- Parent DIS-53 AC 3 limitations map to "Published Table 1" and its scenario "The README limitations and verifier row are current": one run, the annotation by two agents, the small repositories, PH-16 with the measured deviation, and PH-27.
+- The parent/sub-issue disagreements were answered by the agent in earlier rounds (P22–P25).
+
+## 3. Missing scenarios
+
+All improvable:
+- **Shared §2.6 intro (D14).** "Published Table 1" has no requirement that the first paragraph after `#### Mediciones que se publicarán` says Table 1 is measured. The `graph-quality` delta only requires that it names `DIS-81`. Today's text, «La Tabla 1 sigue pendiente de `measure-context` (DIS-81).» (`readme.md:876`), would keep every test green after the measurement, contradicting D14.
+- **Freeze table.** "Freeze check before measuring" says the table SHALL list `questions.json`. But `checkFreeze` (`scripts/annotation-agreement.mjs:452-474`) passes when the table lists only other files. No rule and no scenario covers a table without the `questions.json` row.
+
+## 4. Ambiguity
+
+None of the listed words appears in the proposal, design, specs or tasks. One improvable item:
+- The current Table 1 caption is «(~20 preguntas por repositorio, revisión manual)» (`readme.md:878`). The spec only removes `revisión manual`. Also require the caption to drop the `~`: write `20 preguntas por repositorio`, since the question set is exactly 20.
+
+## 5. Open decisions
+
+### B1 (blocking): integrity of the raw data on resume
+
+The resume design (D7) rests on files left on disk by an interrupted run. The change fixes only two cases:
+- a raw response whose `question` differs from the question file;
+- raw data present without `run.json`.
+
+These cases are left for the implementer:
+- **(a)** A raw response, `raw/tokenizer.json` or `raw/run.json` that cannot be parsed as JSON, or that lacks its required fields (`formatVersion`, `fixture`, `questionId`, `question`, `body`; or `counts[].file`, `sha256`, `providerTokens`). A process killed during a write can leave such a file.
+- **(b)** A `tokenizer.json` count whose `sha256` differs from the file's current SHA-256. This happens when the seed or a fixture changed after the count. The change does not say whether the count is redone or the command exits 1. Today such a count counts as "recorded", so `build` would publish a stale count.
+- **(c)** A count or raw response for a file or question id that is not in the current sample or question file, for example `raw/acme-shop/Q21.json`.
+- **(d)** When the stale check runs. D8 does not place it in the order, so it can run before the first ask or lazily in file order. The scenario uses `Q01`, which cannot tell the two apart. A stale `Q20` with `Q03` missing would send `Q03` first.
+
+**Fix:**
+- "Asking each question" and "Tokenizer deviation sample": every existing raw file is read and validated after `raw/run.json` and before the first request. Each case (a)–(c) exits 1 with one stderr line naming the file, sends no question and writes no output. Recommended for (b): exit 1 naming `docs/measurements/context/raw/tokenizer.json` and the fixture path, since a silent recount would hide that the seed changed.
+- D7 and D8: add that validation step to the order.
+- Add one scenario, "Unusable raw data stops the run before any question": a truncated `raw/task-api/Q05.json`, then a `tokenizer.json` count with another `sha256`; each exits 1 naming the file, and no ask or generate request is recorded. Map it to task 5.4.
+
+### B2 (blocking): Ollama's context length is neither ensured nor recorded
+
+`docs/project-context.md:1124-1131` (Gotcha DIS-72) and `readme.md:459` say:
+- Ollama must be served with `OLLAMA_CONTEXT_LENGTH=16384`.
+- With the default context it cuts the 5–7k-token `explain` prompt (`truncating input prompt`), and every answer becomes `invalid-model-output`.
+- The fix is to stop the tray app and every `ollama.exe` / `llama-server`, then run `OLLAMA_CONTEXT_LENGTH=16384 ollama serve`.
+
+Task 7.3 starts its own `ollama serve` only "if it does not" answer. Task 7.9 says "never the tray app". So if the tray app is already running with the default context, the run measures against a truncating server. The OpenAI-compatible route takes no `num_ctx`, and the script cannot see the server's setting. The result is either:
+- an all-`UNKNOWN` Table 1 (`no definido`, a wasted run of hours); or
+- truncated `prompt_tokens`, which understate «CODEMIND» and overstate «Ahorro». This bias goes straight into the published figure.
+
+Neither `run.json` nor `## Entorno` records the context length, so a reader cannot tell. This contradicts `docs/project-context.md` (point 7), and the implementer is left to decide it alone.
+
+**Fix:**
+- **Task 7.3:** follow the gotcha exactly. Stop the tray app and every `ollama.exe` / `llama-server`, start `OLLAMA_CONTEXT_LENGTH=16384 ollama serve` detached with its log in the scratchpad, and record the `inference compute … library=` line (CUDA or cpu).
+- **Task 7.4b:** check the Ollama log for `truncating input prompt`. If it appears, delete the raw responses of that launch and re-run (never edit the frozen questions).
+- **Task 7.9:** stop the `ollama.exe` the agent started. Restarting the tray app is optional and is recorded.
+- **"Measurement report" → `## Entorno`:** add "the Ollama context length used (`OLLAMA_CONTEXT_LENGTH`) and that the Ollama log showed no `truncating input prompt`". Add the context length to the scenario "The report agrees with the measurement" through the report text.
+- **Design D12:** state this decision, with the gotcha as its source.
+
+### Improvable
+
+- **§0.3 link target.** "Published Table 1" and "A negative savings is explained" require the §0.3 sentence to "link Table 1" but do not pin the target. Pin `(#26-tests)`, the anchor already used for Table 1 at `readme.md:29`.
+- **Question length unit.** The spec bounds a question at 5–500 Unicode code points. `askBodySchema` (`packages/api/src/schemas/ask.ts:18-42`) uses `z.string().min(5).max(500)`, which counts UTF-16 code units, and it also rejects U+0000. A question that passes the script's check can therefore get a `400` from the API and stop the run hours in. Write "5 to 500 UTF-16 code units, not only whitespace, with no U+0000, as `askBodySchema`".
+- **Positive provider count.** A per-file deviation with `prompt_eval_count` 0 would be `null`, and the min/max rule does not say how a `null` is ranked. No seed file is empty: no `file` row has the SHA-256 of the empty text. Still, require `prompt_eval_count` to be a positive integer, so that 0 exits 1 like a missing count.
+- **`expectedUnknown` and `run` keys.** D10 names `expectedUnknown.answeredUnknown` and "the first and last receivedAt" but defines neither. Write: `answeredUnknown` = the number of questions with `expected: "unknown"` whose response is `UNKNOWN`; the keys are `firstReceivedAt` and `lastReceivedAt`.
+- **Duplicate question texts.** The shape check rejects repeated ids but not repeated texts within a project. A repeated text would be answered from the verification cache (D3) and would weigh twice. Add "texts unique per project after trimming" to the shape check and to task 3.1.
+
+## 6. Contradictions inside the change
+
+All improvable:
+- **Cost share from floats.** "Aggregation rules" says "Every ratio SHALL be computed from integers", yet the cost share is `Σ verification cost / Σ cost` over USD numbers (`costUsd` is `z.number()`). With Ollama it is always `null`, so nothing breaks today. Write "every ratio except the cost share, which divides the summed `costUsd` numbers".
+- **Resumed-run scenario.** "A resumed run skips the answered questions" gives a copy with the 20 `acme-shop` raw responses but no `raw/run.json`. The rule "raw responses … without `raw/run.json` SHALL make the command exit with code 1" would then stop it. The byte-equality also needs the same `startedAt` and `receivedAt`. Write: "a copy holding `raw/run.json` and the 20 `acme-shop` raw responses of a full run, with the same injected clock".
+
+## 7. Contradictions with the project
+
+- **B2** above: task 7.3 and task 7.9 against `docs/project-context.md:1124-1131`.
+- Clean otherwise:
+  - The `graph-quality` delta replaces only the last sentence of `openspec/specs/graph-quality/spec.md:277`.
+  - `tests/unit/docs/graph-quality.spec.ts` stays valid unchanged.
+  - Task 0.1 follows the branch and base conventions.
+  - The Follow-ups use destinations A, B and D only.
+  - The merge in 13.9 follows the autonomous-run ADR.
+
+## 8. Contrast with the real code
+
+Clean. Checked in this run:
+- `sendWithHttp` (`scripts/demo-ask.mjs:33`) and `apiPort` (`:66`) are unexported. The `PORT` line (`:142`) and the unreachable line (`:155`) match the D8 pattern.
+- `roundRatio` (`scripts/annotation-agreement.mjs:274-278`) rounds half away from zero from integers.
+- `checkFreeze` (`:452`) returns `the report records no SHA-256 hash` with no path, so the script adds the prefix.
+- `readRow` (`scripts/measure-graph.mjs:173`) is unexported. `readSeed` (`:205`) is exported. The "cannot be read" line belongs to `readInputs` (`:285`), so the script writes its own.
+- The three sibling scripts have a main-module guard (`demo-ask.mjs:170`, `measure-graph.mjs:564`, `annotation-agreement.mjs:646`), so importing them runs nothing.
+- `askAnsweredSchema` (`packages/api/src/schemas/ask.ts:86-107`) has no `events` key. Its `statements[].verification` is the field D10 drops.
+
+The only clash is the length unit noted in point 5 (improvable).
+
+## 9. Task size
+
+Clean.
+- 7.4b is a loop of bounded calls by design.
+- 2.1 is at the limit but acceptable.
+- B1 adds one RED → GREEN to 5.4, and B2 adds steps to 7.3, 7.4b and 7.9. None needs a split.
+
+## 10. Mandatory steps
+
+Clean:
+- Step 0 is the branch and comes first.
+- Steps 8–13 are present and labelled `(MANDATORY)`; steps 10, 11 and 13 say `AGENT MUST EXECUTE`.
+- E2E is justified as not applicable.
+- The data baseline is captured in 7.3 before the API starts.
+- 9.6 restores with `npm run db:seed` followed by `npm run verify`.
+- Every step that starts services stops them (7.9, 9.6, 10.3).
+- The pre-merge order matches `docs/openspec-tasks-mandatory-steps.md` §3.
+
+**Improvable, tied to B2:** the B2 fix changes 7.9. Restoring the machine's Ollama state then means recording whether the tray app was running before 7.3. Record it in 7.3 and restore it in 7.9 and 10.3.
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| Freeze check before measuring | A frozen question file was modified | 2.1, 2.3 |
+| Freeze check before measuring | The savings report records no hash | 2.3 |
+| The question set | A project has 19 questions | 3.1 |
+| The question set | The committed question set is complete | 7.1, 7.2 |
+| Live environment check | The API does not answer | 4.1 |
+| Live environment check | The health check is not ok | 4.1 |
+| Live environment check | The model variable is not set | 4.1 |
+| Live environment check | The Ollama version check fails | 4.1 |
+| Live environment check | The model is not in Ollama | 4.1 |
+| Live environment check | A raw run of another model is not mixed | 4.2 |
+| Live environment check | No variable value is written | 4.1b |
+| Asking each question | Every question is sent without the cache | 5.1 |
+| Asking each question | An evaluation-mode API stops the run | 5.2 |
+| Asking each question | A cached answer stops the run | 5.2 |
+| Asking each question | A verification answered from the API cache | 5.2b |
+| Asking each question | A non-200 status stops the run | 5.2 |
+| Asking each question | A body that is not JSON stops the run | 5.2 |
+| Asking each question | An answered body without a usage field stops the run | 5.2 |
+| Asking each question | A stale raw response stops the run | 5.4 |
+| Asking each question | A resumed run skips the answered questions | 5.4 |
+| Asking each question / Tokenizer deviation sample | *(B1, to add)* Unusable raw data stops the run before any question | *(to add to 5.4)* |
+| Tokenizer deviation sample | The local estimate equals the product's | 3.2 |
+| Tokenizer deviation sample | A sample file differs from the seed | 3.2 |
+| Tokenizer deviation sample | The seed has no row of a sample project | 3.2 |
+| Tokenizer deviation sample | A malformed generate answer stops the count | 5.3 |
+| Tokenizer deviation sample | Every non-redacted file is counted once | 5.3 |
+| Aggregation rules | Savings of two answered rows | 6.1 |
+| Aggregation rules | UNKNOWN rows are counted apart | 6.1 |
+| Aggregation rules | The savings equal the product's formula | 6.1 |
+| Aggregation rules | Verifier latency and calls of three answered rows | 6.1b |
+| Aggregation rules | A project with no answered row | 6.1b |
+| Aggregation rules | The tokenizer deviation of a sample | 6.1 |
+| Measurement outputs | The outputs are deterministic | 6.3 |
+| Measurement outputs | The answer files are blind | 6.2 |
+| Measurement outputs | A CSV field with a comma, a quote and a line break | 6.2 |
+| Measurement CLI | An unknown argument is a usage error | 2.1, 2.2 |
+| Committed measurement matches the raw data | The committed outputs are the current aggregation | 7.4a–7.4c, 7.5 |
+| Committed measurement matches the raw data | The frozen questions still match their hash | 7.2 |
+| Published Table 1 | The README Table 1 agrees with the measurement | 7.6a |
+| Published Table 1 | A negative savings is explained | 7.6a |
+| Published Table 1 | The README limitations and verifier row are current | 7.6b |
+| Measurement report | The report agrees with the measurement | 7.7, 7.8 |
+| graph-quality → Published Table 2 (MODIFIED) | The README table agrees with the measurement | 7.6b (shared intro, D14), 8.2 |
+| graph-quality → Published Table 2 (MODIFIED) | A TypeScript figure below PHP is explained | 8.2 (unchanged test) |
+
+All 41 current scenarios and the two `graph-quality` scenarios map to tasks. The only empty cells are the scenario and the task that B1 must add.
+
+---
+
+## Corrections to apply
+
+### `specs/context-measurement/spec.md`
+
+- **"Asking each question" (B1).** Add:
+
+  > After `raw/run.json` is checked and before the first request, the command SHALL read every file under `docs/measurements/context/raw/`. A raw response or `raw/tokenizer.json` that cannot be read as JSON or lacks a required field, a raw response or count for a question id or file that is not in the question file or the sample, or a count whose `sha256` differs from the file's current SHA-256, SHALL make the command exit with code 1 with one stderr line naming the file, send no request and write no output of "Measurement outputs".
+
+  Move the existing stale-question rule into this pre-check.
+- **New scenario under "Asking each question" (B1): "Unusable raw data stops the run before any question"**
+  - GIVEN a copy whose `raw/task-api/Q05.json` is truncated; then a copy whose `raw/tokenizer.json` holds a count with another `sha256` than its file
+  - WHEN the command runs on each
+  - THEN each exits with code 1, stderr names the file, and no ask or generate request was sent
+- **"Measurement report" → `## Entorno` (B2).** Add "the Ollama context length (`OLLAMA_CONTEXT_LENGTH`) and that Ollama's log showed no `truncating input prompt`".
+- **"Published Table 1".**
+  - Add: "the first paragraph after `#### Mediciones que se publicarán` SHALL contain `npm run measure:context` and SHALL NOT contain `sigue pendiente`".
+  - Add: "the caption SHALL NOT contain `~`".
+  - Add: "the §0.3 link to Table 1 is `(#26-tests)`".
+  - Add these three to the scenario "The README limitations and verifier row are current".
+- **"Freeze check before measuring".** Add: "a table that does not list `docs/measurements/context/questions.json` is a problem naming it".
+- **"The question set".** Replace "5 to 500 Unicode code points that is not only whitespace" with "5 to 500 UTF-16 code units, not only whitespace and with no U+0000 (as `askBodySchema`), unique within its project after trimming".
+- **"Tokenizer deviation sample".** Replace "without an integer `prompt_eval_count`" with "without a positive integer `prompt_eval_count`".
+- **"Aggregation rules".** Replace "Every ratio SHALL be computed from integers" with "Every ratio except the cost share (a quotient of summed `costUsd` numbers) SHALL be computed from integers".
+- **Scenario "A resumed run skips the answered questions".** Replace its GIVEN with "a copy holding `raw/run.json` and the raw responses of the 20 `acme-shop` questions of a full run made with the same injected clock".
+
+### `design.md`
+
+- **D7 and D8 (B1).** After `raw/run.json`, add the step "every raw file read and validated (JSON, required fields, known question id or file, `sha256` of each count equal to the file's current hash; else exit 1 naming the file)". This happens before "missing questions in file order".
+- **D12 (B2).** Add: "Ollama is served by the agent with `OLLAMA_CONTEXT_LENGTH=16384` after stopping the tray app and every `ollama.exe` / `llama-server` (`docs/project-context.md` → Gotcha DIS-72). The OpenAI-compatible route takes no `num_ctx` and the script cannot see the server's setting, so the apply records the setting and checks the log for `truncating input prompt`."
+- **D10.** Define `expectedUnknown.answeredUnknown` and name `run.firstReceivedAt` and `run.lastReceivedAt`.
+- **Follow-ups.** Add:
+  - P32 (raw-data integrity on resume, B1);
+  - P33 (Ollama context length, B2);
+  - P34 (improvable items of run 3).
+
+  Each with its destination.
+
+### `proposal.md`
+
+- **"Live run against the real API":** add "Ollama served with `OLLAMA_CONTEXT_LENGTH=16384`, recorded in the report".
+- **"Live run against the real API":** add "unusable or stale raw data stops the run before any question".
+
+### `tasks.md`
+
+- **3.1.** Add the cases: a repeated question text, a question that is too long in UTF-16 units, and a freeze table without the `questions.json` row.
+- **5.3.** Add `prompt_eval_count` 0 as a malformed answer.
+- **5.4 (B1).** Add RED → GREEN for "Unusable raw data stops the run before any question". Make the GIVEN of "A resumed run …" include `raw/run.json`.
+- **7.3 (B2).**
+  - Record whether the tray app or an `ollama.exe` is running.
+  - Stop the tray app and every `ollama.exe` / `llama-server`.
+  - Start `OLLAMA_CONTEXT_LENGTH=16384 ollama serve` detached, logging to the scratchpad.
+  - Record its `library=` line.
+- **7.4b (B2).** On each wait, grep the Ollama log for `truncating input prompt`. If it appears, stop, delete that launch's raw responses and re-launch.
+- **7.6a / 7.6b.** Pin the §0.3 link `(#26-tests)`. Drop `~` from the caption. Have the shared intro contain `npm run measure:context` and no `sigue pendiente`.
+- **7.8.** `## Entorno` gives the context length and the no-truncation check.
+- **7.9 and 10.3 (B2).** Stop the `ollama.exe` the agent started, and restore the Ollama state recorded in 7.3.
+- **8.2 and 13.8.** Change "41" to "42" scenarios.
+
+### Linear DIS-81 (a Spanish comment, or the `[enhanced]` part; never the `[original]` block)
+
+> *(Texto del agente, auditoría de spec de `context-measurement`, ronda 3, 2026-11-03.)*
+> - Datos brutos al reanudar: antes de la primera pregunta se validan todos los ficheros de `docs/measurements/context/raw/`. Un fichero ilegible o incompleto, una respuesta o conteo de una pregunta o fichero que ya no existe, o un conteo cuyo SHA-256 no coincide con el fichero actual paran la ejecución con código 1 y nombran el fichero.
+> - Ollama se sirve con `OLLAMA_CONTEXT_LENGTH=16384` después de cerrar la aplicación de bandeja y todo `ollama.exe` (gotcha DIS-72 de `docs/project-context.md`). Con el contexto por defecto, Ollama recorta el prompt y la Tabla 1 saldría sesgada o toda `UNKNOWN`. El informe registra la longitud de contexto y que el log no mostró `truncating input prompt`.
+
+### Linear DIS-53
+
+No edit.
