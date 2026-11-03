@@ -37,7 +37,12 @@ The command SHALL take the graph from `seeds/graph-dump.sql` (seed format 1): th
 and every comment line except the `analyzer-fingerprint` header SHALL be ignored. It SHALL measure each
 sample project of the annotation files (`acme-shop`, `task-api`), matching the annotation's `fixture`
 with the seed's `project.name`. Only edges with `kind = calls` of that project SHALL count. The command
-SHALL NOT open a database connection, call a model or use the network.
+SHALL NOT open a database connection, call a model or use the network. The values of a row SHALL be
+read as the CLI's seed parser reads them: `'…'` with `''`, `E'…'` with `\\` and `\uXXXX`, `NULL`,
+`true`, `false` or a number. When `seeds/graph-dump.sql` cannot be read, or a line of the tables
+`project`, `file`, `symbol` or `edge` cannot be read with those values, the command SHALL exit with
+code 1, write one stderr line naming `seeds/graph-dump.sql` and, for a malformed line, its line number,
+and write no output file.
 
 #### Scenario: The seed reader agrees with the CLI's seed parser
 
@@ -52,6 +57,13 @@ SHALL NOT open a database connection, call a model or use the network.
 - **WHEN** the measurement runs
 - **THEN** it exits with code 1, stderr says `task-api` is not in the seed, and no output file is written
 
+#### Scenario: A malformed seed line is an error
+
+- **GIVEN** a temporary copy whose seed has one `INSERT INTO edge` line truncated before `);`
+- **WHEN** the command runs with `--root <copy>`
+- **THEN** it exits with code 1, stderr has one line naming `seeds/graph-dump.sql` and the number of
+  that line, and `docs/measurements/graph-quality.json` does not exist in the copy
+
 ### Requirement: Annotation files are complete
 
 Each annotation file `fixtures/annotations/<fixture>.callsites.json` SHALL have `formatVersion` 1 and
@@ -62,17 +74,23 @@ problem on stderr, and write no output file.
 
 - **GIVEN** annotation data for `acme-shop` with 49 sites
 - **WHEN** the structural check runs
-- **THEN** it reports one problem naming `fixtures/annotations/acme-shop.callsites.json` and the count 49
+- **THEN** it reports one problem naming `fixtures/annotations/acme-shop.callsites.json` and the count 49,
+  annotation data with `formatVersion: 2` or with a repeated id each give one problem naming the file,
+  and through the CLI on a temporary copy with 49 sites the exit code is 1 and no output file is written
 
 ### Requirement: Site matching and attribution
 
 For a site, its *scope* SHALL be the `calls` edges of its project whose source is either a symbol
 declared in `site.file` whose line range contains `site.line` (`start_line ≤ line ≤ end_line`), or the
 file `site.file` itself. A *hit* SHALL be an edge of the scope whose target is the symbol named
-`target.symbol` declared in `target.file`; the source's name is never compared. The site's *called
-name* SHALL be the last identifier of `call` once parentheses, quotes and `@` are removed; for
-`form: new` it SHALL be `__construct` (language `php`) or `constructor` (language `typescript`); for
-`form: read` it SHALL be the property name, its camel-case form, and `get<StudlyName>Attribute`. An
+`target.symbol` declared in `target.file`; the source's name is never compared. When several edges of
+the scope are hits, the site's hit SHALL be the one whose `resolution` equals the site's `expected` if
+there is one, otherwise the first of them in seed order. The site's *called name* SHALL be the last
+match of `[A-Za-z_$][A-Za-z0-9_$]*` in `call` after each `(`, `)`, `[`, `]`, `'`, `"` and `@` is
+replaced by a space; for `form: new` it SHALL be `__construct` (language `php`) or `constructor`
+(language `typescript`); for `form: read` the called names SHALL be the property name, its camel-case
+form (split on `_`, the first part unchanged, every later part with its first letter upper-cased) and
+`get<Studly>Attribute`, where `<Studly>` is the camel-case form with its first letter upper-cased. An
 *attributed* edge SHALL be an edge of the scope whose target is a symbol whose last name segment (after
 the last `::`) is a called name of the site. The outcome of a site SHALL be `tp` when `expected` is not
 `none` and it has a hit, `fn` when `expected` is not `none` and it has none, `fp` when `expected` is
@@ -142,6 +160,22 @@ count once per project, however many sites attribute it.
 - **WHEN** the site is matched
 - **THEN** its outcome is `fn`
 
+#### Scenario: The called name of a route action, an array callable and a snake_case read
+
+- **GIVEN** the calls `'App\\Http\\Controllers\\CheckoutController@store'` (`form: call`),
+  `[OrderController::class, 'show']` (`form: reference`) and `$order->shipping_country` (`form: read`)
+- **WHEN** their called names are derived
+- **THEN** they are `store`; `show`; and `shipping_country`, `shippingCountry` and
+  `getShippingCountryAttribute`
+
+#### Scenario: Of two hits the one with the expected resolution is recorded
+
+- **GIVEN** a site expecting `heuristic` to `B::m`, and two edges of its scope to `B::m`, the first in
+  seed order `exact` and the second `heuristic`
+- **WHEN** the project is measured
+- **THEN** the site is `tp`, its hit has `resolution: heuristic`, `resolutionAgreement` counts it as
+  agreed, and neither edge is a false positive
+
 ### Requirement: Measures per project
 
 For each project the measurement SHALL give: `positives` (sites whose `expected` is not `none`),
@@ -151,7 +185,7 @@ falsePositives)`; `resolutionAgreement` `{ agreed, of }`, where `of` is `truePos
 hits whose edge `resolution` equals the site's `expected`; and `callsEdges` `{ exact, heuristic }`, the
 count of every `calls` edge of the project by resolution. A ratio whose denominator is 0 SHALL be
 `null`, never `NaN`, `Infinity` or an error. Ratios SHALL be rounded to four decimals, half away from
-zero.
+zero, computed from the integer numerator and denominator (no floating-point quotient decides a tie).
 
 #### Scenario: Measures of a synthetic project
 
@@ -170,26 +204,33 @@ zero.
 ### Requirement: Measurement output and CLI
 
 On success the command SHALL exit with code 0, write `docs/measurements/graph-quality.json` under the
-root and print one line per project on stdout with the fixture, the coverage and the precision (each as
-a percentage and a fraction) and the `calls` edge counts. The JSON SHALL hold `formatVersion` 1, the
-seed path and its `analyzer-fingerprint`, and per project, in the order of the annotation files, the
-measures of "Measures per project" plus `sites`: one entry per site, in the annotation file's order,
-with its `id`, `expected`, `outcome`, the hit (`resolution`, `extractor`) or `null`, and its
-false-positive edges (target `file` and `symbol`, `resolution`). It SHALL contain no date, no absolute
-path and no machine-dependent value, and be written with two-space indentation and a final line feed.
-The only option SHALL be `--root <dir>` (default: the repository root); any other argument SHALL give
-exit code 2 and the usage line on stderr, with nothing written.
+root and print one line per project on stdout, exactly
+`<fixture>: cobertura <coverage> · precisión <precision> · calls <exact> exact / <heuristic> heuristic`,
+with `<coverage>` and `<precision>` formatted as the cells of Table 2. The projects SHALL be the fixed
+list `acme-shop` then `task-api`, read from `fixtures/annotations/<fixture>.callsites.json`. The JSON
+SHALL hold `formatVersion` 1, the seed path and its `analyzer-fingerprint`, and per project, in that
+order, the measures of "Measures per project" plus `sites`: one entry per site, in the annotation
+file's order, with its `id`, `call`, `site` (`file`, `line`), `expected`, `outcome`, the hit
+(`resolution`, `extractor`) or `null`, its attributed edges and its false-positive edges (each edge as
+target `file`, `symbol` and `resolution`, sorted by `file`, then `symbol`, then `resolution`). It SHALL
+contain no date, no absolute path and no machine-dependent value, and be written with two-space
+indentation and a final line feed. The only option SHALL be `--root <dir>` (default: the repository
+root); any other argument, `--root` without a value, or `--root` given twice SHALL give exit code 2 and
+on stderr the usage line `Usage: node scripts/measure-graph.mjs [--root <dir>]`, with nothing written.
 
 #### Scenario: The measurement is deterministic
 
 - **GIVEN** the repository inputs unchanged
 - **WHEN** the command runs twice on a temporary copy
-- **THEN** both runs exit with code 0 and the two `graph-quality.json` files are byte-identical
+- **THEN** both runs exit with code 0, the two `graph-quality.json` files are byte-identical, and each
+  run prints two stdout lines, the first starting `acme-shop: cobertura ` and the second
+  `task-api: cobertura `, each matching the summary format
 
 #### Scenario: An unknown argument is a usage error
 
-- **WHEN** the command runs with `--verbose`
-- **THEN** it exits with code 2, stderr holds the usage line, and no file is written
+- **WHEN** the command runs with `--verbose`, and again with `--root` and no value
+- **THEN** each run exits with code 2, stderr holds `Usage: node scripts/measure-graph.mjs [--root <dir>]`,
+  and no file is written
 
 ### Requirement: Committed measurement matches the repository
 
@@ -209,43 +250,64 @@ until the measurement is re-run.
 `readme.md` §2.6, Table 2 "Calidad del grafo por analizador", SHALL have one row per analyzer
 (`PHP/Laravel` for `acme-shop`, `TypeScript` for `task-api`) whose `Cobertura` and `Precisión` cells are
 written `<percent> % (<numerator>/<denominator>)` with one decimal and a decimal comma (for example
-`77,4 % (24/31)`), or `no definida` when the measure is `null`, and whose `Aristas exact` and `Aristas
-heuristic` cells are the `callsEdges` counts. The text under the table SHALL cite, per sample project,
-the inter-annotator percent agreement and kappa of `docs/measurements/annotation/agreement.json`
-(decimal comma) and link `docs/measurements/graph-quality.md`. When the TypeScript coverage or precision
-is below the PHP one, the text SHALL explain why instead of adjusting the figures (parent DIS-53).
+`77,4 % (24/31)`), or `no definida` when the measure is `null`, and whose ``Aristas `exact` `` and
+``Aristas `heuristic` `` cells are the `callsEdges` counts. Below the table, one line per sample project
+SHALL read `` `<fixture>`: concordancia <percent> % (<agreed>/<n>), kappa <kappa> `` with the values of
+`docs/measurements/annotation/agreement.json` written with a decimal comma and no trailing `,0`
+(`no definido` for a `null` kappa), for example `` `acme-shop`: concordancia 100 % (50/50), kappa 1 ``,
+and the text SHALL link `docs/measurements/graph-quality.md`. When the TypeScript coverage or precision
+is below the PHP one, the text below the table SHALL contain a paragraph starting
+`**Por qué TypeScript no supera a PHP.**` that explains it, and the figures SHALL NOT be adjusted
+(parent DIS-53). The introduction of «Mediciones que se publicarán» SHALL NOT mark Table 2 as pending.
 
 #### Scenario: The README table agrees with the measurement
 
 - **GIVEN** the committed `graph-quality.json` and `agreement.json`
 - **WHEN** Table 2 of `readme.md` is parsed
-- **THEN** every cell equals the value formatted from the JSON, and the text below the table holds each
-  project's agreement percent and kappa and a link to `docs/measurements/graph-quality.md`
+- **THEN** every cell equals the value formatted from the JSON, the text below the table holds the
+  agreement line of each project and a link to `docs/measurements/graph-quality.md`, and the
+  introduction of «Mediciones que se publicarán» does not say *(pendiente)* of Table 2
+
+#### Scenario: A TypeScript figure below PHP is explained
+
+- **GIVEN** the committed `graph-quality.json`
+- **WHEN** the coverage and the precision of `task-api` are compared with those of `acme-shop` (a pair
+  with a `null` measure is not compared)
+- **THEN** if either is lower, the README text below Table 2 holds the paragraph starting
+  `**Por qué TypeScript no supera a PHP.**`; otherwise it does not
 
 ### Requirement: Measurement report
 
 `docs/measurements/graph-quality.md` SHALL state the method (the inputs, the freeze check, the seed as
 the graph and its `analyzer-fingerprint`, and that the measurement was run by an agent that annotated no
 site), the definitions of scope, hit, attribution and each measure, and the limitations (attribution by
-called name misses false positives with another name; annotation by agents of one model family, citing
-the agreement report; a small sample built on purpose; one run). It SHALL NOT describe the annotation as
-human or made by hand. It SHALL contain these sections, which a test parses:
+called name misses false positives with another name; annotation by agents of two different models of
+one family, `claude-opus-5-5` and `claude-sonnet-5-5`, citing the agreement report; 50 sites per
+language in two sample repositories built on purpose; one run). It SHALL NOT describe the annotation as
+human or made by hand. It SHALL contain the headings `## Método` and `## Limitaciones`, and these
+sections, which a test parses:
 - `## Resultados`, a table `| Proyecto | Cobertura | Precisión | Resolución coincidente | Aristas exact | Aristas heuristic |`
-  with one row per project, the first three cells formatted as in Table 2;
+  with one row per project, `Proyecto` written `` `<fixture>` ``, `Cobertura` and `Precisión` formatted
+  as in Table 2, `Resolución coincidente` formatted the same way from `resolutionAgreement`
+  (`agreed`/`of`), and the last two cells the `callsEdges` counts;
 - `## Desglose por construcción`, one subsection per fixture (`### acme-shop`, `### task-api`), each a
   table `| Construcción | Sitios | Aciertos | Fallos | Falsos positivos |` with one row per construction
   of `docs/measurements/annotation/selection.json` in its order, counting that construction's sites by
   outcome (`tp`; `fn`; sites with at least one false-positive edge);
 - `## Sitios fallados`, a table `| Id | Resultado | Llamada | Sitio | Aristas atribuidas |` with one row
   per site whose outcome is `fn` or `fp` or that has a false-positive edge, in the JSON's order, or the
-  line `Ninguno.` when there is none.
+  line `Ninguno.` when there is none; `Id` is `` `<id>` ``, `Resultado` the outcome, `Llamada`
+  `` `<call>` ``, `Sitio` `` `<file>:<line>` `` and `Aristas atribuidas` each attributed edge as
+  `` `<file> · <symbol> · <resolution>` `` joined by `<br>`, or `—` when there is none.
 
 #### Scenario: The report agrees with the measurement
 
 - **GIVEN** the committed `graph-quality.json` and `selection.json`
 - **WHEN** the three sections of the report are parsed
-- **THEN** every row and cell equals the value derived from the JSON, and the report does not contain
-  the words «anotación humana» or «a mano»
+- **THEN** every row and cell equals the value derived from the JSON, the report contains `## Método`
+  holding the sentence `La medición la ejecutó un agente que no anotó ningún sitio.` and
+  `## Limitaciones`, and it does not
+  contain the words «anotación humana» or «a mano»
 
 ### Requirement: The frozen sources are not modified
 

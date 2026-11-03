@@ -205,3 +205,37 @@ The empty rows (B1, B2, B3, B7) are blocking.
   - bajo la Tabla 2, una línea por proyecto `concordancia … %, kappa …`;
   - si TypeScript queda por debajo de PHP, un párrafo «Por qué TypeScript no supera a PHP» lo explica."
 - **DIS-79**, comment in Spanish: record Q1 and Q2 (coverage `tp/positivos` instead of «/ 50», precision `tp/(tp+fp)` with the parent's ratio as `resolutionAgreement`) as open questions for the author, stating that the change applies M4 meanwhile.
+
+---
+
+## Resolution of run 1
+
+*Agent's text, correction round 1 of the autonomous run (2026-11-03). The questions are decided by the
+agent as lead engineer, not left for the author (`docs/AUTONOMOUS-RUN.md` §6); every decision is in
+`design.md` → Follow-ups, table "spec audit run 1", with its destination. `openspec validate
+graph-quality-measurement --strict` passes; the spec has 10 requirements and 26 scenarios.*
+
+| Finding | Resolution | Where |
+|---|---|---|
+| Q1 coverage definition | Decided by the agent: `tp / positives` (sub-issue M4) stays. A `none` site has no edge to find, so "/ 50" would cap a perfect analyzer at 62 % (`acme-shop`) and 52 % (`task-api`); each cell prints its fraction, so the denominator is visible. Destination D. | Follow-ups Q1 |
+| Q2 precision definition | Decided by the agent: `tp / (tp + false-positive edges)` (M4) stays; the parent's ratio is published as `resolutionAgreement` and the report's `Resolución coincidente` column. Destination D. | Follow-ups Q2 |
+| B1 TS below PHP untested | Fixed: the clause now requires the paragraph `**Por qué TypeScript no supera a PHP.**`; new scenario "A TypeScript figure below PHP is explained"; task 5.3. | spec "Published Table 2"; tasks 5.3 |
+| B2 called-name derivation | Fixed: each of `(`, `)`, `[`, `]`, quotes and `@` is replaced by a space, then the last identifier; camel case and `get<Studly>Attribute` defined; new scenario "The called name of a route action, an array callable and a snake_case read" with `php-12`, `[OrderController::class, 'show']` and `shipping_country`. | spec; design D3.4; tasks 3.2 |
+| B3 choice among several hits | Fixed: the hit with the expected resolution, otherwise the first in seed order; every hit edge stays out of the false positives; new scenario "Of two hits the one with the expected resolution is recorded". | spec; design D3.5, D3.6; tasks 3.3 |
+| B4 failed-sites table not derivable | Fixed: each JSON site holds `call`, `site` and `attributedEdges`; the `Id`, `Llamada`, `Sitio` and `Aristas atribuidas` formats are fixed (`<br>` join, `—` when empty). | spec "Measurement output and CLI", "Measurement report"; design D6; tasks 3.5, 5.4 |
+| B5 `## Resultados` formats | Fixed: format stated per column, `Resolución coincidente` from `resolutionAgreement`. | spec "Measurement report" |
+| B6 agreement citation text | Fixed: one line per project `` `<fixture>`: concordancia <percent> % (<agreed>/<n>), kappa <kappa> `` with `no definido` for a `null` kappa, built by the exported `formatAgreement`. | spec "Published Table 2"; design D7; tasks 3.4, 5.3 |
+| B7 missing or malformed seed | Fixed: exit 1, one stderr line naming `seeds/graph-dump.sql` (and the line number), no output file; new scenario "A malformed seed line is an error"; task 2.4. | spec "The graph is read from the seed"; design D2, D5; tasks 2.4 |
+| Improvable: report headings and independence sentence | Fixed: the scenario checks `## Método` with the fixed sentence `La medición la ejecutó un agente que no anotó ningún sitio.` and `## Limitaciones`; task 5.4. | spec; design D8 |
+| Improvable: annotation completeness scenario | Fixed: `formatVersion: 2`, a repeated id and the CLI exit 1 with no output are in the scenario; task 2.1. | spec; tasks 2.1 |
+| Improvable: sample-size wording | Fixed: "50 sites per language in two sample repositories built on purpose". | spec "Measurement report" |
+| Improvable: usage, stdout, project list, sort, `--root` | Fixed: exact usage and summary texts, fixed project list and paths, `resolution` as the last sort key, `--root` without a value or twice is exit 2; tasks 1.1, 3.5. | spec "Measurement output and CLI"; design D5, D6 |
+| Improvable: `checkFreeze` quote | Fixed: `the report records no SHA-256 hash`. | design Context |
+| Improvable: model-family wording | Fixed: "two different models of one family (`claude-opus-5-5`, `claude-sonnet-5-5`)". | spec "Measurement report"; tasks 5.5 |
+| Improvable: rounding | Fixed: ratios and percentages rounded from the integers with the `roundRatio` formula, reimplemented in the script; the spec says no floating-point quotient decides a tie. | spec "Measures per project"; design D4, D7 |
+| Improvable: `E'…'` parity | Fixed: the reader also accepts `E'…'` with `\\` and `\uXXXX`; task 2.2 asserts it. | spec; design D2; tasks 2.2 |
+| Improvable: README header quoting | Fixed: ``Aristas `exact` `` and ``Aristas `heuristic` ``. | spec "Published Table 2" |
+| Improvable: intro no longer pending | Fixed: required in "Published Table 2" and asserted in "The README table agrees with the measurement". | spec; tasks 5.3 |
+| Improvable: task 5.4 size | Fixed: split into 5.4 (RED test) and 5.5 (write the report); the old 5.5 is 5.6. | tasks |
+| Mandatory steps: scenario count | Fixed: 6.2 and 11.8 say 26 scenarios. | tasks 6.2, 11.8 |
+| Linear `[enhanced]` and comment | Done: the decisions are added to the `[enhanced]` part of DIS-79 (never `[original]`) and a Spanish comment records Q1 and Q2 as decided by the agent, not as questions left open (rejected as "open questions for the author": the autonomous run leaves nothing for the author). | Linear DIS-79 |

@@ -7,7 +7,8 @@ See `proposal.md` → Why. The state that shapes the approach:
   the nine SHA-256 of `docs/measurements/annotation-agreement.md` → `## Hashes SHA-256`.
   `tests/unit/docs/annotation-freeze.spec.ts` already fails if any of them changes.
 - `scripts/annotation-agreement.mjs` exports `checkFreeze(report, root)` (one problem per file, or
-  `the report records no hash`) and `sha256`. Its CLI is the template: `.mjs` + `.d.mts`,
+  `the report records no SHA-256 hash`) and `sha256`. Its `roundRatio` (integer arithmetic) and
+  `parseArguments` are not exported. Its CLI is the template: `.mjs` + `.d.mts`,
   `run…(args, { root, stdout, stderr })`, exit codes 0 / 1 / 2, `--root <dir>`.
 - `seeds/graph-dump.sql` is seed format 1: header comments (`codemind-seed-format`,
   `analyzer-fingerprint`, `contract-fingerprint`) and one `INSERT INTO <table> (<cols>) VALUES (…);`
@@ -48,9 +49,12 @@ each person indexed, and could not run in the `quality` job. Freshness is alread
 
 **D2 — An own, bounded seed reader (ticket M2).** `readSeed(sql)` accepts only the generator's line
 form `INSERT INTO <table> (<cols>) VALUES (<values>);` for `project`, `file`, `symbol`, `edge`;
-values are SQL string literals (with `''` escapes), `NULL`, `true`/`false` and numbers. Other tables
-and comments are skipped; the header `-- analyzer-fingerprint: <value>` is kept. A malformed line of
-those four tables is a seed error (exit 1). *Alternative:* import `seedProjects` / `readStatements`
+values are SQL string literals `'…'` (with `''` escapes) and `E'…'` (with `\\` and `\uXXXX`, as
+`packages/cli/src/seed/parse-seed.ts:163-201`; the current seed has none, the parity keeps a later
+seed loadable by both), `NULL`, `true`/`false` and numbers. Other tables and comments are skipped; the
+header `-- analyzer-fingerprint: <value>` is kept. An unreadable seed is the error
+`seeds/graph-dump.sql: the file cannot be read`; a malformed line of those four tables is
+`seeds/graph-dump.sql:<line>: <reason>` (exit 1, nothing written). *Alternative:* import `seedProjects` / `readStatements`
 from `packages/cli` — rejected: a `.mjs` in `scripts/` cannot import TypeScript or a workspace package
 (wiring test), and exporting the internal reader widens `packages/cli` for a script. Parity is guarded
 instead: the unit test compares the per-project edge count with `seedProjects(sql)` (TypeScript test
@@ -63,13 +67,23 @@ code may import it).
    used: a route statement is a `route` symbol and module-level calls have a file source.
 3. Hit: target symbol named `target.symbol` in the file `target.file`. A target file (a
    `target_file_id` edge) never matches, because every annotated target is a symbol.
-4. Called name: last identifier (`[A-Za-z_$][A-Za-z0-9_$]*`) of `call` after removing `(`, `'`, `"`
-   and `@`; `new` → `__construct` / `constructor` by language; `read` → the property, its camel case
-   and `get<Studly>Attribute` (the Laravel accessor the PHP analyzer targets, e.g.
-   `Order::getSubtotalAttribute`).
+4. Called name: last match of `[A-Za-z_$][A-Za-z0-9_$]*` in `call` after **replacing** each `(`,
+   `)`, `[`, `]`, `'`, `"` and `@` with a space (replacing, not removing: removing `@` would turn
+   `'…CheckoutController@store'` of `php-12` into `CheckoutControllerstore`); `new` → `__construct` /
+   `constructor` by language; `read` → the property, its camel case (split on `_`, later parts with
+   their first letter upper-cased: `shipping_country` → `shippingCountry`) and `get<Studly>Attribute`
+   with Studly = camel case with its first letter upper-cased (`getShippingCountryAttribute`; the
+   Laravel accessor the PHP analyzer targets, e.g. `Order::getSubtotalAttribute`). Checked on the
+   frozen calls: `[OrderController::class, 'show']` → `show`, `TRANSITIONS[from].includes(` →
+   `includes`.
 5. False positive: an attributed edge that is the hit of **no** site of the project, counted once per
    project (a set of edge ids). This is criterion 3(e) of the ticket: two `new` on one line
-   (`task-api`) attribute each other's constructor edge, and neither is a false positive.
+   (`task-api`) attribute each other's constructor edge, and neither is a false positive. Every hit
+   edge of a site (not only the recorded one, 6) is in that set.
+6. The recorded hit: when several edges of the scope are hits (a method and its class both as
+   sources, or an `exact` and a `heuristic` edge to one target), the site's `hit` is the one whose
+   `resolution` equals `expected`, otherwise the first in seed order. This favours the analyzer: a
+   right resolution emitted at all counts as agreed, which is what `resolutionAgreement` asks.
 *Alternative:* attribute every edge of the scope — rejected: a method with ten calls would turn nine
 correct edges into false positives of each site.
 
@@ -79,38 +93,55 @@ parent's draft "edges with the expected resolution / emitted edges": the parent'
 `resolutionAgreement` in the JSON and the report, not as a README column. `callsEdges` counts every
 `calls` edge of the project, not only those in some scope, because the README columns "Aristas
 exact/heuristic" describe the analyzer's output. Ratios rounded to four decimals half away from zero
-(`Math.sign(x) * Math.round(Math.abs(x) * 1e4) / 1e4`); `null` when the denominator is 0.
+from the integers, `Math.floor((2·n·10^k + d) / (2·d)) / 10^k` with `k = 4` (the formula of `roundRatio`
+in `scripts/annotation-agreement.mjs:274-277`, reimplemented because it is not exported and that file's
+exports do not change); never from the float quotient. `null` when the denominator is 0.
 
 **D5 — Order of the run (ticket M5).** `runMeasureGraph`: parse arguments (exit 2) → read the report
 and `checkFreeze` (exit 1) → read and check the two annotation files (exit 1) → read the seed (exit 1
-on a missing project or a malformed line) → `measure` → write the JSON → print the summary. The JSON is
-written only after everything succeeded, with `writeFileSync` of the full text (no partial file).
+on an unreadable seed, a missing project or a malformed line) → `measure` → write the JSON → print the
+summary. The JSON is written only after everything succeeded, with `writeFileSync` of the full text (no
+partial file). The projects are the fixed list `acme-shop`, `task-api`, read from
+`fixtures/annotations/<fixture>.callsites.json`. Texts: usage
+`Usage: node scripts/measure-graph.mjs [--root <dir>]` (an unknown argument, `--root` without a value
+or `--root` twice, as `parseArguments` of `scripts/annotation-agreement.mjs:604-620`); one stdout line
+per project `<fixture>: cobertura <formatRatio> · precisión <formatRatio> · calls <exact> exact /
+<heuristic> heuristic`.
 
 **D6 — JSON layout.** `{ formatVersion: 1, seed: { path: "seeds/graph-dump.sql", analyzerFingerprint },
 projects: [ { fixture, language, positives, truePositives, falseNegatives, falsePositives,
 trueNegatives, coverage, precision, resolutionAgreement: { agreed, of }, callsEdges: { exact,
-heuristic }, sites: [ { id, expected, outcome, hit: { resolution, extractor } | null,
-falsePositiveEdges: [ { file, symbol, resolution } ] } ] } ] }`. Key order fixed by construction;
-`falsePositiveEdges` sorted by `file`, `symbol`; `JSON.stringify(value, null, 2) + "\n"`.
+heuristic }, sites: [ { id, call, site: { file, line }, expected, outcome, hit: { resolution,
+extractor } | null, attributedEdges: [ { file, symbol, resolution } ], falsePositiveEdges: [ { file,
+symbol, resolution } ] } ] } ] }`. `call` and `site` are copied from the annotation so the report's
+`## Sitios fallados` cells come from the JSON alone, and `attributedEdges` is the "aristas atribuidas"
+of the sub-issue's AC 1. Key order fixed by construction; both edge lists sorted by `file`, then
+`symbol`, then `resolution` (a total order), duplicates (same edge id) kept once;
+`JSON.stringify(value, null, 2) + "\n"`.
 
 **D7 — Formatting for the README and the report (ticket M8).** `formatRatio(n, d)` →
-`77,4 % (24/31)`: the percentage computed from the integers (`100 * n / d`), one decimal, half away
-from zero, decimal comma, a space before `%`; `no definida` when `d = 0`. Agreement figures: the JSON
-numbers with a decimal comma (`100 %`, `kappa 1`). The formatter is exported from the script so the
-documentation test uses the same one; the README itself is edited by hand (agent) from the printed
-values, and the test proves it.
+`77,4 % (24/31)`: the percentage rounded from the integers with the D4 formula on `100·n / d` with
+`k = 1`, decimal comma, a space before `%`; `no definida` when `d = 0`. `formatAgreement(language)` →
+`` `acme-shop`: concordancia 100 % (50/50), kappa 1 ``: the `percent` and `kappa` of `agreement.json`
+as written there, with a decimal comma and no trailing `,0`, and `no definido` for a `null` kappa. Both
+formatters are exported from the script so the documentation test uses the same ones; the README and
+the report are edited by the agent from the printed values, and the tests prove them.
 
 **D8 — Report (ticket M6, M7).** `docs/measurements/graph-quality.md` is the agent's text, written once
 from the JSON; its three parsed sections (spec) are checked by `tests/unit/docs/graph-quality.spec.ts`.
 The construction breakdown joins `sites[].id` with `selection.json` rows (`construction`, `ids`). The
-report states that the apply agent ran it and annotated no site (M7).
+report states that the apply agent ran it and annotated no site (M7), with the fixed sentence
+`La medición la ejecutó un agente que no anotó ningún sitio.` under `## Método`; the limitations go
+under `## Limitaciones`.
 
 **D9 — Tests.** `tests/unit/scripts/measure-graph.spec.ts`: the rules and measures on synthetic,
 in-memory inputs (one test per scenario of "Site matching and attribution", "Measures per project",
 "Annotation files are complete"), the seed reader against `seedProjects`, and the CLI on temporary
-copies under `os.tmpdir()` (freeze broken, missing report, missing project, unknown argument, two runs
-byte-identical), with `stdout`/`stderr` doubles. `tests/unit/docs/graph-quality.spec.ts`: committed
-JSON equals `serialize(measure(repository inputs))`; README Table 2 and caption; report sections. The
+copies under `os.tmpdir()` (freeze broken, missing report, missing project, malformed seed line, 49
+sites, unknown argument and `--root` without a value, two runs byte-identical), with `stdout`/`stderr`
+doubles. `tests/unit/docs/graph-quality.spec.ts`: committed JSON equals
+`serialize(measure(repository inputs))`; README Table 2, agreement lines, intro and the TypeScript
+paragraph rule; report sections. The
 copies hold only the files the script reads (the report, the nine frozen files, the seed), so a test
 never writes inside the repository.
 
@@ -162,3 +193,29 @@ B = another existing ticket; C = the author (none in this change); D = accepted 
 | P6 | The scope takes every enclosing symbol, not the innermost (D3.2). | A |
 | P7 | No delta on `graph-annotations`: its freeze requirement already names `scripts/measure-graph.mjs` and does not change. | D — accepted |
 | P8 | No existing test changes. `tests/unit/docs/annotation-freeze.spec.ts`, `tests/unit/scripts/wiring.spec.ts` and `tests/unit/docs/guides.spec.ts` (README links) must stay green unmodified. | A |
+
+*Agent's text, spec audit run 1 (2026-11-03): the questions and findings of
+`reports/2026-11-03-spec-audit.md` → run 1, decided by the agent as lead engineer (correction round 1).*
+
+| Id | Decision | Destination |
+|---|---|---|
+| Q1 | "Cobertura" stays `tp / positives` (sub-issue M4), not the parent's "/ 50": a `none` site has no edge to find, so counting it in the denominator would cap coverage at 62 % (`acme-shop`) and 52 % (`task-api`) for a perfect analyzer. The fraction printed in each cell (`24/31`) makes the denominator visible. | D — accepted (sub-issue governs) |
+| Q2 | "Precisión" stays `tp / (tp + false-positive edges)` (M4); the parent's "right resolution / emitted edges" is published as `resolutionAgreement` in the JSON and the report's `Resolución coincidente` column, not in Table 2. | D — accepted (sub-issue governs) |
+| B1 | The parent's "TS ≥ PHP, otherwise explained" is a testable rule: the paragraph `**Por qué TypeScript no supera a PHP.**` and the scenario "A TypeScript figure below PHP is explained". | A |
+| B2 | Called name: replace `(`, `)`, `[`, `]`, quotes and `@` with spaces, then the last identifier; camel case and `get<Studly>Attribute` defined for snake_case; scenario with `php-12`, an array callable and `shipping_country` (D3.4). | A |
+| B3 | Several hits: the one with the expected resolution is recorded, else the first in seed order (D3.6, scenario). | A |
+| B4 | Each JSON site holds `call`, `site` and `attributedEdges`; the `## Sitios fallados` cell formats are fixed (D6, spec). | A |
+| B5 | `## Resultados` cell formats fixed per column (spec). | A |
+| B6 | One agreement line per project under Table 2 with a fixed text, through the exported `formatAgreement` (D7, spec). | A |
+| B7 | An unreadable seed or a malformed line of the four tables → exit 1 naming `seeds/graph-dump.sql` and the line, nothing written; scenario "A malformed seed line is an error" (D2, spec). | A |
+| I1 | Report scenario also checks `## Método` with the fixed independence sentence and `## Limitaciones`. | A |
+| I2 | "Annotation files are complete" scenario also covers `formatVersion: 2`, a repeated id and the CLI exit 1. | A |
+| I3 | The sample limitation states its size: 50 sites per language in two sample repositories built on purpose. | A |
+| I4 | Usage and stdout lines have exact texts; project list fixed; edge lists sorted with `resolution` as tie-break; `--root` without value or twice is exit 2 (D5, D6, spec). | A |
+| I5 | Context quotes `checkFreeze`'s text exactly: `the report records no SHA-256 hash`. | A |
+| I6 | The limitation names two different models of one family (`claude-opus-5-5`, `claude-sonnet-5-5`), so it agrees with `readme.md` and `docs/project-context.md`. | A |
+| I7 | Ratios and percentages rounded from the integers with the `roundRatio` formula, reimplemented in the script (D4, D7). | A |
+| I8 | The seed reader also accepts `E'…'` with `\\` and `\uXXXX`, as `parse-seed.ts` (D2). | A |
+| I9 | The spec quotes the README headers ``Aristas `exact` `` and ``Aristas `heuristic` ``. | A |
+| I10 | "Published Table 2" requires that the «Mediciones que se publicarán» intro no longer marks Table 2 as pending, asserted in the README scenario. | A |
+| I11 | Task 5.4 is split into a RED test task and the report-writing task. | A |
