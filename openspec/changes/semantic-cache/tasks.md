@@ -103,11 +103,11 @@ Order note: this group runs before group 10 (and not after group 12, as `docs/op
 
 ## 13. Pull request preparation
 
-- [ ] 13.1 `/pr-describe` in Spanish against `final-project-CRN`: the Why marked as the agent's text (DIS-67 `[enhanced]` D1–D12, design S1–S13 and the audit amendments, with the ADR of 9.4), the calibration values of 11.2, the migration `0005` and its rollback, the Stryker score, "no new dependency", and the named existing tests that changed
+- [x] 13.1 `/pr-describe` in Spanish against `final-project-CRN`: the Why marked as the agent's text (DIS-67 `[enhanced]` D1–D12, design S1–S13 and the audit amendments, with the ADR of 9.4), the calibration values of 11.2, the migration `0005` and its rollback, the Stryker score, "no new dependency", and the named existing tests that changed
 
 ## 14. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 14.1 Open the PR against `final-project-CRN`; DIS-67 to In Review with a Spanish comment linking it and the change
+- [x] 14.1 Open the PR against `final-project-CRN`; DIS-67 to In Review with a Spanish comment linking it and the change
 - [ ] 14.2 CI green: wait in the foreground with `gh pr checks <n> --watch --interval 60`, repeated until no check is pending; confirm the new spec files ran and passed and the mutation job is ≥ 80; link the run in an addendum to the step 10 report
 - [ ] 14.3 `/show-spec-working` (may reuse the step 11 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
 - [ ] 14.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
