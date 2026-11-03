@@ -395,3 +395,297 @@ context-measurement --strict` passes after the edits. The spec now has 11 requir
 - 9.6 — fixed: `npm run verify` with exit 0 after `npm run db:seed`.
 - 7.6 link timing — fixed: the link goes in 7.6a, since the report exists from 7.1.
 - Scenario counts in 8.2 and 13.8 — fixed: 40.
+
+---
+
+## Run 2 (2026-11-03)
+
+CHANGES REQUIRED
+
+**Questions for the author.** In an autonomous run the agent may answer these as lead engineer, as long as the answer is marked as the agent's text.
+
+- **Q1. What does the README say if the measured savings are negative?** `readme.md` §0.3 (line 69) says CODEMIND "reduce coste y latencia de forma medida", and the proposal's Why says the measurement is there to back that claim. The golden answers already in the repository all send more tokens than the raw context (see B1). The parent DIS-53 lets Table 2 be explained instead of adjusted («si no, se explica en el texto en lugar de ajustarse»), but says nothing similar for Table 1. Two decisions are needed:
+  - Does Table 1 get the same explain-don't-adjust rule?
+  - Is the §0.3 sentence left as it is, qualified, or out of scope? If out of scope, the change must say so in its non-goals.
+
+---
+
+## Run 2 (2026-11-03)
+
+Judged against the change as it stands after correction round 1, with DIS-81 (description and comments) and its parent DIS-53 (description and comments) loaded from Linear. Run 1's decisions P16–P27 are marked as the agent's text and do not contradict the ticket or the project. They are taken as accepted.
+
+## 1. Scope against the ticket
+
+Clean. Everything follows from DIS-81 (enhanced D1–D8 and the audit-round decisions recorded there) or from the Entrega 1 review note moved onto DIS-81 ("Medir el verificador", D13).
+
+The additions run 1 noted are now recorded in the ticket's enhanced part:
+- the tree line;
+- `verifyCostUsd` and `verifyCacheHits`;
+- `roundRatio`.
+
+Nothing widens the change to Table 2 or to DIS-82.
+
+## 2. Inherited acceptance criteria
+
+Clean.
+- DIS-81 AC 1–5 and the DoD map to requirements with scenarios (see the table in point 11).
+- Parent DIS-53 AC 2 maps to "Measurement outputs".
+- Parent DIS-53 AC 3 limitations, including the small repositories and the two-agent annotation, map to "Published Table 1" and its scenario.
+- The parent/sub-issue disagreements of run 1 (Q1–Q4) were answered by the agent (P22–P25), and those answers are consistent with the DIS-53 comment of 2026-10-28.
+
+The only new gap is the negative-savings case, which neither ticket foresees. It is Q1 above and B1 below.
+
+## 3. Missing scenarios
+
+All improvable:
+- **"Live environment check":** the first-run write of `raw/run.json` (with `startedAt` from `now()`) has no scenario of its own. Task 4.2 tests it inside "A raw run of another model is not mixed". Add a THEN clause there or a separate scenario.
+- **"Tokenizer deviation sample":** an unreadable sample file is still covered only by the requirement text. Run 1 accepted that as the same code path as the hash mismatch, and that is acceptable.
+- **Negative «Ahorro»:** no scenario (see B1).
+
+## 4. Ambiguity
+
+None of the listed words appears in the proposal, design, specs or tasks. One improvable item:
+- `design.md` → Risks, "some hundreds of kB of JSON": give the measured size after the run, or write "under 1 MB". It is a risk note, not a requirement.
+
+## 5. Open decisions
+
+### B1 (blocking): a negative «Ahorro» is neither formatted nor explained
+
+**Evidence.** The repository already holds six live answers of the golden questions, made with the same product and the same model. Every one of them has negative savings:
+
+| File | Line | `inputTokens` | `baselineTokens` | `savingsPct` |
+|---|---|---|---|---|
+| `seeds/cache/acme-shop.json` | 114–118 | 10 050 | 7 123 | −41.1 |
+| `seeds/cache/acme-shop.json` | 257–261 | — | — | −56.7 |
+| `seeds/cache/acme-shop.json` | 340–344 | — | — | −9.6 |
+| `seeds/cache/task-api.json` | 141–145 | 8 252 | 4 227 | −95.2 |
+| `seeds/cache/task-api.json` | 241–245 | — | — | −1.3 |
+| `seeds/cache/task-api.json` | 367–371 | — | — | −97.8 |
+
+The sample files are small (82 370 code points over 89 files, design Context). «CODEMIND» counts generation plus verification input (D4). So a negative «Ahorro» for one or both projects is the most likely outcome of the run, not an edge case.
+
+**What the change leaves open:**
+
+- **(a) Sign format.** D11 and "Published Table 1" give only the positive example (`88,3 %`). They do not say how a negative value is written: hyphen-minus `-`, the minus sign U+2212, or with a `+` for positives as `formatSigned` does. This affects the README cell, the report and the stdout summary line (`ahorro <percent>`).
+- **(b) Rounding direction.** "Aggregation rules" says «Ahorro» rounds half up, equal to the product's `savingsPct` (`Math.round`, which rounds toward +∞). The JSON ratios round half away from zero (`roundRatio`, `scripts/annotation-agreement.mjs:274-278`). D11's `formatPercent(n, d)` does not say which rule it uses. For negative exact halves the two differ. Example: baseline 400 and input 401 give −2.5 tenths, so `Math.round` gives `-0,2 %` and half away from zero gives `-0,3 %`. The scenario "The savings equal the product's formula" requires only "totals above 0" and does not require a negative pair, so it cannot catch this.
+- **(c) README text.** No rule says what the README says when a project's «Ahorro» is negative. The precedent is `graph-quality` → "Published Table 2": a paragraph starting `**Por qué TypeScript no supera a PHP.**`, with figures not adjusted. There is also the §0.3 claim (Q1). The Risks section does not mention this outcome.
+
+**Fix:**
+- **"Aggregation rules":** «Ahorro» is the integer number of tenths `Math.round((Σbaseline − Σinput) · 1000 / Σbaseline)`, which can be negative and rounds half toward +∞ as `savingsPct` does.
+- **"Published Table 1":** «Ahorro» is written from those tenths with one decimal and a decimal comma. A negative value starts with `-` (hyphen-minus) and a non-negative value has no sign. When a project's «Ahorro» is below 0, the text below Table 1 SHALL contain a paragraph starting `**Por qué CODEMIND envía más tokens que el contexto bruto.**` that explains it, and the figures SHALL NOT be adjusted.
+- **New scenario under "Published Table 1":** "A negative savings is explained" (if either project's «Ahorro» is below 0, the paragraph is present; otherwise it is absent).
+- **Scenario "The savings equal the product's formula":** add a pair with input above the baseline whose exact savings end in a half tenth, for example baseline 400 and input 401, giving `-0,2 %`.
+- **D11:** name the «Ahorro» formatter (for example `formatSavings(tenths)`, `-952` → `-95,2 %`) separately from `formatPercent`.
+- **Risks:** add the expected negative savings.
+- **The §0.3 sentence:** decide per Q1 and record the decision in Follow-ups.
+
+### B2 (blocking): rounding and empty-list forms of the D11 formatters
+
+These choices are pinned only by the formatters themselves. The documentation test uses the same formatters, so any choice passes and the implementer decides alone:
+- **(a) Rounding.** `formatPercent(n, d)`, `formatSigned(n, d)` and `formatSeconds(ms)` round to one decimal, but no rounding rule is given. The tokenizer deviation is likely negative, since chars/4 usually undercounts code, so the rule matters for `formatSigned`. The unit tests in task 6.3 use only non-half values (`+5,9 %`, `-25,0 %`, `0,0 %`).
+- **(b) No `UNKNOWN`.** The D11 line `<answered> respondidas y <unknown> UNKNOWN (<reason> <n>, …)` does not say what is written when a project has no `UNKNOWN`: `()`, nothing, or `0 UNKNOWN` without parentheses.
+- **(c) Reason order.** The order of the reasons inside the parentheses is not stated. The JSON sorts them (D10), but the line does not say it follows the JSON.
+
+**Fix in D11, and in task 6.3's formatter tests:**
+- Every one-decimal formatter rounds half away from zero from the integer numerator and denominator, as `roundRatio` does, except «Ahorro» (B1).
+- Add one exact-half example per formatter, for example `formatSigned(-1, 8)` and `formatSeconds(412_350)`.
+- With no `UNKNOWN`, the line reads `<answered> respondidas y 0 UNKNOWN` with no parentheses.
+- Reasons appear in the JSON's sorted order.
+
+### Improvable
+
+- **`raw/run.json` mismatch does not cover the verification model.** It compares only "version, model or digest" ("Live environment check"; D7), so a resumed run with another `LLM_MODEL_VERIFY` mixes verification models without failing. Add `verifyModel` to the compared fields.
+- **"Unset" should read "unset or blank".** The spec says "`LLM_MODEL_VERIFY`, or `LLM_MODEL` when unset". Task 7.3 sets `LLM_MODEL_VERIFY=` (blank), and the product treats blank as unset (`packages/adapters/llm/src/config.ts:90`, `read(env.LLM_MODEL_VERIFY) ?? model`). Write "unset or blank".
+- **Raw responses without `raw/run.json`.** No rule covers this case, for example when `run.json` was deleted. State that it exits 1 naming `docs/measurements/context/raw/run.json`, or that `run.json` is rewritten. Without a rule, the guard against mixing models has a gap.
+- **Where the `PORT` usage check runs.** The CLI requirement says "before any request". D8 lists the order but does not place the `PORT` check. Place it right after `.env` loading, as `scripts/demo-ask.mjs:140-144` does, so that a copy with both a broken freeze and an invalid `PORT` has one defined exit code.
+
+## 6. Contradictions inside the change
+
+- **Improvable:** "Live environment check" says no output line SHALL contain "the value of … any variable other than the model names". The same requirement pins the line `… not reachable at http://127.0.0.1:<port> …`, which writes the value of `PORT`. Change the exception to "other than the model names and `PORT`".
+- **Improvable:** "Tokenizer deviation sample" attributes `seeds/graph-dump.sql: the file cannot be read` to "the stderr line of `readSeed`". `readSeed` (`scripts/measure-graph.mjs:205-259`) throws only `seeds/graph-dump.sql:<line>: …`. The "cannot be read" text comes from `readInputs` (`:285`), which this script does not import. Write "the line `seeds/graph-dump.sql: the file cannot be read` (written by the command) or the error message of `readSeed`". D8 already says "its own … errors".
+- Otherwise clean. The proposal, design D1–D14 and the spec now agree on:
+  - the cache rule;
+  - the golden-text source;
+  - the rounding of the JSON ratios;
+  - the null rules;
+  - the order of the checks;
+  - the blind answer files.
+
+## 7. Contradictions with the project
+
+- Clean:
+  - The `graph-quality` delta replaces only the last sentence of `openspec/specs/graph-quality/spec.md` → "Published Table 2" (line 277).
+  - `tests/unit/docs/graph-quality.spec.ts` stays valid unchanged (D14).
+  - Task 0.1 follows the branch and base conventions of `docs/project-context.md`.
+  - The merge in 13.9 follows `docs/adr/20261020-kit-autonomous-mode.md` (line 43, merge gate) and `docs/AUTONOMOUS-RUN.md` (line 247).
+  - The Follow-ups use destinations A, B and D only, never C.
+- **Improvable:** the ticket's enhanced D6 says Ollama's prefix reuse «se declara como limitación». Design P15 decides, from a probe, that it is not a limitation. Task 12.3 already copies P1–P15 into the enhanced part. Make sure P15 explicitly replaces that sentence of D6, so the ticket and the report do not disagree.
+
+## 8. Contrast with the real code
+
+- **B1** above: `seeds/cache/acme-shop.json:118,261,344` and `seeds/cache/task-api.json:145,245,371` (negative `savingsPct` on every golden answer).
+- **Improvable:** `sendWithHttp` computes `Buffer.byteLength(body)` (`scripts/demo-ask.mjs:37`), and `Send` requires `body: string` (`scripts/demo-ask.d.mts:7`). A `GET /health`, `/api/version` or `/api/tags` sent with no body would throw inside the promise. The script would then report "the API is not reachable" for an API that is up. State in D9 that GET requests pass `body: ''` (and `headers: {}`), and have the 4.1 tests record the body of each GET.
+- Clean otherwise:
+  - `checkFreeze` (`scripts/annotation-agreement.mjs:452-474`) returns `the report records no SHA-256 hash` without a path, so the report-path prefix the spec requires is the script's job, as D8 says.
+  - `roundRatio(numerator, denominator, digits)` (`:274`) takes integers, matching D10.
+  - `readRow` (`scripts/measure-graph.mjs:173`) and `apiPort` (`scripts/demo-ask.mjs:66`) exist unexported, as stated.
+  - The answer schema (`packages/api/src/schemas/ask.ts:86-107`) has no `events` key.
+  - Statement `type` comes from the typing rule, not from the verifier (`packages/core/src/explain/claim-items.ts:32-33`), so keeping it in `answers/` does not leak the verifier's verdict.
+
+## 9. Task size
+
+- Clean after run 1's splits.
+- 7.4b is a loop of bounded calls by design.
+- 2.1 is at the limit but acceptable.
+- B1 adds one RED → GREEN to 7.6a, and B2 adds examples to 6.3. Neither needs a split.
+
+## 10. Mandatory steps
+
+Clean:
+- Step 0 is the branch and comes first.
+- Steps 8 to 13 are present, labelled `(MANDATORY)`, and steps 10, 11 and 13 say `AGENT MUST EXECUTE`.
+- E2E is justified as not applicable.
+- The data baseline is captured in 7.3 before the API starts.
+- 9.6 restores with `npm run db:seed` and then `npm run verify`, which detects the replaced golden `cache_entry` rows.
+- Every step that starts services ends with `node scripts/dev-processes.mjs stop` (7.9, 9.6, 10.3).
+- The PowerShell checks run with `pwsh -NoProfile` and `powershell.exe -NoProfile`, without `$env:` assignments.
+- The pre-merge order matches `docs/openspec-tasks-mandatory-steps.md` §3.
+
+**Improvable:** after B1, the scenario count in 8.2 and 13.8 becomes 41 (40 + "A negative savings is explained").
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| Freeze check before measuring | A frozen question file was modified | 2.1, 2.3 |
+| Freeze check before measuring | The savings report records no hash | 2.3 |
+| The question set | A project has 19 questions | 3.1 |
+| The question set | The committed question set is complete | 7.1, 7.2 |
+| Live environment check | The API does not answer | 4.1 |
+| Live environment check | The health check is not ok | 4.1 |
+| Live environment check | The model variable is not set | 4.1 |
+| Live environment check | The Ollama version check fails | 4.1 |
+| Live environment check | The model is not in Ollama | 4.1 |
+| Live environment check | A raw run of another model is not mixed | 4.2 |
+| Live environment check | No variable value is written | 4.1b |
+| Asking each question | Every question is sent without the cache | 5.1 |
+| Asking each question | An evaluation-mode API stops the run | 5.2 |
+| Asking each question | A cached answer stops the run | 5.2 |
+| Asking each question | A verification answered from the API cache | 5.2b |
+| Asking each question | A non-200 status stops the run | 5.2 |
+| Asking each question | A body that is not JSON stops the run | 5.2 |
+| Asking each question | An answered body without a usage field stops the run | 5.2 |
+| Asking each question | A stale raw response stops the run | 5.4 |
+| Asking each question | A resumed run skips the answered questions | 5.4 |
+| Tokenizer deviation sample | The local estimate equals the product's | 3.2 |
+| Tokenizer deviation sample | A sample file differs from the seed | 3.2 |
+| Tokenizer deviation sample | The seed has no row of a sample project | 3.2 |
+| Tokenizer deviation sample | A malformed generate answer stops the count | 5.3 |
+| Tokenizer deviation sample | Every non-redacted file is counted once | 5.3 |
+| Aggregation rules | Savings of two answered rows | 6.1 |
+| Aggregation rules | UNKNOWN rows are counted apart | 6.1 |
+| Aggregation rules | The savings equal the product's formula | 6.1 (B1 adds a negative pair) |
+| Aggregation rules | Verifier latency and calls of three answered rows | 6.1b |
+| Aggregation rules | A project with no answered row | 6.1b |
+| Aggregation rules | The tokenizer deviation of a sample | 6.1 |
+| Measurement outputs | The outputs are deterministic | 6.3 |
+| Measurement outputs | The answer files are blind | 6.2 |
+| Measurement outputs | A CSV field with a comma, a quote and a line break | 6.2 |
+| Measurement CLI | An unknown argument is a usage error | 2.1, 2.2 |
+| Committed measurement matches the raw data | The committed outputs are the current aggregation | 7.4a–7.4c, 7.5 |
+| Committed measurement matches the raw data | The frozen questions still match their hash | 7.2 |
+| Published Table 1 | The README Table 1 agrees with the measurement | 7.6a |
+| Published Table 1 | The README limitations and verifier row are current | 7.6b |
+| Published Table 1 | *(B1, to add)* A negative savings is explained | *(to add to 7.6a)* |
+| Measurement report | The report agrees with the measurement | 7.7, 7.8 |
+| graph-quality → Published Table 2 (MODIFIED) | The README table agrees with the measurement | 7.6b (shared intro, D14), 8.2 |
+| graph-quality → Published Table 2 (MODIFIED) | A TypeScript figure below PHP is explained | 8.2 (unchanged test) |
+
+The 40 current scenarios and the two `graph-quality` scenarios all map to tasks. The only empty cells are the scenario and task that B1 must add.
+
+---
+
+## Corrections to apply
+
+### `specs/context-measurement/spec.md`
+
+- **"Aggregation rules" (B1).** Replace «Ahorro» `100 × (1 − CODEMIND / Contexto bruto)` "in tenths of a percent rounded half up from the integers, equal to the product's `savingsPct` …" with:
+
+  > «Ahorro» the integer number of tenths `Math.round((Contexto bruto − CODEMIND) · 1000 / Contexto bruto)`, which is negative when CODEMIND exceeds the raw context and rounds a half toward +∞, as the product's `savingsPct` does; `null` (published `no definido`) when «Contexto bruto» is 0.
+
+- **Scenario "The savings equal the product's formula" (B1).** Replace "pairs of input and baseline totals above 0, among them one whose exact savings end in a half tenth" with:
+
+  > pairs of input and baseline totals above 0, among them one whose exact savings end in a half tenth and one with input above the baseline whose savings end in a half tenth (baseline 400, input 401)
+
+  and add to THEN:
+
+  > and the second gives −2 tenths (`-0,2 %`)
+
+- **"Published Table 1" (B1).** Replace "whose «Ahorro» is the percentage with one decimal and a decimal comma (`88,3 %`, or `no definido` for a `null`)" with:
+
+  > whose «Ahorro» is written from its tenths with one decimal and a decimal comma, a negative value starting with `-` and a non-negative one without sign (`88,3 %`, `-95,2 %`, or `no definido` for a `null`)
+
+  and add:
+
+  > When the «Ahorro» of a project is below 0, the text below Table 1 SHALL contain a paragraph starting `**Por qué CODEMIND envía más tokens que el contexto bruto.**` that explains it, and the figures SHALL NOT be adjusted.
+
+- **New scenario under "Published Table 1" (B1): "A negative savings is explained"**
+  - GIVEN the committed `context-savings.json`
+  - WHEN the «Ahorro» of each project is read
+  - THEN if either is below 0, the README text below Table 1 holds the paragraph starting `**Por qué CODEMIND envía más tokens que el contexto bruto.**`; otherwise it does not.
+
+- **"Live environment check".**
+  - Replace "or any variable other than the model names" with "or any variable other than the model names and `PORT`".
+  - Replace "(`LLM_MODEL_VERIFY`, or `LLM_MODEL` when unset)" with "(`LLM_MODEL_VERIFY`, or `LLM_MODEL` when it is unset or blank)".
+  - Replace "with another version, model or digest" with "with another Ollama version, model, digest or verification model".
+  - Add: "Raw responses present without `raw/run.json` SHALL make the command exit with code 1 naming `docs/measurements/context/raw/run.json`." (Or the opposite rule, if the agent decides otherwise.)
+
+- **"Tokenizer deviation sample".** Replace "with the stderr line of `readSeed` (`seeds/graph-dump.sql: the file cannot be read` or `seeds/graph-dump.sql:<line>: <reason>`)" with:
+
+  > with the stderr line `seeds/graph-dump.sql: the file cannot be read` or the `seeds/graph-dump.sql:<line>: <reason>` message of `readSeed`
+
+### `design.md`
+
+- **D11 (B1, B2).**
+  - Add `formatSavings(tenths)` (`883` → `88,3 %`, `-952` → `-95,2 %`, `null` → `no definido`), used for every «Ahorro» in the README, the report and the stdout summary.
+  - State that `formatPercent`, `formatSigned` and `formatSeconds` round to one decimal half away from zero from the integers, as `roundRatio` does.
+  - State that a project with no `UNKNOWN` gives `<answered> respondidas y 0 UNKNOWN` with no parentheses, and that reasons appear in the JSON's sorted order.
+- **D8.** Place "`PORT` read with `apiPort` (invalid: exit 2)" right after `.env` loading, before `checkFreeze`.
+- **D7.** Add `verifyModel` to the fields compared on a later run, and the rule for raw responses without `run.json`.
+- **D9.** Add: "GET requests pass `body: ''` and `headers: {}`, since `sendWithHttp` computes `Buffer.byteLength(body)` (`scripts/demo-ask.mjs:37`)."
+- **Risks.** Add:
+
+  > **Negative savings.** The six golden answers of `seeds/cache/*.json` all have negative `savingsPct` (−1,3 % to −97,8 %); on the small sample files the verification and the prompt can exceed the raw context. Mitigation: published as measured, with the explanation paragraph of "Published Table 1", never adjusted.
+
+  Replace "some hundreds of kB" with the expected bound ("under 1 MB").
+- **Follow-ups.** Add:
+  - P28: negative savings format and explanation (B1);
+  - P29: formatter rounding and the empty `UNKNOWN` list (B2);
+  - P30: the §0.3 sentence, per Q1, with its destination.
+
+  State in P15 that it replaces the ticket D6 sentence on prefix reuse.
+
+### `proposal.md`
+
+- **"Outputs" and "Report and README".** Add that a negative «Ahorro» is published as measured with an explanation paragraph below Table 1.
+- **Non-goals.** If Q1 is decided as out of scope, add "editing the §0.3 claim".
+
+### `tasks.md`
+
+- **4.1.** Assert the body `''` of each GET recorded by the fake `send`.
+- **4.2.** Add the case of raw responses without `run.json`, and a `run.json` with another `verifyModel`.
+- **6.1.** Add the negative exact-half pair (baseline 400, input 401 → −2 tenths).
+- **6.3.** Add tests for `formatSavings` (`883`, `-952`, `null`) and one exact-half example for each of `formatPercent`, `formatSigned` and `formatSeconds`, plus the D11 line with 0 `UNKNOWN`.
+- **7.6a.** Add RED → GREEN for "A negative savings is explained". When the data gives a negative «Ahorro», write the explanation paragraph (agent's text, marked so).
+- **8.2 and 13.8.** Change "40" to "41" scenarios.
+
+### Linear DIS-81 (a Spanish comment, or the `[enhanced]` part; never the `[original]` block)
+
+> *(Texto del agente, auditoría de spec de `context-measurement`, ronda 2, 2026-11-03.)*
+> - Las seis respuestas golden de `seeds/cache/*.json` tienen ahorro negativo (de −1,3 % a −97,8 %): lo esperable es que la Tabla 1 muestre un «Ahorro» negativo en algún proyecto. El cambio fija su formato (`-95,2 %`, redondeo como `savingsPct`) y un párrafo «Por qué CODEMIND envía más tokens que el contexto bruto.» bajo la Tabla 1, sin ajustar las cifras.
+> - Decisión pendiente sobre la frase de §0.3 («reduce coste y latencia de forma medida»): <decisión y destino>.
+> - La D6 de este ticket decía que la reutilización de prefijo de Ollama se declaraba como limitación; la sonda de P15 muestra que `prompt_eval_count` cuenta el prompt entero, así que no es una limitación.
+
+### Linear DIS-53
+
+No edit by the agent. If Q1 is decided, record the decision as a Spanish comment on DIS-53 without touching its description.
