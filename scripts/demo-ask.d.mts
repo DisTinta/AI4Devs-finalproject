@@ -18,3 +18,9 @@ export interface DemoAskOptions {
 
 /** Sends the question and prints the result; resolves with the exit code. */
 export function runDemoAsk(args: string[], options: DemoAskOptions): Promise<number>;
+
+/** Sends one request with `node:http`, without a time limit (DIS-81 design D9). */
+export const sendWithHttp: Send;
+
+/** The API's port read as the API reads `PORT`: blank = 3000, or `undefined` when it is not a port number. */
+export function apiPort(value: string | undefined): number | undefined;

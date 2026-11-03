@@ -119,3 +119,6 @@ export function checkFreeze(report: string, root: string): string[];
 
 /** Runs one CLI command and returns its exit code. */
 export function runAnnotationAgreement(args: string[], options: AnnotationAgreementOptions): number;
+
+/** Rounds `numerator / denominator` to `digits` decimals, half away from zero, from the integers. */
+export function roundRatio(numerator: number, denominator: number, digits: number): number;

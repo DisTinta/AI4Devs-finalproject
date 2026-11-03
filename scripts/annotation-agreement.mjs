@@ -271,7 +271,7 @@ export function validateOutput(output, { kind, number, expected, root }) {
  * @param {number} digits - The decimals to keep.
  * @returns {number} The rounded ratio.
  */
-function roundRatio(numerator, denominator, digits) {
+export function roundRatio(numerator, denominator, digits) {
   const scale = 10 ** digits;
   const scaled = Math.floor((2 * Math.abs(numerator) * scale + denominator) / (2 * denominator));
   return scaled === 0 ? 0 : (Math.sign(numerator) * scaled) / scale;
