@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   BudgetExhausted,
@@ -245,8 +246,8 @@ describe('Requirement: Documents checked by a call', () => {
     expect(unindexed.model.requests).toHaveLength(0);
   });
 
-  it('The documents and the commit are resolved against the workspace root', async () => {
-    // Arrange: an absolute project root is used as it is, so the read root is the project's root path.
+  it('An absolute project root is read as it is', async () => {
+    // Arrange
     const d = driftDeps({ files: [PRICING_FILE], extract: NO_CLAIMS, confront: NEVER });
 
     // Act
@@ -255,8 +256,24 @@ describe('Requirement: Documents checked by a call', () => {
     // Assert
     expect(report.commit).toBe(COMMIT);
     expect(report.projectId).toBe(d.projectId);
-    expect(d.batchReads[0]!.root).toBe('/repos/drift');
-    expect(WORKSPACE).toBe('/workspace');
+    expect(d.batchReads).toEqual([{ root: '/repos/drift', commit: COMMIT, paths: [PRICING] }]);
+  });
+
+  it('A relative project root is joined to the workspace root for every read', async () => {
+    // Arrange: the seeded projects store a relative root (`fixtures/acme-shop`); the source double
+    // serves the repository only at its join to the workspace root, so a read of the document, of the
+    // context or of a verification at the unjoined path rejects with `SourceUnavailable`.
+    const d = oneClaimProject(() => verdictOutput('contradicted', 'The calculator differs', ['E1']), { rootPath: 'repos/drift' });
+
+    // Act
+    const report = answered(await drift(d.deps, { projectId: d.projectId }));
+
+    // Assert
+    const joined = join(WORKSPACE, 'repos/drift');
+    expect(d.batchReads.map((read) => read.root)).not.toHaveLength(0);
+    for (const read of d.batchReads) expect(read.root).toBe(joined);
+    expect(report.documents[0]!.contradictions).toHaveLength(1);
+    expect(report.events).toEqual([]);
   });
 });
 

@@ -1,3 +1,4 @@
+import { isAbsolute, join } from 'node:path';
 import { countLines, createInMemoryVerificationCache, fileKindOf } from '@codemind/core';
 import type {
   CompletionRequest,
@@ -192,6 +193,11 @@ export interface DriftDepsOptions extends DriftLlmOptions {
   verificationFailures?: Record<string, unknown>;
   /** Wraps the store (to inject a failure). */
   store?: (store: StorePort) => StorePort;
+  /**
+   * The project's stored root path; `ROOT_PATH` when absent. A relative one is served by the source
+   * double only under its join to `WORKSPACE`, so a read at the unjoined path finds no repository.
+   */
+  rootPath?: string;
 }
 
 /** A symbol of `path` (a method of three lines from `startLine`, or the given lines). */
@@ -224,11 +230,13 @@ export function driftDeps(options: DriftDepsOptions) {
     fileCommits: [],
     ...(options.indexed === false ? {} : { indexedCommit: COMMIT }),
   };
+  const rootPath = options.rootPath ?? ROOT_PATH;
+  const readRoot = isAbsolute(rootPath) ? rootPath : join(WORKSPACE, rootPath);
   const loaded = createInMemoryStore({
-    projects: [{ project: { name: 'drift-project', rootPath: ROOT_PATH, language: 'php' }, graph }],
+    projects: [{ project: { name: 'drift-project', rootPath, language: 'php' }, graph }],
   });
   const contents = Object.fromEntries(options.files.map((f) => [f.path, f.content]));
-  const tree: SourceContents = { [ROOT_PATH]: { [COMMIT]: contents } };
+  const tree: SourceContents = { [readRoot]: { [COMMIT]: contents } };
   let confrontationCalls = 0;
   const later = options.verificationContents !== undefined || options.verificationFailures !== undefined;
   const source = createInMemorySourceTree(
@@ -238,7 +246,7 @@ export function driftDeps(options: DriftDepsOptions) {
       ? {
           after: {
             when: () => confrontationCalls > 0,
-            contents: { [ROOT_PATH]: { [COMMIT]: options.verificationContents ?? contents } },
+            contents: { [readRoot]: { [COMMIT]: options.verificationContents ?? contents } },
             failures: options.verificationFailures,
           },
         }
