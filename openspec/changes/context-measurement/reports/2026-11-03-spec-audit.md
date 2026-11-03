@@ -1072,3 +1072,243 @@ All fixed (P34, **A**) unless noted.
 
 - DIS-81: a Spanish comment summarises the decisions of this round, marked as the agent's text.
 - DIS-53: no edit, as the audit asked.
+
+---
+
+## Run 4 (2026-11-03)
+
+CHANGES REQUIRED
+
+**Questions for the author:** none. Both blocking findings are engineering decisions. In this autonomous run the agent may settle them as lead engineer, as long as each answer is marked as the agent's text.
+
+**What this run judged.** The change as it stands after correction round 3:
+- `proposal.md`, `design.md` (D1–D14, P1–P34), `specs/context-measurement/spec.md` (11 requirements, 42 scenarios), `specs/graph-quality/spec.md` and `tasks.md`.
+- DIS-81 (description with `[original]`, `[reality-map]` and `[enhanced]`, plus its seven comments) and its parent DIS-53 (description and its comment of 2026-10-28), both loaded from Linear.
+- The code and README facts the change relies on: `readme.md:29, 69, 874-901`; `scripts/demo-ask.mjs:33-71, 132-168`; `packages/core/src/context/tokenizer.ts:19-22`; `packages/core/src/explain/usage.ts:18-23`.
+
+**Earlier decisions.** P16–P34 are marked as the agent's text and do not contradict the ticket or the project, so they are accepted as answers.
+
+### 1. Scope against the ticket
+
+Clean. Everything in the change comes from one of these:
+- DIS-81: enhanced D1–D8 and the audit decisions recorded in its enhanced part and comments;
+- the Entrega 1 review note "Medir el verificador", moved onto DIS-81 (D13);
+- the conditional §0.3 rewrite (P30), which is bounded and recorded in a DIS-81 comment.
+
+Nothing widens the change to Table 2 or to DIS-82.
+
+### 2. Inherited acceptance criteria
+
+Clean.
+- DIS-81 AC 1–5 and its DoD map to requirements with scenarios (see point 11).
+- Parent DIS-53 AC 2 maps to "Measurement outputs".
+- Parent DIS-53 AC 3 limitations (one run, the annotation, small repositories, PH-16, PH-27) map to "Published Table 1" and its scenario "The README limitations and verifier row are current".
+- The disagreements between parent and sub-issue (pending «Correctas», the cost ratio, review by the author) were answered by the agent in P22–P25. Those answers are consistent with the DIS-53 comment of 2026-10-28 and with DIS-81's enhanced D1.
+
+### 3. Missing scenarios
+
+All improvable:
+- **`expectedUnknown` and `run.firstReceivedAt` / `run.lastReceivedAt`.** "Aggregation rules" defines them in a SHALL clause (added in round 3), but no scenario pins their values. Add a THEN clause to "UNKNOWN rows are counted apart", for example: "with `expected: "unknown"` on Q19 and Q20 and only Q20 answered `UNKNOWN`, `expectedUnknown` is `{ declared: 2, answeredUnknown: 1 }`". Add a THEN clause to "The outputs are deterministic": "`run.firstReceivedAt` and `run.lastReceivedAt` are the earliest and latest injected `receivedAt`".
+- **Unparsable `raw/run.json`.** No scenario, because no rule exists (see B2).
+
+### 4. Ambiguity
+
+None of the listed words (fast, easy, secure, efficient, many, appropriate, robust) appears in the proposal, design, specs or tasks. Clean.
+
+### 5. Open decisions
+
+#### B1 (blocking): the unit of the JSON's per-project `savingsPct` is not fixed
+
+**What the change says:**
+- "Aggregation rules" defines «Ahorro» as "the integer number of tenths".
+- D11's `formatSavings(tenths)` takes tenths, and "every figure of the README and the report SHALL be formatted from those integers".
+- The JSON layout of D10 stores it under the key `savingsPct`. That is the product's name for a *percentage* (`usage.ts:22` returns `tenths / 10`, for example `-41.1`).
+- The CSV also has a column `savingsPct`, which holds the per-row product value in percent.
+
+**What the implementer must decide alone:**
+- whether `projects[].savingsPct` holds `883` (tenths) or `88.3` (percent);
+- if it holds percent, how the README test gets back to tenths without formatting from a rounded value, which the spec forbids.
+
+Both readings satisfy part of the text. The value is pinned by the committed JSON and by the 6.1 and 7.6a tests. If the key holds tenths, the same name means two different units in the CSV and in the JSON.
+
+**Fix:**
+- In the JSON, name the key `savingsTenths`: an integer, or `null`.
+- State it in "Aggregation rules" and D10.
+- Assert `savingsTenths` 883 in "Savings of two answered rows" and `null` in "A project with no answered row".
+
+#### B2 (blocking): an unreadable or incomplete `raw/run.json` has no rule
+
+Run 3's B1(a) listed `raw/run.json` among the files a killed process can leave unparsable or incomplete. The resolution added a validation step, but that step covers only "a raw response or `raw/tokenizer.json`" ("Asking each question", second paragraph; D7). "Live environment check" only covers a `run.json` that exists "with another Ollama version, model, digest or verification model".
+
+So if `run.json` is not JSON, or lacks `startedAt`, `ollamaVersion`, `model`, `modelDigest` or `verifyModel`, the implementer must choose between exit 1 and a rewrite. A rewrite would reopen the gap P31 closed: a broken `run.json` would hide a change of model.
+
+**Fix:**
+- "Live environment check": a `raw/run.json` that cannot be read or parsed as JSON, or that lacks `formatVersion` 1, `startedAt`, `ollamaVersion`, `model`, `modelDigest` or `verifyModel`, SHALL make the command exit with code 1, with a stderr line naming `docs/measurements/context/raw/run.json`, without asking anything. It is never rewritten.
+- Add that case to the GIVEN of "A raw run of another model is not mixed", to D7 and to task 4.2.
+
+#### Improvable
+
+- **Format of the `file` paths in `raw/tokenizer.json` and in the JSON.** Neither format is fixed: `counts[].file`, `tokenizer.excluded`, `tokenizer.min.file` and `tokenizer.max.file`. The context strongly suggests the repository-relative `fixtures/<fixture>/<path>`, since the scenarios name `fixtures/task-api/src/app.ts` and `fixtures/acme-shop/config/services.php`. But the stdout line is `tokenizer <fixture>/<path>`. Write in D7 and D10: "`file` is the repository-relative path `fixtures/<fixture>/<path>` with `/` separators".
+- **Type of the injected `now`.** D9 says `now` "gives the `receivedAt` / `startedAt` timestamps", but does not say whether it returns a `Date` or a string. `firstReceivedAt` / `lastReceivedAt` rely on comparing those values, so the type matters. Write "`now(): Date`; timestamps are written as `now().toISOString()`, and the earliest and latest are compared as ISO strings".
+- **`-0` savings.** `Math.round` of a small negative quotient gives `-0`. Example: baseline 3000, input 3001 gives −0.33 tenths, rounded to `-0`. The product normalises this to `0` (`usage.ts:22`). `JSON.stringify` writes `0` and `-0 < 0` is false, so no output breaks. Still, state that the tenths are normalised to `0`, as `savingsPct` does, and add that pair to "The savings equal the product's formula".
+- **Duplicate counts.** The raw-data check does not reject two `raw/tokenizer.json` counts for the same `file`. Add that case to the validation list.
+
+### 6. Contradictions inside the change
+
+- **B1** above: the JSON key `savingsPct` against the spec's "integer number of tenths".
+- Clean otherwise. The proposal, D1–D14 and the spec agree on these points:
+  - order of the checks: arguments → `.env` → `PORT` → freeze → questions → seed and hashes → `LLM_*` → health → Ollama → `run.json` → raw validation → asks → counts → build;
+  - cache rules;
+  - null rules;
+  - rounding;
+  - blind answer files;
+  - the conditional §0.3 rewrite.
+- Scenario count: 42 in the spec and in tasks 8.2 and 13.8. Requirement count: 11, matching 13.8.
+
+### 7. Contradictions with the project
+
+Clean.
+- The `graph-quality` delta replaces only the last sentence of "Published Table 2". The shared intro at `readme.md:876` will keep `npm run measure:graph` and `DIS-81` (D14), so `tests/unit/docs/graph-quality.spec.ts` stays valid unchanged.
+- The Ollama setup follows `docs/project-context.md` → Gotcha DIS-72 (D12, tasks 7.3, 7.4b, 7.9 and 10.3).
+- Task 0.1 follows the branch and base conventions.
+- The Follow-ups use destinations A, B and D only, never C.
+- The merge gate of 13.9 follows the autonomous-run ADR.
+- The README anchor `(#26-tests)` exists (`readme.md:29`, `574`). The heading `#### Mediciones que se publicarán` exists (`readme.md:874`).
+
+### 8. Contrast with the real code
+
+Clean. Checked in this run:
+- `sendWithHttp` (`scripts/demo-ask.mjs:33`) computes `Buffer.byteLength(body)` (`:37`), so the `body: ''` rule for GET requests (D9) is needed.
+- `apiPort` (`:66-71`) returns `undefined` for an invalid `PORT` and 3000 when it is blank; the spec's `PORT` line mirrors `:142`.
+- The unreachable-API line mirrors `:155`.
+- `demo:ask` loads `.env` before its usage check (`:133-138`). `measure:context` deliberately parses the arguments first (D8). That is consistent within this change and does not touch `demo-ask`.
+- `estimateTokens` (`packages/core/src/context/tokenizer.ts:19-22`) is `ceil(code points / 4)`, as the spec says.
+- `savingsPct` (`packages/core/src/explain/usage.ts:18-23`) returns 0 at a zero baseline and `tenths / 10` with `-0` normalised. This supports B1: the product's `savingsPct` is in percent, not tenths.
+- `readme.md:69` holds the §0.3 sentence «lo que reduce coste y latencia de forma medida» that P30 conditionally rewrites. `readme.md:878` holds the caption with `~` and `revisión manual`. `readme.md:901` holds the limitations paragraph.
+
+### 9. Task size
+
+Clean.
+- 7.4b is a loop of bounded calls by design.
+- 2.1 is at the limit but acceptable, as earlier runs found.
+- B1 and B2 each add one assertion to an existing task (6.1 / 6.1b and 4.2). Neither needs a split.
+
+### 10. Mandatory steps
+
+Clean.
+- Step 0 is the branch and comes first.
+- Steps 8–13 are present and labelled `(MANDATORY)`; steps 10, 11 and 13 say `AGENT MUST EXECUTE`.
+- E2E is justified as not applicable.
+- The data baseline is captured in 7.3 before the API starts.
+- State is restored in 7.9, 9.6 (`npm run db:seed`, then `npm run verify`) and 10.3, including the recorded Ollama state.
+- The PowerShell checks run with `-NoProfile` and without `$env:` assignments.
+- The pre-merge order matches `docs/openspec-tasks-mandatory-steps.md` §3, with the archive before the merge.
+
+### 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| Freeze check before measuring | A frozen question file was modified | 2.1, 2.3 |
+| Freeze check before measuring | The savings report records no hash | 2.3 |
+| The question set | A project has 19 questions | 3.1 |
+| The question set | The committed question set is complete | 7.1, 7.2 |
+| Live environment check | The API does not answer | 4.1 |
+| Live environment check | The health check is not ok | 4.1 |
+| Live environment check | The model variable is not set | 4.1 |
+| Live environment check | The Ollama version check fails | 4.1 |
+| Live environment check | The model is not in Ollama | 4.1 |
+| Live environment check | A raw run of another model is not mixed | 4.2 (B2 adds the unparsable case) |
+| Live environment check | No variable value is written | 4.1b |
+| Asking each question | Every question is sent without the cache | 5.1 |
+| Asking each question | An evaluation-mode API stops the run | 5.2 |
+| Asking each question | A cached answer stops the run | 5.2 |
+| Asking each question | A verification answered from the API cache | 5.2b |
+| Asking each question | A non-200 status stops the run | 5.2 |
+| Asking each question | A body that is not JSON stops the run | 5.2 |
+| Asking each question | An answered body without a usage field stops the run | 5.2 |
+| Asking each question | A stale raw response stops the run | 5.4 |
+| Asking each question | Unusable raw data stops the run before any question | 5.4b |
+| Asking each question | A resumed run skips the answered questions | 5.4 |
+| Tokenizer deviation sample | The local estimate equals the product's | 3.2 |
+| Tokenizer deviation sample | A sample file differs from the seed | 3.2 |
+| Tokenizer deviation sample | The seed has no row of a sample project | 3.2 |
+| Tokenizer deviation sample | A malformed generate answer stops the count | 5.3 |
+| Tokenizer deviation sample | Every non-redacted file is counted once | 5.3 |
+| Aggregation rules | Savings of two answered rows | 6.1 (B1 adds `savingsTenths`) |
+| Aggregation rules | UNKNOWN rows are counted apart | 6.1 |
+| Aggregation rules | The savings equal the product's formula | 6.1 |
+| Aggregation rules | Verifier latency and calls of three answered rows | 6.1b |
+| Aggregation rules | A project with no answered row | 6.1b |
+| Aggregation rules | The tokenizer deviation of a sample | 6.1 |
+| Measurement outputs | The outputs are deterministic | 6.3 |
+| Measurement outputs | The answer files are blind | 6.2 |
+| Measurement outputs | A CSV field with a comma, a quote and a line break | 6.2 |
+| Measurement CLI | An unknown argument is a usage error | 2.1, 2.2 |
+| Committed measurement matches the raw data | The committed outputs are the current aggregation | 7.4a–7.4c, 7.5 |
+| Committed measurement matches the raw data | The frozen questions still match their hash | 7.2 |
+| Published Table 1 | The README Table 1 agrees with the measurement | 7.6a |
+| Published Table 1 | A negative savings is explained | 7.6a |
+| Published Table 1 | The README limitations and verifier row are current | 7.6b |
+| Measurement report | The report agrees with the measurement | 7.7, 7.8 |
+| graph-quality → Published Table 2 (MODIFIED) | The README table agrees with the measurement | 7.6b (shared intro, D14), 8.2 |
+| graph-quality → Published Table 2 (MODIFIED) | A TypeScript figure below PHP is explained | 8.2 (unchanged test) |
+
+No empty row. Every one of the 42 scenarios and the two `graph-quality` scenarios maps to a task.
+
+---
+
+### Corrections to apply
+
+#### `specs/context-measurement/spec.md`
+
+- **"Aggregation rules" (B1).** After "…and `null` (published `no definido`) when «Contexto bruto» is 0.", add:
+
+  > In the JSON, «Ahorro» SHALL be written under the key `savingsTenths` as that integer number of tenths (883 for 88,3 %) or `null`; a `-0` is written `0`, as the product's `savingsPct` normalises it.
+
+- **Scenario "Savings of two answered rows" (B1).** In THEN, after "«Ahorro» is 88,3 %", add "(the JSON's `savingsTenths` is 883)".
+- **Scenario "A project with no answered row" (B1).** In THEN, add "`savingsTenths` is `null`".
+- **"Live environment check" (B2).** After the sentence on raw responses without `raw/run.json`, add:
+
+  > A `raw/run.json` that cannot be read or parsed as JSON, or that lacks `formatVersion` 1, `startedAt`, `ollamaVersion`, `model`, `modelDigest` or `verifyModel`, SHALL make the command exit with code 1 with a stderr line naming `docs/measurements/context/raw/run.json`, without asking anything; it is never rewritten.
+
+- **Scenario "A raw run of another model is not mixed" (B2).** At the end of GIVEN, add "; then a copy whose `raw/run.json` is not valid JSON".
+- **"Asking each question" (improvable).** In the validation list, add "two counts of `raw/tokenizer.json` for the same `file`".
+- **Scenario "UNKNOWN rows are counted apart" (improvable).** Add `expected: "unknown"` on two questions, one of them answered `UNKNOWN`, and add to THEN "`expectedUnknown` is `{ declared: 2, answeredUnknown: 1 }`".
+- **Scenario "The outputs are deterministic" (improvable).** In THEN, add "`run.firstReceivedAt` and `run.lastReceivedAt` are the earliest and latest injected `receivedAt`".
+
+#### `design.md`
+
+- **D10 (B1).** In the project layout, replace `savingsPct` with `savingsTenths`. Replace "`savingsPct` is `null` when `baselineTokens` is 0" with "`savingsTenths` (integer tenths, `-0` normalised to `0`) is `null` when `baselineTokens` is 0". State that `file` in `tokenizer.excluded`, `min` and `max` is the repository-relative `fixtures/<fixture>/<path>`.
+- **D11 (B1).** Write that `formatSavings` takes the JSON's `savingsTenths`.
+- **D7 (B2).** After "raw responses or `tokenizer.json` present without `run.json` exit 1…", add "and so does a `run.json` that cannot be parsed or lacks one of its fields; it is never rewritten". State that `counts[].file` is `fixtures/<fixture>/<path>`, and add duplicate counts to the validation list.
+- **D9 (improvable).** Replace "where `now` gives the `receivedAt` / `startedAt` timestamps" with "where `now(): Date` gives the timestamps, written as `now().toISOString()`".
+- **Follow-ups.** Add:
+  - P35 (audit run 4, B1): the JSON key `savingsTenths`;
+  - P36 (audit run 4, B2): an unreadable or incomplete `run.json` exits 1;
+  - P37 (audit run 4, improvable): `file` path format, `now(): Date`, `-0`, duplicate counts, scenario clauses for `expectedUnknown` and the `receivedAt` bounds.
+
+  Each with its destination.
+
+#### `proposal.md`
+
+- **"Outputs".** After "per-project aggregates: raw context, tokens sent, savings", add "(integer tenths, key `savingsTenths`)".
+
+#### `tasks.md`
+
+- **4.2 (B2).** Add the case "a `raw/run.json` that is not valid JSON, then one without `modelDigest`: each exits 1 naming `docs/measurements/context/raw/run.json`, no ask, the file not rewritten".
+- **5.4b.** Add "two counts for the same file" to the cases.
+- **6.1 / 6.1b (B1).** Assert `savingsTenths` 883, and `null` with no answered row. Add the pair baseline 3000 / input 3001 → `0` (not `-0`). Add the `expectedUnknown` assertion.
+- **6.3.** Assert `run.firstReceivedAt` and `run.lastReceivedAt`.
+- **7.6a.** Format «Ahorro» from `savingsTenths`.
+- **12.3.** Cite P16–P37.
+
+#### Linear DIS-81 (a Spanish comment, or the `[enhanced]` part; never the `[original]` block)
+
+> *(Texto del agente, auditoría de spec de `context-measurement`, ronda 4, 2026-11-03.)*
+> - El «Ahorro» por proyecto de `context-savings.json` se guarda como décimas enteras con la clave `savingsTenths` (883 = 88,3 %), no como `savingsPct`, porque esa clave es un porcentaje en el producto y en el CSV. Un `-0` se escribe `0`, como hace `savingsPct`.
+> - Si `raw/run.json` no se puede leer o le falta algún campo, la ejecución para con código 1 y nombra el fichero. Nunca se reescribe, para que un modelo distinto no quede oculto.
+> - Las rutas de los ficheros de la muestra del tokenizador se escriben como `fixtures/<proyecto>/<ruta>`.
+
+#### Linear DIS-53
+
+No edit.
