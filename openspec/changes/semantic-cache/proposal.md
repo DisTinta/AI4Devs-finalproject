@@ -41,6 +41,10 @@ dimensions) can never be used: `embed()` rejects it with `dimension-mismatch` be
 - **Docs.** `readme.md` (§1.3 step 5, §2.4, the embeddings note, the ER diagram), `docs/DEMO.md` step 5
   note, `.env.example` and `docs/project-context.md` say 768, `nomic-embed-text` as the reference
   model, and "similarity only with `LLM_EMBED_MODEL` configured; exact key only in evaluation".
+  `docs/backend-standards.md` §5 says what a change of embedding model needs (another dimension: a
+  migration; the same dimension: invalidate every project's cache). A new ADR records that embeddings
+  stay on `LlmPort.embed()` (no `EmbeddingPort`) and the 768 dimension, as the DIS-46 review comment
+  asks (design S13).
 
 ### Non-goals
 
@@ -50,8 +54,8 @@ dimensions) can never be used: `embed()` rejects it with `dimension-mismatch` be
   DIS-69 (CM-HU-19.2).
 - No embedding of the graph (`file.embedding`, `symbol.embedding` stay unwritten; only their dimension
   changes) and no semantic anchoring.
-- No re-embedding of entries when the embedding model changes (changing model means invalidating the
-  cache, `docs/backend-standards.md` §5), no similarity cache for `/impact`, and the tokens of `embed()`
+- No re-embedding of entries when the embedding model changes (after a change of embedding model the
+  operator invalidates the caches; `docs/backend-standards.md` §5 is corrected to say so), no similarity cache for `/impact`, and the tokens of `embed()`
   are not counted in `usage` or `query_log`.
 - The threshold is not an environment variable and is not tuned with the measurement questions
   (`docs/measurements/context/questions.json`).
@@ -68,7 +72,9 @@ dimensions) can never be used: `embed()` rejects it with `dimension-mismatch` be
 
 - `explain`: "Precedence and UNKNOWN answers" (the similarity step between the exact key and evaluation
   mode; the embedding request is not a completion), "Answer cache" (lookup by similarity, save with the
-  embedding) and "Explain events and logging" (the new event in the union and its place in the order).
+  embedding), "Explain events and logging" (the new event in the union and its place in the order) and
+  "Query log" (an embedding request never counts as a resolved call; similarity-lookup and embedding
+  failures write no row).
 - `graph-store`: "Answer cache entries" gains `findSimilarCacheEntry` and the optional embedding of
   `saveCacheEntry`, with their checks and the in-memory double.
 - `graph-schema`: the three embedding columns become `vector(768)` ("L1 column contract", "History,

@@ -217,11 +217,19 @@ as the error the test gives.
 
 #### Scenario: The in-memory double searches by similarity like the database
 
-- **GIVEN** the in-memory store with the entries of the two previous similarity scenarios, seeded
-  with their creation order
-- **WHEN** the same searches are made, then a search with an embedding of `EMBEDDING_DIMENSIONS − 1`
-  components, and then one with a similarity failure injected as an `Error`
-- **THEN** each resolves to the same entry as the database scenarios, the boundary search with Q and
-  minimum 0.85 resolving to its entry with a similarity of exactly 0.85; the short embedding fails
-  with `InvalidStoreQuery` naming `embedding`; the injected failure rejects with that `Error`
+- **GIVEN** the in-memory store seeded with the entries of "A saved embedding is found by similarity
+  within its project" (in the first project R₁ with E1 and R₂ without an embedding, in the second
+  project R₃ with E1) and, in a third project, the entries A, B, C and D of "The most similar entry
+  wins and ties go to the most recent" with their embeddings and with C created at
+  `2026-10-01T00:00:00Z` and D at `2026-10-02T00:00:00Z`
+- **WHEN** the four searches of the first of those scenarios are made in the first project and the two
+  of the second in the third project; then the first project is searched with the vector Q whose
+  first five components are `17, 10, 3, 1, 1` (the rest 0) and minimum 0.85; then with an embedding
+  of `EMBEDDING_DIMENSIONS − 1` components; then with a similarity failure injected as an `Error`
+- **THEN** the first six searches resolve as in those two scenarios (R₁ with similarity 1, R₁, nothing,
+  R₁ with similarity 0; B, D), with exactly computed similarities; the search with Q and minimum 0.85
+  resolves to R₁ with a similarity of exactly `0.85`; the short embedding fails with
+  `InvalidStoreQuery` naming `embedding`; the injected failure rejects with that `Error`
 - **AND** its call counts record each similarity search
+- **AND** the scenario "The similarity search is exact whatever the other projects hold" is not
+  repeated on the double, which has no index and always scans every entry of the project

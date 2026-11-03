@@ -74,7 +74,8 @@ any pack, completion or `query_log` row.
 - **WHEN** `Explícame el cálculo del precio final` is explained with the default `useCache`
 - **THEN** the answer is the stored response's `answer`, `statements`, `evidence`, `priorClaims` and
   `confidence` with `persisted: true`, `events: []`, `usage.cacheHit` `true`, `usage.costUsd` 0 and 0
-  input and output tokens
+  input and output tokens, and the answer has exactly the keys of an exact-key hit's answer
+  (`answer-cache`, "Answer of a cache hit")
 - **AND** the model received exactly one embedding request, for `["explicame el calculo del precio
   final"]`, and no completion; the source reader, the traversal and the prior-claims read received 0
   calls and no claim was written
@@ -156,6 +157,18 @@ any pack, completion or `query_log` row.
 - **WHEN** `Explícame el cálculo del precio final` is explained with `useCache: false`
 - **THEN** no exact or similarity lookup was made, the model received one embedding request and the
   `answer` completion, and the new entry under the rephrased key holds E2
+- **AND** explained again with `useCache: false` and an embedding request that fails with
+  `LlmUnavailable` reason `timeout`, the answer is the model's stored answer whose events start with
+  `{ type: 'semantic_cache_skipped', code: 'embedding-unavailable' }`, and the entry under the
+  rephrased key then has no stored embedding
+
+#### Scenario: A question without anchor requests no embedding
+
+- **GIVEN** acme-shop loaded in the in-memory store and a live scripted model with usable embeddings
+  that records its embedding requests
+- **WHEN** `¿Dónde vive el ornitorrinco?` is explained
+- **THEN** the answer is `UNKNOWN` with reason `no-anchor`, the model received 0 embedding requests and
+  0 completions, and no exact or similarity lookup was made
 
 #### Scenario: A failing similarity lookup or hit record stops before the model
 
@@ -192,8 +205,8 @@ or status of the error, no part of the question or its key, and no component of 
 at most once per answer.
 
 The embedding request SHALL NOT count as a model call for the usage of the answer or its `query_log`
-row: its tokens and cost are not added (they are 0 USD with the reference model), and its result alone
-does not make a call "resolved" in the sense of `explain`, "Query log". The daily spend ceiling SHALL
+row: its tokens and cost are not added (they are 0 USD with the reference model), and it never counts
+as a resolved call in the sense of `explain`, "Query log", whatever it returns. The daily spend ceiling SHALL
 still be checked before it (`llm-adapter`, "Daily spend ceiling").
 
 #### Scenario: Without an embedding model the call is answered as today
@@ -262,6 +275,11 @@ find it; the embedding SHALL be requested once per call, never again for the sav
 vector was obtained (skip of requirement "Degradation without embeddings"), the answer SHALL be saved
 without an embedding, as before. An answer served from the cache SHALL NOT be saved again, and its
 entry keeps its stored embedding.
+
+Stored embeddings are only comparable with embeddings of the same model: after `LLM_EMBED_MODEL`
+changes, the operator SHALL invalidate the answer cache of every project (a full reindex,
+`POST /api/projects/{id}/index` with `incremental: false`, or `invalidateCache`) before asking; the
+system does not detect the change.
 
 #### Scenario: A live answer is saved with its embedding and found by a rephrasing
 

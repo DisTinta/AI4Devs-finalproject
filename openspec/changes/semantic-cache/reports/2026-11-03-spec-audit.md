@@ -280,3 +280,28 @@ The table has two holes (B6, B3), both blocking.
 - **DIS-46, comment:**
 
   > *Texto del agente (2026-11-03).* La decisión sobre `LlmPort.embed()` / `EmbeddingPort` que pedía la revisión de la Entrega 1 se toma en DIS-67 (cambio `semantic-cache`, decisión S13) y queda en un ADR. También se corrige en `docs/backend-standards.md` §5 el non-goal de DIS-5: otra dimensión exige migración, y otro modelo de la misma dimensión exige invalidar la caché.
+
+---
+
+## Resolution of run 1
+
+*Agent's text: correction round 1 of an autonomous run (2026-11-03), decided as lead engineer without the author. Each decision is in `design.md` → Follow-ups, table "Spec audit, run 1", with its destination; none has destination C. `openspec validate semantic-cache --strict` passes after the corrections.*
+
+| Finding | Resolution | Where |
+|---|---|---|
+| Q1 | Decided by the agent: the ADR belongs to DIS-67, the first task that uses embeddings for real, not to DIS-69 (which only adds seed vectors and the hit rate). Destination A | design S13, Follow-ups Q1 |
+| B1 | Fixed: decision S13 (embeddings stay on `LlmPort.embed()`, with the reasons against the DIS-46 comment's arguments); "No ADR" removed; Non-Goals says "no new port (S13)"; task 9.4 writes the ADR from `_template.md`, also covering D3/S6/S7, and indexes it in `docs/adr/README.md`; task 9.1 updates the `readme.md` embeddings note and the DIS-101 review row that pointed to DIS-46. The suggested comment on DIS-46 was not posted (the write to a ticket other than DIS-67 was denied by the run's permission layer); the decision is recorded in the DIS-67 comment and `[enhanced]` note, and will be in the ADR and the `readme.md` note that DIS-46's review pointed to | design S13, Non-Goals, Follow-ups; tasks 9.1, 9.4; proposal Docs |
+| B2 | Fixed: quote of `docs/backend-standards.md` §5 corrected in proposal and S7; requirement text added to `semantic-cache` "Embedding of a saved answer" (after a change of `LLM_EMBED_MODEL` the operator invalidates every project's cache; not detected); risk R2 (D, accepted); task 9.5 edits §5; task 9.3 states the rule in `.env.example` and `docs/project-context.md` | proposal Non-goals and Docs; design S7, Risks, Follow-ups R2; semantic-cache delta; tasks 9.3, 9.5 |
+| B3 | Fixed: `### Requirement: Query log` added to the `explain` delta as MODIFIED with its full current text and its 15 scenarios; "a call resolves" now means a completion (`answer` or `verify`), an embedding request never counts; the no-row list gains the similarity lookup and its hit record and an embedding failure other than `LlmUnavailable`/`BudgetExhausted`. The `semantic-cache` sentence on resolved calls now says the same. Proposal lists the modified requirement; task 7.3 maps its unchanged scenarios | explain delta; semantic-cache delta; proposal; task 7.3 |
+| B4 | Fixed: the double's scenario now names its entries (R₁, R₂, R₃ in two projects; A–D in a third, with C and D's instants), its searches (those of the two database scenarios plus Q/0.85, a short embedding and an injected `Error`) and its expectations (R₁ with similarity exactly `0.85` for Q/0.85). The 200-entry scenario is explicitly not repeated on the double, which has no index | graph-store delta; task 4.1 |
+| B5 | Fixed: 11.1 snapshots every acme-shop `cache_entry` row and names the three seeded keys; 11.3 creates the live entry with an embedding through `POST /ask` with `useCache: false` (the CLI has no cache switch) and uses a different-topic question absent from the seed; 11.5 uses an uncached question absent from the seed; 11.7 re-inserts replaced seed rows with their recorded values, restores `hit_count`/`last_hit_at` and compares with the snapshot | tasks 11.1, 11.3, 11.5, 11.7 |
+| B6 | Fixed: scenario "A question without anchor requests no embedding" added to `semantic-cache` "Similarity lookup in explain"; mapped in task 6.4 | semantic-cache delta; task 6.4 |
+| I1 | Fixed: 0.3, 3.2 and 7.2 name the step 10 report; the old 9.4 is now the ADR task, named in the step 10 report; S11 and its Follow-ups row name task 11.2 and the step 11 report | tasks 0.3, 3.2, 7.2, 9.4; design S11, Follow-ups |
+| I2 | Decided by the agent: group 9 keeps its place before group 10, with the reason written at the top of group 9 (the docs gate `npm run docs:coverage` of 10.3 checks this documentation). Destination A | tasks group 9 |
+| I3 | Fixed: S3 says "more entries of other projects nearer the query than `ef_search` (40)" and "one entry per distinct question"; R1 uses the measurable wording (≤ 1 000 entries per project; beyond that a new change measures it) and is no longer routed to DIS-69 | design S3, Risks, Follow-ups R1 |
+| I4 | Fixed: "Turning the cache off embeds only for the save" gains a second case with a `timeout` embedding (skip event first, entry saved without embedding); mapped in 6.4 | semantic-cache delta; task 6.4 |
+| I5 | Fixed: S11 and 11.2 carry the re-derivation rule of the threshold-dependent values and the §7 rule (update artifacts, re-run the spec audit) | design S11; task 11.2 |
+| I6 | Fixed: "Answer cache" → Lookup rewritten with the wording proposed by the audit | explain delta |
+| I7 | Fixed: note appended to the `[enhanced]` part of DIS-67 (AC4 refined by S1; no `answer-cache` delta, S12; model change rule); `[original]` untouched | Linear DIS-67 |
+| I8 | Fixed: S6 states the Expand → Contract exception; 3.2 asks `/migration-review` to confirm it | design S6; task 3.2 |
+| I10 | Fixed: the rephrasing scenario asserts the answer has exactly the keys of an exact-key hit's answer | semantic-cache delta |

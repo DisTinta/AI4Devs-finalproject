@@ -31,14 +31,15 @@ embedding kept with every live cacheable answer; the free reference model (`nomi
 usable; every existing explain test unchanged in what it asserts (only the call-count objects gain the
 new counter).
 
-**Non-Goals (design level):** no new port (the similarity decision is a pure core module over
+**Non-Goals (design level):** no new port (S13; the similarity decision is a pure core module over
 `LlmPort` and `StorePort`); no change to `meterLlm`, `withDailyBudget`, the adapter's code, the API or
 the CLI; no use of the HNSW index for the cache lookup (see S3); no seed or golden vectors (DIS-69).
 
 ## Decisions
 
 Decisions D1–D12 come from the enrich step (Linear DIS-67, description "[enhanced]", agent's text)
-and apply as written there, except D7, refined by S1. S1–S12 are taken in this proposal. *Agent's
+and apply as written there, except D7, refined by S1. S1–S12 are taken in this proposal, and S13 in
+correction round 1 of the spec audit. *Agent's
 text: decided as lead engineer in an autonomous run, without the author.*
 
 **S1. A missing embedding model skips silently; other failures add the event (refines D7).** The ticket
@@ -59,9 +60,9 @@ resolved no `query_log` row is written. Consequence: the test doubles whose `emb
 
 **S3. Exact search, not the HNSW index.** With `WHERE project_id = $1 ORDER BY question_embedding <=>
 $2 LIMIT 1`, Postgres may walk the global HNSW index and filter afterwards: with `ef_search` 40 and
-many entries of other projects nearer the query, the project's entry can be missed (pgvector's
-post-filtering; iterative scans exist only from 0.8 and are opt-in). The cache of one project is
-small (one entry per distinct question). `FIND_SIMILAR_CACHE_ENTRY` therefore starts from the
+more entries of other projects nearer the query than `ef_search` (40), the project's entry can be
+missed (pgvector's post-filtering; iterative scans exist only from 0.8 and are opt-in). The cache of
+one project holds one entry per distinct question. `FIND_SIMILAR_CACHE_ENTRY` therefore starts from the
 `project` row (as `FIND_CACHE_ENTRY`, so an unknown project is told apart from no entry), computes the
 distance of the project's rows with an embedding in a `MATERIALIZED` CTE (planned through
 `cache_entry_project_id_idx`, never ordered by the HNSW index), orders by distance, `created_at DESC`,
@@ -99,12 +100,19 @@ recreate the indexes with their names and `vector_cosine_ops`. Down: the same ba
 `USING NULL` is lossless on up (every value is `NULL` today: nothing writes them and the seed holds
 none) and loses the stored cache vectors on down, which only makes the next rephrasing miss (the
 entries and their responses stay). Index names unchanged, so `0003`'s down still drops them. Reviewed
-with `migration-review` before applying it to the shared local database.
+with `migration-review` before applying it to the shared local database. Exception to Expand →
+Contract (`docs/backend-standards.md` §5): no code reads or writes the three columns before this
+change, and the up migration runs before the code that writes them; there is no reader to migrate.
+`/migration-review` must confirm it (task 3.2).
 
 **S7. 768 is the dimension (D3), and changing it is a migration.** `EMBEDDING_DIMENSIONS = 768`, the
 TSDoc says the columns, the migration and the reference model, and that a model of another dimension
 needs a new migration (DIS-46 note correcting the DIS-5 non-goal). `docs/backend-standards.md` §5
-("changing the model invalidates the cache") stays true and is not edited.
+says "changing the model means re-embedding and reindexing everything"; this change edits it (task
+9.5): a model of another dimension needs a migration; a model of the same dimension needs every stored
+cache vector discarded by invalidating each project's cache (a full reindex or `invalidateCache`); no
+re-embedding is done. The same rule is stated in `semantic-cache`, "Embedding of a saved answer", in
+`.env.example` on the `LLM_EMBED_MODEL` line and in `docs/project-context.md`.
 
 **S8. Accounting (D9).** `embed` goes through `meter.llm` (pass-through, uncounted), so `usage`,
 `query_log` and `meter.resolvedCalls()` are unchanged by it. The budget wrapper reads the day's spend
@@ -126,22 +134,41 @@ components and zeros. The exact boundary uses E1 = (1, 0, …) and Q = (17, 10, 
 `0.85`. In Postgres the vectors are `real` (float4), so its scenarios compare within 1e-6 and test the
 threshold with clear margins (0.9 / 0.4), not at the boundary.
 
-**S11. Threshold calibration (D2) is recorded, not guessed.** The live verification (tasks group 12)
+**S11. Threshold calibration (D2) is recorded, not guessed.** The live verification (task 11.2)
 embeds, with `nomic-embed-text` on the local Ollama, the development pairs of CM-HU-19 (the price
 rephrasing and the coupon question) and three more rephrasing/different-topic pairs written for the
-check (never the measurement questions), and records every similarity in the step 12 report. If a
-rephrasing pair falls below 0.85 or a different-topic pair reaches it, the constant moves within
-[0.80, 0.95] in this change (TSDoc, `semantic-cache` delta and tests together) and the report says
-why; if no value in that range separates them, the constant stays 0.85 and the limitation is recorded
-as a D follow-up.
+check (never the measurement questions), and records every similarity in the step 11 report
+(`…-11-manual-interface-testing.md`). If a rephrasing pair falls below 0.85 or a different-topic pair
+reaches it, the constant moves within [0.80, 0.95] in this change (TSDoc, `semantic-cache` delta and
+tests together) and the report says why; if no value in that range separates them, the constant stays
+0.85 and the limitation is recorded as a D follow-up. When the constant moves, the threshold-dependent
+values of the scenarios are re-derived by one rule: the boundary vector is replaced by one whose
+cosine with E1 is an exact rational equal to the new constant (computed exactly in double precision,
+as `17 / 20` is for 0.85); A, B and every rephrasing similarity stay at least 0.03 above the
+constant; `0.8499` becomes the constant minus 1e-4; and `0.85` in "The threshold is 0.85 and
+inclusive" becomes the constant. A delta changed after apply follows `docs/base-standards.md` §7: the
+artifacts are updated first, then the spec audit is run again.
 
 **S12. Spec placement.** The behaviour of the step lives in the new `semantic-cache` capability; the
 `explain` deltas only change what that step touches in its precedence, cache and events requirements.
 `answer-cache` is not modified: a similarity hit uses "Answer of a cache hit" as it stands. The main
 specs are edited only through `/opsx:archive` of these deltas (no direct edit is planned).
 
-No ADR: the decisions are local to the cache and reversible by a migration down; the dimension choice
-is recorded here, in the TSDoc of `EMBEDDING_DIMENSIONS` and in `docs/project-context.md`.
+**S13. Embeddings stay on `LlmPort.embed()`; an ADR records it with the dimension (DIS-46 review
+comment of 2026-10-16).** That comment asks the task that first uses embeddings for real, this one, to
+decide in a short ADR between keeping `LlmPort.embed()` and splitting an `EmbeddingPort`. Decision:
+keep `LlmPort.embed()`. `LLM_EMBED_MODEL` already selects a separate embedding model on the same
+OpenAI-compatible endpoint; `mode` already drives degradation (evaluation mode never embeds); and
+S1/S2 classify every failure of the request, a failing endpoint included. A separate `EmbeddingPort`
+would duplicate the budget wrapper (`withDailyBudget`), the metering pass-through and the composition
+of the live model, for no behaviour a test can observe today; a provider of embeddings different from
+the chat one is not a requirement of any ticket and would be a new port in its own change. The record
+is `docs/adr/YYYYMMDD-embeddings-stay-on-llm-port.md` (from `docs/adr/_template.md`, indexed in
+`docs/adr/README.md`), and it also records D3/S6/S7 (dimension 768, migration `0005`, the rule for a
+change of embedding model), which meet the README criterion (more than one module: core, the store
+adapter, the LLM adapter and the docs). The embeddings note of `readme.md` §2.2 ("la decisión del
+puerto la tomará DIS-46 … con su propio ADR") and the row of the DIS-101 review table that points to
+it are updated to link the ADR (task 9.1).
 
 ## Risks / Trade-offs
 
@@ -154,8 +181,13 @@ is recorded here, in the TSDoc of `EMBEDDING_DIMENSIONS` and in `docs/project-co
   always bypasses; DIS-69 exposes the hit rate.
 - [One more model round trip per live miss] → `embed` of one short text; 0 USD with the reference
   model; a failure only skips the step.
-- [Exact search grows linearly with a project's cache] → one entry per distinct question; acceptable
-  for a local tool; revisit with DIS-69 if a project's cache grows large.
+- [Exact search grows linearly with a project's cache] → accepted (D): the lookup scans the project's
+  rows with an embedding; acceptable while a project holds ≤ 1 000 entries (one per distinct
+  question); beyond that, a new change measures it.
+- [`LLM_EMBED_MODEL` changed to another 768-dimension model] → stored vectors are not comparable and
+  could give false hits; the operator invalidates the caches (`.env.example`,
+  `docs/project-context.md`, `docs/backend-standards.md` §5, `semantic-cache` "Embedding of a saved
+  answer"); nothing detects it (D — accepted).
 - [`down` discards stored cache vectors] → only later rephrasings miss; responses stay; documented in
   the migration's header comment.
 - [A 1536-dimension model configured by someone] → it fails with `dimension-mismatch`, which now only
@@ -174,7 +206,7 @@ is recorded here, in the TSDoc of `EMBEDDING_DIMENSIONS` and in `docs/project-co
 
 ## Follow-ups
 
-Decisions of the enrich step (Linear DIS-67, D1–D12) and of this proposal (S1–S12), with their
+Decisions of the enrich step (Linear DIS-67, D1–D12) and of this proposal (S1–S13), with their
 destination (`docs/project-context.md` → Tracking deferred findings). *Agent's text: decided as lead
 engineer in an autonomous run, without the author.* The spec audit and the pre-merge reviews add their
 findings here. No line has destination C.
@@ -199,10 +231,34 @@ findings here. No line has destination C.
 | S4 | Pure module `similarity-cache.ts` and one branch of `answerQuestion` | **A** — this change |
 | S5 | Port signatures and the new store checks | **A** — this change |
 | S6 | Migration `0005` with `USING NULL`, indexes rebuilt, reviewed with `migration-review` | **A** — this change |
-| S7 | `EMBEDDING_DIMENSIONS = 768`; a model of another dimension needs a migration | **A** — this change |
+| S7 | `EMBEDDING_DIMENSIONS = 768`; a model of another dimension needs a migration, one of the same dimension needs the caches invalidated; `backend-standards` §5 edited | **A** — this change |
 | S8 | `embed` uncounted through the meter; one more spend read per live miss | **D** — accepted |
 | S9 | Scripted model `embed` option, default `not-configured`; doubles gain the method | **A** — this change |
 | S10 | Boundary vector (17, 10, 3, 1, 1) for the exact 0.85 in the double; float4 margins in Postgres | **A** — this change |
-| S11 | Live calibration of the threshold with `nomic-embed-text`, recorded in the step 12 report | **A** — this change |
+| S11 | Live calibration of the threshold with `nomic-embed-text` (task 11.2), recorded in the step 11 report (`…-11-manual-interface-testing.md`), with the re-derivation rule of the scenario values | **A** — this change |
 | S12 | Spec placement; main specs only through `/opsx:archive` | **A** — this change |
-| R1 | Exact search cost grows with a project's cache size | **D** — accepted (local tool, one entry per question) |
+| S13 | Embeddings stay on `LlmPort.embed()`, no `EmbeddingPort`; ADR with D3/S6/S7 (task 9.4) | **A** — this change |
+| R1 | Exact search cost grows with a project's cache size; acceptable while a project holds ≤ 1 000 entries, beyond that a new change measures it | **D** — accepted |
+| R2 | Another 768-dimension embedding model makes stored vectors incomparable; the operator invalidates the caches, nothing detects it | **D** — accepted |
+
+Spec audit, run 1 (2026-11-03). *Agent's text: decided as lead engineer in correction round 1, without
+the author.*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| Q1 | The ADR asked by the DIS-46 review comment belongs to DIS-67, not DIS-69: DIS-67 is the first task that uses embeddings (S13) | **A** — this change |
+| B1 | S13 and its ADR; `readme.md` embeddings note and DIS-101 row updated | **A** — this change |
+| B2 | Rule for a change of embedding model: invalidate every project's cache; `backend-standards` §5 quote fixed and the section edited (task 9.5) | **A** — this change |
+| B3 | `explain` "Query log" MODIFIED: an embedding request never counts as a resolved call; similarity and embedding failures write no row | **A** — this change |
+| B4 | Explicit data in "The in-memory double searches by similarity like the database"; the 200-entry scenario excluded from the double | **A** — this change |
+| B5 | Manual plan avoids the seeded acme-shop keys and restores `hit_count` / `last_hit_at` and replaced seed rows | **A** — this change |
+| B6 | Scenario "A question without anchor requests no embedding" | **A** — this change |
+| I1 | Report numbering: step 10 report for baseline, edited tests, migration review, ADR; step 11 for calibration | **A** — this change |
+| I2 | Docs group stays before the run-tests group because `npm run docs:coverage` (10.3) gates it; reason stated in group 9 | **A** — this change |
+| I3 | Measurable wording in S3 and R1; R1 no longer routed to DIS-69 | **A** — this change |
+| I4 | `useCache: false` with a failing embedding adds the skip event (second WHEN of "Turning the cache off embeds only for the save") | **A** — this change |
+| I5 | Re-derivation rule of threshold-dependent scenario values (S11, task 11.2) | **A** — this change |
+| I6 | "Answer cache" → Lookup sentence rewritten without the contradiction | **A** — this change |
+| I7 | Note appended to the `[enhanced]` part of DIS-67 (AC4 refined by S1; no `answer-cache` delta, S12; model change rule) | **A** — done in correction round 1 |
+| I8 | Expand → Contract exception stated in S6, confirmed by `/migration-review` | **A** — this change |
+| I10 | Similarity hit answer has exactly the keys of an exact-key hit | **A** — this change |
