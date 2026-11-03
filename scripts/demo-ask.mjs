@@ -30,7 +30,7 @@ const DEFAULT_PORT = 3000;
  *
  * @type {Send}
  */
-function sendWithHttp(url, { method, headers, body }) {
+export function sendWithHttp(url, { method, headers, body }) {
   return new Promise((answered, failed) => {
     const outgoing = request(
       url,
@@ -63,7 +63,7 @@ function sendWithHttp(url, { method, headers, body }) {
  * @param {string | undefined} value - The `PORT` variable.
  * @returns {number | undefined} The port, or `undefined` when `value` is not a port number.
  */
-function apiPort(value) {
+export function apiPort(value) {
   const trimmed = value?.trim() ?? '';
   if (trimmed === '') return DEFAULT_PORT;
   const port = /^[0-9]+$/.test(trimmed) ? Number(trimmed) : Number.NaN;

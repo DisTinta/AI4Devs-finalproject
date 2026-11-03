@@ -1,0 +1,115 @@
+{
+  "formatVersion": 1,
+  "fixture": "acme-shop",
+  "questionId": "Q07",
+  "question": "¿Qué hace el trabajo RecalculateTotals?",
+  "receivedAt": "2026-11-03T11:17:19.503Z",
+  "status": 200,
+  "body": {
+    "answer": "El trabajo RecalculateTotals es utilizado para recalcular el total de una orden después de que se crea o se actualiza. A través de listeners y controladores, se asegura de que el total se recalcule en diferentes momentos del ciclo de vida de la orden.",
+    "statements": [
+      {
+        "text": "El trabajo RecalculateTotals es implementado como una clase que implementa ShouldQueue, lo que significa que se ejecuta en segundo plano.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      },
+      {
+        "text": "El trabajo RecalculateTotals se dispara desde el observador OrderObserver cuando una orden es creada o actualizada, dependiendo de su estado.",
+        "type": "INFERENCE",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-2",
+          "ev-3"
+        ]
+      },
+      {
+        "text": "El método handle de la clase RecalculateTotals es donde se recálcula el total de la orden utilizando el servicio Pricing.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-4"
+        ]
+      },
+      {
+        "text": "El método Pricing::compute es responsable del cálculo de los totales de las órdenes, considerando subtotal, descuentos, impuestos y shipping.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-5",
+          "ev-6"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "app/Jobs/RecalculateTotals.php",
+        "startLine": 20,
+        "endLine": 39,
+        "excerpt": "class RecalculateTotals implements ShouldQueue\n{\n    use Dispatchable;\n    use InteractsWithQueue;\n    use Queueable;\n\n    public function __construct(private readonly Order $order)\n    {\n    }\n\n    public function handle(): void\n    {\n        $total = Pricing::compute($this->order);\n\n        Log::info('order.totals.recalculated', [\n            'order_id' => $this->order->id,\n            'total' => $total->amount(),\n        ]);\n    }\n}"
+      },
+      {
+        "id": "ev-2",
+        "file": "app/Observers/OrderObserver.php",
+        "startLine": 16,
+        "endLine": 20,
+        "excerpt": "    public function created(Order $order): void\n    {\n        RecalculateTotals::dispatch($order);\n        event(new OrderPlaced($order));\n    }"
+      },
+      {
+        "id": "ev-3",
+        "file": "app/Observers/OrderObserver.php",
+        "startLine": 22,
+        "endLine": 27,
+        "excerpt": "    public function updated(Order $order): void\n    {\n        if ($order->wasChanged('status') && $order->status === 'paid') {\n            RecalculateTotals::dispatch($order);\n        }\n    }"
+      },
+      {
+        "id": "ev-4",
+        "file": "app/Jobs/RecalculateTotals.php",
+        "startLine": 20,
+        "endLine": 39,
+        "excerpt": "class RecalculateTotals implements ShouldQueue\n{\n    use Dispatchable;\n    use InteractsWithQueue;\n    use Queueable;\n\n    public function __construct(private readonly Order $order)\n    {\n    }\n\n    public function handle(): void\n    {\n        $total = Pricing::compute($this->order);\n\n        Log::info('order.totals.recalculated', [\n            'order_id' => $this->order->id,\n            'total' => $total->amount(),\n        ]);\n    }\n}"
+      },
+      {
+        "id": "ev-5",
+        "file": "tests/Feature/OrderPricingTest.php",
+        "startLine": 31,
+        "endLine": 51,
+        "excerpt": "    public function test_final_price_applies_discount_before_tax(): void\n    {\n        config(['shop.free_shipping_threshold' => 75.00, 'shop.shipping_rates' => ['ES' => 490]]);\n\n        $customer = Customer::factory()->create(['loyalty_tier' => 'gold', 'country' => 'ES']);\n        $widget = Product::factory()->create(['price_cents' => 1500]);\n        $gadget = Product::factory()->create(['price_cents' => 3200]);\n\n        $order = Order::factory()->create([\n            'customer_id' => $customer->id,\n            'shipping_country' => 'ES',\n        ]);\n        $order->lines()->create(['product_id' => $widget->id, 'quantity' => 2, 'unit_price_cents' => 1500]);\n        $order->lines()->create(['product_id' => $gadget->id, 'quantity' => 1, 'unit_price_cents' => 3200]);\n        $order->refresh();\n\n        $total = Pricing::compute($order);\n\n        $this->assertSame(7242, $total->cents);\n        $this->assertEqualsWithDelta(72.42, $total->amount(), 0.001);\n    }"
+      },
+      {
+        "id": "ev-6",
+        "file": "app/Services/PriceCalculator.php",
+        "startLine": 25,
+        "endLine": 35,
+        "excerpt": "    public function compute(Order $order): Money\n    {\n        $subtotal = $order->subtotal;                       // magic accessor\n        $discount = $this->discounts->discountFor($order, $subtotal);\n        $taxable = $subtotal->subtract($discount);\n\n        $tax = $this->taxes->taxFor($order, $taxable);\n        $shipping = $this->shipping->shippingFor($order, $taxable);\n\n        return $taxable->add($tax)->add($shipping);\n    }"
+      }
+    ],
+    "confidence": 0.8008581836959252,
+    "usage": {
+      "inputTokens": 5185,
+      "outputTokens": 324,
+      "baselineTokens": 3458,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -49.9,
+      "costUsd": 0,
+      "latencyMs": 140821,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 2773,
+        "outputTokens": 282,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 6,
+        "cacheHits": 0,
+        "inputTokens": 2412,
+        "outputTokens": 42,
+        "costUsd": 0,
+        "latencyMs": 35221
+      }
+    }
+  }
+}

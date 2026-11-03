@@ -1,0 +1,69 @@
+{
+  "formatVersion": 1,
+  "fixture": "task-api",
+  "questionId": "Q03",
+  "question": "¿Qué transiciones de estado son válidas?",
+  "receivedAt": "2026-11-03T11:48:27.747Z",
+  "status": 200,
+  "body": {
+    "answer": "Las transiciones de estado válidas son manejadas por la función canTransition y se definen en el objeto TRANSITIONS.",
+    "statements": [
+      {
+        "text": "La función canTransition(from: TaskStatus, to: TaskStatus): boolean verifica si una transición de estado es permitida, citando el Evidence E2.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      },
+      {
+        "text": "Las transiciones de estado están definidas en el objeto TRANSITIONS en el Evidence E2, lo que indica las transiciones válidas entre diferentes estados de tarea.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-2"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "src/domain/task-status.ts",
+        "startLine": 25,
+        "endLine": 27,
+        "excerpt": "export function canTransition(from: TaskStatus, to: TaskStatus): boolean {\n  return TRANSITIONS[from].includes(to);\n}"
+      },
+      {
+        "id": "ev-2",
+        "file": "src/domain/task-status.ts",
+        "startLine": 25,
+        "endLine": 27,
+        "excerpt": "export function canTransition(from: TaskStatus, to: TaskStatus): boolean {\n  return TRANSITIONS[from].includes(to);\n}"
+      }
+    ],
+    "confidence": 0.7772998611746911,
+    "usage": {
+      "inputTokens": 2157,
+      "outputTokens": 163,
+      "baselineTokens": 1565,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -37.8,
+      "costUsd": 0,
+      "latencyMs": 62586,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 1555,
+        "outputTokens": 149,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 2,
+        "cacheHits": 0,
+        "inputTokens": 602,
+        "outputTokens": 14,
+        "costUsd": 0,
+        "latencyMs": 9512
+      }
+    }
+  }
+}

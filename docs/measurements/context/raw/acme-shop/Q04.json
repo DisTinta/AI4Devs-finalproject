@@ -1,0 +1,153 @@
+{
+  "formatVersion": 1,
+  "fixture": "acme-shop",
+  "questionId": "Q04",
+  "question": "¿Qué hace DiscountService al aplicar un descuento a un pedido?",
+  "receivedAt": "2026-11-03T11:09:05.644Z",
+  "status": 200,
+  "body": {
+    "answer": "DiscountService aplica descuentos en varios factores: el nivel de lealtad del cliente, cualquier cupón aplicable y el volumen de pedido. El descuento total no supera un 30%. Después de aplicar el descuento, DiscountService dispara un evento que registra el descuento aplicado para el pedido.",
+    "statements": [
+      {
+        "text": "DiscountService considera el nivel de lealtad del cliente al aplicar descuentos.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      },
+      {
+        "text": "DiscountService realiza un cálculo de volumen que añade un 5% adicional si el pedido tiene más de 5 líneas.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-2"
+        ]
+      },
+      {
+        "text": "DiscountService aplica cualquier descuento proporcionado por el validator de cupones.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-3",
+          "ev-4"
+        ]
+      },
+      {
+        "text": "DiscountService limite el descuento total a un 30% al aplicar cualquier otro descuento.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-5"
+        ]
+      },
+      {
+        "text": "DiscountService genera un evento DiscountApplied cuando se aplica un descuento a un pedido.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-6",
+          "ev-7"
+        ]
+      },
+      {
+        "text": "El event RecordDiscountAudit registra el descuento aplicado en los registros.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-8",
+          "ev-9"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "app/Services/DiscountService.php",
+        "startLine": 21,
+        "endLine": 66,
+        "excerpt": "class DiscountService\n{\n    private const LOYALTY_SILVER_PERCENT = 5.0;\n    private const LOYALTY_GOLD_PERCENT = 10.0;\n\n    private const VOLUME_LINE_THRESHOLD = 5;\n    private const VOLUME_BONUS_PERCENT = 5.0;\n    private const MAX_DISCOUNT_PERCENT = 30.0;\n\n    public function __construct(private readonly CouponValidator $coupons)\n    {\n    }\n\n    public function discountFor(Order $order, Money $subtotal): Money\n    {\n        $percent = $this->loyaltyPercent($order);\n        $percent += $this->coupons->percentFor($order->coupon_code);\n        $percent += $this->volumeBonus($order);\n\n        $percent = min($percent, self::MAX_DISCOUNT_PERCENT);\n\n        $discount = $subtotal->percentage($percent);\n\n        if ($discount->isGreaterThan(Money::zero())) {\n            event(new DiscountApplied($order, $discount));\n        }\n\n        return $discount;\n    }\n\n    private function loyaltyPercent(Order $order): float\n    {\n        return match ($order->customer->loyalty_tier) {\n            'gold' => self::LOYALTY_GOLD_PERCENT,\n            'silver' => self::LOYALTY_SILVER_PERCENT,\n            default => 0.0,\n        };\n    }\n\n    private function volumeBonus(Order $order): float\n    {\n        return $order->lineCount() > self::VOLUME_LINE_THRESHOLD\n            ? self::VOLUME_BONUS_PERCENT\n            : 0.0;\n    }\n}"
+      },
+      {
+        "id": "ev-2",
+        "file": "app/Services/DiscountService.php",
+        "startLine": 21,
+        "endLine": 66,
+        "excerpt": "class DiscountService\n{\n    private const LOYALTY_SILVER_PERCENT = 5.0;\n    private const LOYALTY_GOLD_PERCENT = 10.0;\n\n    private const VOLUME_LINE_THRESHOLD = 5;\n    private const VOLUME_BONUS_PERCENT = 5.0;\n    private const MAX_DISCOUNT_PERCENT = 30.0;\n\n    public function __construct(private readonly CouponValidator $coupons)\n    {\n    }\n\n    public function discountFor(Order $order, Money $subtotal): Money\n    {\n        $percent = $this->loyaltyPercent($order);\n        $percent += $this->coupons->percentFor($order->coupon_code);\n        $percent += $this->volumeBonus($order);\n\n        $percent = min($percent, self::MAX_DISCOUNT_PERCENT);\n\n        $discount = $subtotal->percentage($percent);\n\n        if ($discount->isGreaterThan(Money::zero())) {\n            event(new DiscountApplied($order, $discount));\n        }\n\n        return $discount;\n    }\n\n    private function loyaltyPercent(Order $order): float\n    {\n        return match ($order->customer->loyalty_tier) {\n            'gold' => self::LOYALTY_GOLD_PERCENT,\n            'silver' => self::LOYALTY_SILVER_PERCENT,\n            default => 0.0,\n        };\n    }\n\n    private function volumeBonus(Order $order): float\n    {\n        return $order->lineCount() > self::VOLUME_LINE_THRESHOLD\n            ? self::VOLUME_BONUS_PERCENT\n            : 0.0;\n    }\n}"
+      },
+      {
+        "id": "ev-3",
+        "file": "app/Services/DiscountService.php",
+        "startLine": 21,
+        "endLine": 66,
+        "excerpt": "class DiscountService\n{\n    private const LOYALTY_SILVER_PERCENT = 5.0;\n    private const LOYALTY_GOLD_PERCENT = 10.0;\n\n    private const VOLUME_LINE_THRESHOLD = 5;\n    private const VOLUME_BONUS_PERCENT = 5.0;\n    private const MAX_DISCOUNT_PERCENT = 30.0;\n\n    public function __construct(private readonly CouponValidator $coupons)\n    {\n    }\n\n    public function discountFor(Order $order, Money $subtotal): Money\n    {\n        $percent = $this->loyaltyPercent($order);\n        $percent += $this->coupons->percentFor($order->coupon_code);\n        $percent += $this->volumeBonus($order);\n\n        $percent = min($percent, self::MAX_DISCOUNT_PERCENT);\n\n        $discount = $subtotal->percentage($percent);\n\n        if ($discount->isGreaterThan(Money::zero())) {\n            event(new DiscountApplied($order, $discount));\n        }\n\n        return $discount;\n    }\n\n    private function loyaltyPercent(Order $order): float\n    {\n        return match ($order->customer->loyalty_tier) {\n            'gold' => self::LOYALTY_GOLD_PERCENT,\n            'silver' => self::LOYALTY_SILVER_PERCENT,\n            default => 0.0,\n        };\n    }\n\n    private function volumeBonus(Order $order): float\n    {\n        return $order->lineCount() > self::VOLUME_LINE_THRESHOLD\n            ? self::VOLUME_BONUS_PERCENT\n            : 0.0;\n    }\n}"
+      },
+      {
+        "id": "ev-4",
+        "file": "app/Services/CouponValidator.php",
+        "startLine": 14,
+        "endLine": 39,
+        "excerpt": "class CouponValidator\n{\n    public function percentFor(?string $code): float\n    {\n        if ($code === null || $code === '') {\n            return 0.0;\n        }\n\n        $coupon = Coupon::query()->find($code);\n\n        if (! $coupon instanceof Coupon || ! $coupon->active) {\n            return 0.0;\n        }\n\n        if ($coupon->expires_at !== null && $coupon->expires_at->isPast()) {\n            return 0.0;\n        }\n\n        return $coupon->percent_off;\n    }\n\n    public function isRedeemable(?string $code): bool\n    {\n        return $this->percentFor($code) > 0.0;\n    }\n}"
+      },
+      {
+        "id": "ev-5",
+        "file": "app/Services/DiscountService.php",
+        "startLine": 21,
+        "endLine": 66,
+        "excerpt": "class DiscountService\n{\n    private const LOYALTY_SILVER_PERCENT = 5.0;\n    private const LOYALTY_GOLD_PERCENT = 10.0;\n\n    private const VOLUME_LINE_THRESHOLD = 5;\n    private const VOLUME_BONUS_PERCENT = 5.0;\n    private const MAX_DISCOUNT_PERCENT = 30.0;\n\n    public function __construct(private readonly CouponValidator $coupons)\n    {\n    }\n\n    public function discountFor(Order $order, Money $subtotal): Money\n    {\n        $percent = $this->loyaltyPercent($order);\n        $percent += $this->coupons->percentFor($order->coupon_code);\n        $percent += $this->volumeBonus($order);\n\n        $percent = min($percent, self::MAX_DISCOUNT_PERCENT);\n\n        $discount = $subtotal->percentage($percent);\n\n        if ($discount->isGreaterThan(Money::zero())) {\n            event(new DiscountApplied($order, $discount));\n        }\n\n        return $discount;\n    }\n\n    private function loyaltyPercent(Order $order): float\n    {\n        return match ($order->customer->loyalty_tier) {\n            'gold' => self::LOYALTY_GOLD_PERCENT,\n            'silver' => self::LOYALTY_SILVER_PERCENT,\n            default => 0.0,\n        };\n    }\n\n    private function volumeBonus(Order $order): float\n    {\n        return $order->lineCount() > self::VOLUME_LINE_THRESHOLD\n            ? self::VOLUME_BONUS_PERCENT\n            : 0.0;\n    }\n}"
+      },
+      {
+        "id": "ev-6",
+        "file": "app/Services/DiscountService.php",
+        "startLine": 21,
+        "endLine": 66,
+        "excerpt": "class DiscountService\n{\n    private const LOYALTY_SILVER_PERCENT = 5.0;\n    private const LOYALTY_GOLD_PERCENT = 10.0;\n\n    private const VOLUME_LINE_THRESHOLD = 5;\n    private const VOLUME_BONUS_PERCENT = 5.0;\n    private const MAX_DISCOUNT_PERCENT = 30.0;\n\n    public function __construct(private readonly CouponValidator $coupons)\n    {\n    }\n\n    public function discountFor(Order $order, Money $subtotal): Money\n    {\n        $percent = $this->loyaltyPercent($order);\n        $percent += $this->coupons->percentFor($order->coupon_code);\n        $percent += $this->volumeBonus($order);\n\n        $percent = min($percent, self::MAX_DISCOUNT_PERCENT);\n\n        $discount = $subtotal->percentage($percent);\n\n        if ($discount->isGreaterThan(Money::zero())) {\n            event(new DiscountApplied($order, $discount));\n        }\n\n        return $discount;\n    }\n\n    private function loyaltyPercent(Order $order): float\n    {\n        return match ($order->customer->loyalty_tier) {\n            'gold' => self::LOYALTY_GOLD_PERCENT,\n            'silver' => self::LOYALTY_SILVER_PERCENT,\n            default => 0.0,\n        };\n    }\n\n    private function volumeBonus(Order $order): float\n    {\n        return $order->lineCount() > self::VOLUME_LINE_THRESHOLD\n            ? self::VOLUME_BONUS_PERCENT\n            : 0.0;\n    }\n}"
+      },
+      {
+        "id": "ev-7",
+        "file": "app/Events/DiscountApplied.php",
+        "startLine": 15,
+        "endLine": 24,
+        "excerpt": "class DiscountApplied\n{\n    use Dispatchable;\n\n    public function __construct(\n        public readonly Order $order,\n        public readonly Money $amount,\n    ) {\n    }\n}"
+      },
+      {
+        "id": "ev-8",
+        "file": "app/Events/DiscountApplied.php",
+        "startLine": 15,
+        "endLine": 24,
+        "excerpt": "class DiscountApplied\n{\n    use Dispatchable;\n\n    public function __construct(\n        public readonly Order $order,\n        public readonly Money $amount,\n    ) {\n    }\n}"
+      },
+      {
+        "id": "ev-9",
+        "file": "app/Listeners/RecordDiscountAudit.php",
+        "startLine": 14,
+        "endLine": 23,
+        "excerpt": "class RecordDiscountAudit\n{\n    public function handle(DiscountApplied $event): void\n    {\n        Log::info('discount.applied', [\n            'order_id' => $event->order->id,\n            'amount' => $event->amount->amount(),\n        ]);\n    }\n}"
+      }
+    ],
+    "confidence": 0.8069878629984029,
+    "usage": {
+      "inputTokens": 11190,
+      "outputTokens": 399,
+      "baselineTokens": 6749,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -65.8,
+      "costUsd": 0,
+      "latencyMs": 267339,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 6651,
+        "outputTokens": 332,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 9,
+        "cacheHits": 0,
+        "inputTokens": 4539,
+        "outputTokens": 67,
+        "costUsd": 0,
+        "latencyMs": 68461
+      }
+    }
+  }
+}

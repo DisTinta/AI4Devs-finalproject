@@ -1,0 +1,100 @@
+{
+  "formatVersion": 1,
+  "fixture": "task-api",
+  "questionId": "Q11",
+  "question": "¿Qué errores de dominio define errors.ts y qué estado HTTP lleva cada uno?",
+  "receivedAt": "2026-11-03T12:05:42.595Z",
+  "status": 200,
+  "body": {
+    "answer": "errors.ts define errores de dominio y asignan los estados HTTP correspondientes.",
+    "statements": [
+      {
+        "text": "En errors.ts, se definen las clases de errores de dominio como DomainError, TaskNotFoundError y IllegalStatusTransitionError.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-1",
+          "ev-2",
+          "ev-3"
+        ]
+      },
+      {
+        "text": "TaskNotFoundError es un error de dominio que indica que se ha buscado una tarea que no existe y lleva un estado HTTP 404.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-4"
+        ]
+      },
+      {
+        "text": "IllegalStatusTransitionError es un error de dominio que indica una transición de estado ilegal de tarea y lleva un estado HTTP 409.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-5"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "src/domain/errors.ts",
+        "startLine": 6,
+        "endLine": 15,
+        "excerpt": "export class DomainError extends Error {\n  constructor(\n    message: string,\n    readonly statusCode: number,\n    readonly code: string,\n  ) {\n    super(message);\n    this.name = new.target.name;\n  }\n}"
+      },
+      {
+        "id": "ev-2",
+        "file": "src/domain/errors.ts",
+        "startLine": 17,
+        "endLine": 21,
+        "excerpt": "export class TaskNotFoundError extends DomainError {\n  constructor(id: string) {\n    super(`Task ${id} not found`, 404, 'TASK_NOT_FOUND');\n  }\n}"
+      },
+      {
+        "id": "ev-3",
+        "file": "src/domain/errors.ts",
+        "startLine": 23,
+        "endLine": 27,
+        "excerpt": "export class IllegalStatusTransitionError extends DomainError {\n  constructor(from: string, to: string) {\n    super(`Cannot move task from '${from}' to '${to}'`, 409, 'ILLEGAL_STATUS_TRANSITION');\n  }\n}"
+      },
+      {
+        "id": "ev-4",
+        "file": "src/domain/errors.ts",
+        "startLine": 17,
+        "endLine": 21,
+        "excerpt": "export class TaskNotFoundError extends DomainError {\n  constructor(id: string) {\n    super(`Task ${id} not found`, 404, 'TASK_NOT_FOUND');\n  }\n}"
+      },
+      {
+        "id": "ev-5",
+        "file": "src/domain/errors.ts",
+        "startLine": 23,
+        "endLine": 27,
+        "excerpt": "export class IllegalStatusTransitionError extends DomainError {\n  constructor(from: string, to: string) {\n    super(`Cannot move task from '${from}' to '${to}'`, 409, 'ILLEGAL_STATUS_TRANSITION');\n  }\n}"
+      }
+    ],
+    "confidence": 0.759510916949111,
+    "usage": {
+      "inputTokens": 5131,
+      "outputTokens": 228,
+      "baselineTokens": 3491,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -47,
+      "costUsd": 0,
+      "latencyMs": 125081,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 3544,
+        "outputTokens": 189,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 5,
+        "cacheHits": 0,
+        "inputTokens": 1587,
+        "outputTokens": 39,
+        "costUsd": 0,
+        "latencyMs": 25565
+      }
+    }
+  }
+}

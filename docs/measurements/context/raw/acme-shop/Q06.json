@@ -1,0 +1,77 @@
+{
+  "formatVersion": 1,
+  "fixture": "acme-shop",
+  "questionId": "Q06",
+  "question": "¿Cómo decide ShippingService el coste de envío de un pedido?",
+  "receivedAt": "2026-11-03T11:14:58.609Z",
+  "status": 200,
+  "body": {
+    "answer": "El cálculo del coste de envío en el servicio ShippingService depende del monto total de la orden. Si el monto total supera el umbral libre de envío configurado, el costo de envío es cero. De lo contrario, el costo de envío es el valor fijo definido para el país de envío.",
+    "statements": [
+      {
+        "text": "El método `test_free_above_threshold` en el archivo ShippingServiceTest.php verifica que si el monto total de la orden es mayor que el umbral libre de envío (75.00 EUR), el costo de envío es cero.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      },
+      {
+        "text": "El método `shippingFor` en el archivo ShippingService.php utiliza el método `flatRateFor` del `CarrierGateway` para determinar el costo de envío, siempre y cuando el monto total de la orden no supere el umbral libre de envío.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-2",
+          "ev-3"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "tests/Unit/ShippingServiceTest.php",
+        "startLine": 17,
+        "endLine": 42,
+        "excerpt": "class ShippingServiceTest extends TestCase\n{\n    public function test_free_above_threshold(): void\n    {\n        config(['shop.free_shipping_threshold' => 75.00]);\n        $order = new Order(['shipping_country' => 'ES']);\n\n        $cost = (new ShippingService(new CarrierGateway()))->shippingFor($order, Money::fromFloat(80.00));\n\n        $this->assertSame(0, $cost->cents);\n    }\n\n    public function test_flat_rate_below_threshold(): void\n    {\n        config([\n            'shop.free_shipping_threshold' => 75.00,\n            'shop.shipping_rates' => ['ES' => 490],\n            'shop.default_shipping_cents' => 590,\n        ]);\n        $order = new Order(['shipping_country' => 'ES']);\n\n        $cost = (new ShippingService(new CarrierGateway()))->shippingFor($order, Money::fromFloat(40.00));\n\n        $this->assertSame(490, $cost->cents);\n    }\n}"
+      },
+      {
+        "id": "ev-2",
+        "file": "app/Services/ShippingService.php",
+        "startLine": 16,
+        "endLine": 35,
+        "excerpt": "class ShippingService\n{\n    public function __construct(private readonly CarrierGateway $carrier)\n    {\n    }\n\n    public function shippingFor(Order $order, Money $base): Money\n    {\n        $threshold = Money::fromFloat((float) config('shop.free_shipping_threshold'));\n\n        if ($base->isGreaterThan($threshold)) {\n            return Money::zero();\n        }\n\n        // Dynamic method: CarrierGateway has no flatRateFor() declared.\n        $cents = $this->carrier->flatRateFor($order->shipping_country);\n\n        return Money::fromCents((int) $cents);\n    }\n}"
+      },
+      {
+        "id": "ev-3",
+        "file": "app/Services/CarrierGateway.php",
+        "startLine": 17,
+        "endLine": 31,
+        "excerpt": "class CarrierGateway\n{\n    /** @param array<int, mixed> $arguments */\n    public function __call(string $name, array $arguments): mixed\n    {\n        if (str_starts_with($name, 'flatRateFor')) {\n            $country = $arguments[0] ?? config('shop.default_country');\n            $rates = config('shop.shipping_rates', []);\n\n            return $rates[$country] ?? config('shop.default_shipping_cents');\n        }\n\n        throw new BadMethodCallException(\"Unknown carrier method: {$name}\");\n    }\n}"
+      }
+    ],
+    "confidence": 0.7143624294910559,
+    "usage": {
+      "inputTokens": 8106,
+      "outputTokens": 263,
+      "baselineTokens": 6797,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -19.3,
+      "costUsd": 0,
+      "latencyMs": 195831,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 6695,
+        "outputTokens": 242,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 3,
+        "cacheHits": 0,
+        "inputTokens": 1411,
+        "outputTokens": 21,
+        "costUsd": 0,
+        "latencyMs": 20557
+      }
+    }
+  }
+}

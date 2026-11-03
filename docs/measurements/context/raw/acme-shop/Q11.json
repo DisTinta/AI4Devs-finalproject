@@ -1,0 +1,129 @@
+{
+  "formatVersion": 1,
+  "fixture": "acme-shop",
+  "questionId": "Q11",
+  "question": "¿Qué valida StoreOrderRequest al crear un pedido?",
+  "receivedAt": "2026-11-03T11:29:23.276Z",
+  "status": 200,
+  "body": {
+    "answer": "StoreOrderRequest valida varios aspectos al crear un pedido, incluyendo datos importantes como el ID del cliente, el país de envío, el código de cupón (si es aplicable), y las líneas del pedido con su respectivo producto, cantidad y precio unitario. Estas líneas son necesarias para computar el total del pedido. Además, los datos son validados para asegurar que sean correctos y cumplan con ciertos criterios, como existir en la base de datos.",
+    "statements": [
+      {
+        "text": "StoreOrderRequest valida que la ID del cliente es requerida y debe existir en la base de datos como un cliente (id : E1).",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      },
+      {
+        "text": "StoreOrderRequest valida que el país de envío es requerido, debe estar dentro de un tamaño de 2 caracteres y existir en la lista de países (ID: E1).",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-2"
+        ]
+      },
+      {
+        "text": "StoreOrderRequest valida que las líneas del pedido son requeridas y debe tener al menos un elemento (ID: E1).",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-3"
+        ]
+      },
+      {
+        "text": "StoreOrderRequest valida que los campos de los productos dentro de las líneas del pedido son requeridos, es un entero, existe en la base de datos como un producto y que la cantidad es un entero positivo (ID: E1).",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-4"
+        ]
+      },
+      {
+        "text": "StoreOrderRequest valida que los campos de la cantidad de productos dentro de las líneas del pedido son requeridos, es un entero positivo (ID: E1).",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-5"
+        ]
+      },
+      {
+        "text": "StoreOrderRequest valida que los campos de los precios unitarios de productos dentro de las líneas del pedido son requeridos, es un entero positivo (ID: E1).",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-6"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "app/Http/Requests/StoreOrderRequest.php",
+        "startLine": 13,
+        "endLine": 48,
+        "excerpt": "class StoreOrderRequest extends FormRequest\n{\n    public function authorize(): bool\n    {\n        return true;\n    }\n\n    /** @return array<string, mixed> */\n    public function rules(): array\n    {\n        return [\n            'customer_id' => ['required', 'integer', 'exists:customers,id'],\n            'shipping_country' => ['required', 'string', 'size:2'],\n            'coupon_code' => ['nullable', 'string', 'max:32'],\n            'lines' => ['required', 'array', 'min:1'],\n            'lines.*.product_id' => ['required', 'integer', 'exists:products,id'],\n            'lines.*.quantity' => ['required', 'integer', 'min:1'],\n            'lines.*.unit_price_cents' => ['required', 'integer', 'min:0'],\n        ];\n    }\n\n    /** @return array<int, array<string, mixed>> */\n    public function lines(): array\n    {\n        return $this->validated()['lines'];\n    }\n\n    /** @return array<string, mixed> */\n    public function validated($key = null, $default = null): array\n    {\n        $data = parent::validated();\n        unset($data['lines']);\n\n        return $data;\n    }\n}"
+      },
+      {
+        "id": "ev-2",
+        "file": "app/Http/Requests/StoreOrderRequest.php",
+        "startLine": 13,
+        "endLine": 48,
+        "excerpt": "class StoreOrderRequest extends FormRequest\n{\n    public function authorize(): bool\n    {\n        return true;\n    }\n\n    /** @return array<string, mixed> */\n    public function rules(): array\n    {\n        return [\n            'customer_id' => ['required', 'integer', 'exists:customers,id'],\n            'shipping_country' => ['required', 'string', 'size:2'],\n            'coupon_code' => ['nullable', 'string', 'max:32'],\n            'lines' => ['required', 'array', 'min:1'],\n            'lines.*.product_id' => ['required', 'integer', 'exists:products,id'],\n            'lines.*.quantity' => ['required', 'integer', 'min:1'],\n            'lines.*.unit_price_cents' => ['required', 'integer', 'min:0'],\n        ];\n    }\n\n    /** @return array<int, array<string, mixed>> */\n    public function lines(): array\n    {\n        return $this->validated()['lines'];\n    }\n\n    /** @return array<string, mixed> */\n    public function validated($key = null, $default = null): array\n    {\n        $data = parent::validated();\n        unset($data['lines']);\n\n        return $data;\n    }\n}"
+      },
+      {
+        "id": "ev-3",
+        "file": "app/Http/Requests/StoreOrderRequest.php",
+        "startLine": 13,
+        "endLine": 48,
+        "excerpt": "class StoreOrderRequest extends FormRequest\n{\n    public function authorize(): bool\n    {\n        return true;\n    }\n\n    /** @return array<string, mixed> */\n    public function rules(): array\n    {\n        return [\n            'customer_id' => ['required', 'integer', 'exists:customers,id'],\n            'shipping_country' => ['required', 'string', 'size:2'],\n            'coupon_code' => ['nullable', 'string', 'max:32'],\n            'lines' => ['required', 'array', 'min:1'],\n            'lines.*.product_id' => ['required', 'integer', 'exists:products,id'],\n            'lines.*.quantity' => ['required', 'integer', 'min:1'],\n            'lines.*.unit_price_cents' => ['required', 'integer', 'min:0'],\n        ];\n    }\n\n    /** @return array<int, array<string, mixed>> */\n    public function lines(): array\n    {\n        return $this->validated()['lines'];\n    }\n\n    /** @return array<string, mixed> */\n    public function validated($key = null, $default = null): array\n    {\n        $data = parent::validated();\n        unset($data['lines']);\n\n        return $data;\n    }\n}"
+      },
+      {
+        "id": "ev-4",
+        "file": "app/Http/Requests/StoreOrderRequest.php",
+        "startLine": 13,
+        "endLine": 48,
+        "excerpt": "class StoreOrderRequest extends FormRequest\n{\n    public function authorize(): bool\n    {\n        return true;\n    }\n\n    /** @return array<string, mixed> */\n    public function rules(): array\n    {\n        return [\n            'customer_id' => ['required', 'integer', 'exists:customers,id'],\n            'shipping_country' => ['required', 'string', 'size:2'],\n            'coupon_code' => ['nullable', 'string', 'max:32'],\n            'lines' => ['required', 'array', 'min:1'],\n            'lines.*.product_id' => ['required', 'integer', 'exists:products,id'],\n            'lines.*.quantity' => ['required', 'integer', 'min:1'],\n            'lines.*.unit_price_cents' => ['required', 'integer', 'min:0'],\n        ];\n    }\n\n    /** @return array<int, array<string, mixed>> */\n    public function lines(): array\n    {\n        return $this->validated()['lines'];\n    }\n\n    /** @return array<string, mixed> */\n    public function validated($key = null, $default = null): array\n    {\n        $data = parent::validated();\n        unset($data['lines']);\n\n        return $data;\n    }\n}"
+      },
+      {
+        "id": "ev-5",
+        "file": "app/Http/Requests/StoreOrderRequest.php",
+        "startLine": 13,
+        "endLine": 48,
+        "excerpt": "class StoreOrderRequest extends FormRequest\n{\n    public function authorize(): bool\n    {\n        return true;\n    }\n\n    /** @return array<string, mixed> */\n    public function rules(): array\n    {\n        return [\n            'customer_id' => ['required', 'integer', 'exists:customers,id'],\n            'shipping_country' => ['required', 'string', 'size:2'],\n            'coupon_code' => ['nullable', 'string', 'max:32'],\n            'lines' => ['required', 'array', 'min:1'],\n            'lines.*.product_id' => ['required', 'integer', 'exists:products,id'],\n            'lines.*.quantity' => ['required', 'integer', 'min:1'],\n            'lines.*.unit_price_cents' => ['required', 'integer', 'min:0'],\n        ];\n    }\n\n    /** @return array<int, array<string, mixed>> */\n    public function lines(): array\n    {\n        return $this->validated()['lines'];\n    }\n\n    /** @return array<string, mixed> */\n    public function validated($key = null, $default = null): array\n    {\n        $data = parent::validated();\n        unset($data['lines']);\n\n        return $data;\n    }\n}"
+      },
+      {
+        "id": "ev-6",
+        "file": "app/Http/Requests/StoreOrderRequest.php",
+        "startLine": 13,
+        "endLine": 48,
+        "excerpt": "class StoreOrderRequest extends FormRequest\n{\n    public function authorize(): bool\n    {\n        return true;\n    }\n\n    /** @return array<string, mixed> */\n    public function rules(): array\n    {\n        return [\n            'customer_id' => ['required', 'integer', 'exists:customers,id'],\n            'shipping_country' => ['required', 'string', 'size:2'],\n            'coupon_code' => ['nullable', 'string', 'max:32'],\n            'lines' => ['required', 'array', 'min:1'],\n            'lines.*.product_id' => ['required', 'integer', 'exists:products,id'],\n            'lines.*.quantity' => ['required', 'integer', 'min:1'],\n            'lines.*.unit_price_cents' => ['required', 'integer', 'min:0'],\n        ];\n    }\n\n    /** @return array<int, array<string, mixed>> */\n    public function lines(): array\n    {\n        return $this->validated()['lines'];\n    }\n\n    /** @return array<string, mixed> */\n    public function validated($key = null, $default = null): array\n    {\n        $data = parent::validated();\n        unset($data['lines']);\n\n        return $data;\n    }\n}"
+      }
+    ],
+    "confidence": 0.8048153229861598,
+    "usage": {
+      "inputTokens": 9055,
+      "outputTokens": 514,
+      "baselineTokens": 5771,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -56.9,
+      "costUsd": 0,
+      "latencyMs": 271093,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 5514,
+        "outputTokens": 461,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 6,
+        "cacheHits": 0,
+        "inputTokens": 3541,
+        "outputTokens": 53,
+        "costUsd": 0,
+        "latencyMs": 60286
+      }
+    }
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "formatVersion": 1,
+  "projects": [
+    {
+      "fixture": "acme-shop",
+      "questions": [
+        { "id": "Q01", "question": "¿Cómo se calcula el precio final de un pedido?", "expected": "answer" },
+        { "id": "Q02", "question": "¿Cómo se validan los cupones?", "expected": "answer" },
+        { "id": "Q03", "question": "¿Qué hace OrderObserver al crear un pedido?", "expected": "answer" },
+        { "id": "Q04", "question": "¿Qué hace DiscountService al aplicar un descuento a un pedido?", "expected": "answer" },
+        { "id": "Q05", "question": "¿Cómo calcula TaxService el impuesto de un pedido?", "expected": "answer" },
+        { "id": "Q06", "question": "¿Cómo decide ShippingService el coste de envío de un pedido?", "expected": "answer" },
+        { "id": "Q07", "question": "¿Qué hace el trabajo RecalculateTotals?", "expected": "answer" },
+        { "id": "Q08", "question": "¿Qué hace el listener SendOrderConfirmation cuando se crea un pedido?", "expected": "answer" },
+        { "id": "Q09", "question": "¿Para qué sirve la clase Money?", "expected": "answer" },
+        { "id": "Q10", "question": "¿Qué comprueba el middleware EnsureCartNotEmpty?", "expected": "answer" },
+        { "id": "Q11", "question": "¿Qué valida StoreOrderRequest al crear un pedido?", "expected": "answer" },
+        { "id": "Q12", "question": "¿Qué hace CheckoutController?", "expected": "answer" },
+        { "id": "Q13", "question": "¿Qué rutas de pedidos define routes/api.php y a qué controlador llevan?", "expected": "answer" },
+        { "id": "Q14", "question": "¿Para qué sirve la fachada Pricing?", "expected": "answer" },
+        { "id": "Q15", "question": "¿Qué registra RecordDiscountAudit cuando se aplica un descuento?", "expected": "answer" },
+        { "id": "Q16", "question": "¿Qué relaciones declara el modelo Order?", "expected": "answer" },
+        { "id": "Q17", "question": "¿Qué hace CarrierGateway?", "expected": "answer" },
+        { "id": "Q18", "question": "¿Qué valores de precios e impuestos define config/shop.php?", "expected": "answer" },
+        { "id": "Q19", "question": "¿Cómo se gestionan los reembolsos de un pedido?", "expected": "unknown" },
+        { "id": "Q20", "question": "¿Cómo se envían las notificaciones por SMS a los clientes?", "expected": "unknown" }
+      ]
+    },
+    {
+      "fixture": "task-api",
+      "questions": [
+        { "id": "Q01", "question": "¿Cómo valida taskRoutes las peticiones entrantes?", "expected": "answer" },
+        { "id": "Q02", "question": "¿Qué hace buildPage con los resultados paginados?", "expected": "answer" },
+        { "id": "Q03", "question": "¿Qué transiciones de estado son válidas?", "expected": "answer" },
+        { "id": "Q04", "question": "¿Qué hace TaskService al actualizar una tarea?", "expected": "answer" },
+        { "id": "Q05", "question": "¿Cómo filtra applyFilters las tareas de una lista?", "expected": "answer" },
+        { "id": "Q06", "question": "¿Cómo ordena sortTasks las tareas?", "expected": "answer" },
+        { "id": "Q07", "question": "¿Qué guarda InMemoryTaskRepository y cómo lo hace?", "expected": "answer" },
+        { "id": "Q08", "question": "¿Cómo convierte registerErrorHandler los errores en respuestas HTTP?", "expected": "answer" },
+        { "id": "Q09", "question": "¿Qué campos tiene la entidad de tarea de task.entity.ts?", "expected": "answer" },
+        { "id": "Q10", "question": "¿Para qué sirve priorityRank y qué prioridades existen?", "expected": "answer" },
+        { "id": "Q11", "question": "¿Qué errores de dominio define errors.ts y qué estado HTTP lleva cada uno?", "expected": "answer" },
+        { "id": "Q12", "question": "¿Qué endpoints registra tasks.routes.ts?", "expected": "answer" },
+        { "id": "Q13", "question": "¿Cómo carga loadEnv la configuración del entorno?", "expected": "answer" },
+        { "id": "Q14", "question": "¿Qué devuelve el controlador de salud en health.controller.ts?", "expected": "answer" },
+        { "id": "Q15", "question": "¿Qué hace TaskService al borrar una tarea?", "expected": "answer" },
+        { "id": "Q16", "question": "¿Qué campos exige createTaskSchema al crear una tarea?", "expected": "answer" },
+        { "id": "Q17", "question": "¿Cómo se genera el identificador de una tarea nueva con newId?", "expected": "answer" },
+        { "id": "Q18", "question": "¿Cómo construye buildApp la aplicación y qué registra en ella?", "expected": "answer" },
+        { "id": "Q19", "question": "¿Cómo se autentican los usuarios?", "expected": "unknown" },
+        { "id": "Q20", "question": "¿Cómo se envían correos de aviso al asignar una tarea?", "expected": "unknown" }
+      ]
+    }
+  ]
+}

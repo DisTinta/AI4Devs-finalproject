@@ -1,0 +1,69 @@
+{
+  "formatVersion": 1,
+  "fixture": "task-api",
+  "questionId": "Q05",
+  "question": "¿Cómo filtra applyFilters las tareas de una lista?",
+  "receivedAt": "2026-11-03T11:55:23.146Z",
+  "status": 200,
+  "body": {
+    "answer": "La función applyFilters filtra las tareas de una lista según los criterios de consulta proporcionados, como el estado, la prioridad, la etiqueta y la búsqueda. La función devuelve las tareas que cumplen con todos estos criterios. Los detalles del filtro se pueden encontrar en el archivo src/services/task.filters.ts, específicamente en la función applyFilters.",
+    "statements": [
+      {
+        "text": "La función `applyFilters` filtra las tareas según los criterios de consulta proporcionados.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      },
+      {
+        "text": "El código de la función se puede encontrar en el archivo 'src/services/task.filters.ts'.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-2"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "src/services/task.filters.ts",
+        "startLine": 10,
+        "endLine": 18,
+        "excerpt": "export function applyFilters(tasks: Task[], query: Pick<TaskQuery, 'status' | 'priority' | 'tag' | 'search'>): Task[] {\n  return tasks.filter((task) => {\n    if (query.status && task.status !== query.status) return false;\n    if (query.priority && task.priority !== query.priority) return false;\n    if (query.tag && !task.tags.includes(query.tag)) return false;\n    if (query.search && !matchesSearch(task, query.search)) return false;\n    return true;\n  });\n}"
+      },
+      {
+        "id": "ev-2",
+        "file": "src/services/task.filters.ts",
+        "startLine": 10,
+        "endLine": 18,
+        "excerpt": "export function applyFilters(tasks: Task[], query: Pick<TaskQuery, 'status' | 'priority' | 'tag' | 'search'>): Task[] {\n  return tasks.filter((task) => {\n    if (query.status && task.status !== query.status) return false;\n    if (query.priority && task.priority !== query.priority) return false;\n    if (query.tag && !task.tags.includes(query.tag)) return false;\n    if (query.search && !matchesSearch(task, query.search)) return false;\n    return true;\n  });\n}"
+      }
+    ],
+    "confidence": 0.8519528019683106,
+    "usage": {
+      "inputTokens": 2376,
+      "outputTokens": 185,
+      "baselineTokens": 1424,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -66.9,
+      "costUsd": 0,
+      "latencyMs": 73364,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 1615,
+        "outputTokens": 171,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 2,
+        "cacheHits": 0,
+        "inputTokens": 761,
+        "outputTokens": 14,
+        "costUsd": 0,
+        "latencyMs": 11507
+      }
+    }
+  }
+}

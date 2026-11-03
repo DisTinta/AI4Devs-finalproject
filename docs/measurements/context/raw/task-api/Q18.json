@@ -1,0 +1,84 @@
+{
+  "formatVersion": 1,
+  "fixture": "task-api",
+  "questionId": "Q18",
+  "question": "¿Cómo construye buildApp la aplicación y qué registra en ella?",
+  "receivedAt": "2026-11-03T12:22:26.619Z",
+  "status": 200,
+  "body": {
+    "answer": "La aplicación 'buildApp' se construye en el archivo 'src/app.ts'. Esta función inicializa una instancia de Fastify, configura validadores y registradores, y construye rutas. Los errores se manejan en el archivo 'src/plugins/error-handler.ts' y registran los errores en la aplicación.",
+    "statements": [
+      {
+        "text": "La función 'buildApp' se define en el archivo 'src/app.ts'.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      },
+      {
+        "text": "Fastify es configurado con opciones, como el registro de errores en el archivo 'src/plugins/error-handler.ts'.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-2"
+        ]
+      },
+      {
+        "text": "Los rutas de la aplicación se registran en el archivo 'src/routes/index.ts'.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-3"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "src/app.ts",
+        "startLine": 22,
+        "endLine": 34,
+        "excerpt": "export function buildApp(options: BuildAppOptions = {}): FastifyInstance {\n  const app = Fastify({ logger: options.logger ?? false }).withTypeProvider<ZodTypeProvider>();\n\n  app.setValidatorCompiler(validatorCompiler);\n  app.setSerializerCompiler(serializerCompiler);\n\n  registerErrorHandler(app);\n  registerDb(app, options.seed ?? []);\n\n  app.register(registerRoutes);\n\n  return app;\n}"
+      },
+      {
+        "id": "ev-2",
+        "file": "src/plugins/error-handler.ts",
+        "startLine": 10,
+        "endLine": 38,
+        "excerpt": "export function registerErrorHandler(app: FastifyInstance): void {\n  app.setErrorHandler((error, _request, reply) => {\n    if (error instanceof ZodError) {\n      reply.code(400).send({\n        error: {\n          code: 'VALIDATION_ERROR',\n          message: 'Request validation failed',\n          details: error.issues.map((issue) => ({\n            path: issue.path.join('.'),\n            message: issue.message,\n          })),\n        },\n      });\n      return;\n    }\n\n    if (error instanceof DomainError) {\n      reply.code(error.statusCode).send({\n        error: { code: error.code, message: error.message },\n      });\n      return;\n    }\n\n    app.log.error(error);\n    reply.code(500).send({\n      error: { code: 'INTERNAL_ERROR', message: 'Unexpected error' },\n    });\n  });\n}"
+      },
+      {
+        "id": "ev-3",
+        "file": "src/routes/index.ts",
+        "startLine": 6,
+        "endLine": 9,
+        "excerpt": "export async function registerRoutes(app: FastifyInstance): Promise<void> {\n  await app.register(healthRoutes);\n  await app.register(taskRoutes, { prefix: '/api' });\n}"
+      }
+    ],
+    "confidence": 0.7471242672706695,
+    "usage": {
+      "inputTokens": 6683,
+      "outputTokens": 228,
+      "baselineTokens": 5621,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -18.9,
+      "costUsd": 0,
+      "latencyMs": 159563,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 5548,
+        "outputTokens": 203,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 3,
+        "cacheHits": 0,
+        "inputTokens": 1135,
+        "outputTokens": 25,
+        "costUsd": 0,
+        "latencyMs": 19160
+      }
+    }
+  }
+}

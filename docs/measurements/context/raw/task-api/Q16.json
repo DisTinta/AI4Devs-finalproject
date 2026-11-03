@@ -1,0 +1,204 @@
+{
+  "formatVersion": 1,
+  "fixture": "task-api",
+  "questionId": "Q16",
+  "question": "¿Qué campos exige createTaskSchema al crear una tarea?",
+  "receivedAt": "2026-11-03T12:19:02.762Z",
+  "status": 200,
+  "body": {
+    "answer": "Para crear una tarea, `createTaskSchema` exige los siguientes campos: title y description (ambos son cadenas de texto), status (un enum de TASK_STATUSES), priority (un enum de TASK_PRIORITIES), tags (un array de cadenas), y dueDate (opcional, una cadena en formato de fecha ISO-8601).",
+    "statements": [
+      {
+        "text": "createTaskSchema exige un campo llamado 'title'.",
+        "type": "INFERENCE",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      },
+      {
+        "text": "createTaskSchema exige un campo llamado 'description'.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-2"
+        ]
+      },
+      {
+        "text": "Estos campos 'title' y 'description' son de tipo string y son obligatorios en createTaskSchema.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-3"
+        ]
+      },
+      {
+        "text": "createTaskSchema también exige un campo llamado 'status'.",
+        "type": "INFERENCE",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-4"
+        ]
+      },
+      {
+        "text": "El campo 'status' es de tipo enum de TASK_STATUSES y tiene un valor por defecto de 'todo'.",
+        "type": "INFERENCE",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-5"
+        ]
+      },
+      {
+        "text": "createTaskSchema exige un campo llamado 'priority'.",
+        "type": "INFERENCE",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-6"
+        ]
+      },
+      {
+        "text": "El campo 'priority' es de tipo enum de TASK_PRIORITIES y tiene un valor por defecto de 'medium'.",
+        "type": "INFERENCE",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-7"
+        ]
+      },
+      {
+        "text": "createTaskSchema también permite un campo opcional llamado 'tags'.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-8"
+        ]
+      },
+      {
+        "text": "El campo 'tags' es un array de cadenas y tiene un valor por defecto vacío.",
+        "type": "INFERENCE",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-9"
+        ]
+      },
+      {
+        "text": "createTaskSchema también permite un campo opcional llamado 'dueDate'.",
+        "type": "INFERENCE",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-10"
+        ]
+      },
+      {
+        "text": "El campo 'dueDate' es una cadena en formato de fecha ISO-8601 y es opcional.",
+        "type": "INFERENCE",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-11"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "src/schemas/task.schema.ts",
+        "startLine": 1,
+        "endLine": 48,
+        "excerpt": "import { z } from 'zod';\nimport { TASK_PRIORITIES } from '../domain/task-priority.js';\nimport { TASK_STATUSES } from '../domain/task-status.js';\n\n/**\n * Request validation lives here and only here. Every incoming body and query is\n * parsed against one of these Zod schemas before a controller ever runs, so the\n * answer to \"how are incoming requests validated?\" is: schema-first, at the\n * route boundary, with the parsed (and typed) value handed to the controller.\n */\n\nconst isoDate = z\n  .string()\n  .datetime({ offset: true })\n  .describe('ISO-8601 timestamp with offset');\n\nconst tag = z.string().trim().min(1).max(32);\n\nexport const createTaskSchema = z.object({\n  title: z.string().trim().min(1).max(200),\n  description: z.string().max(2000).nullish(),\n  status: z.enum(TASK_STATUSES).default('todo'),\n  priority: z.enum(TASK_PRIORITIES).default('medium'),\n  tags: z.array(tag).max(20).default([]),\n  dueDate: isoDate.nullish(),\n});\n\nexport const updateTaskSchema = z\n  .object({\n    title: z.string().trim().min(1).max(200),\n    description: z.string().max(2000).nullable(),\n    status: z.enum(TASK_STATUSES),\n    priority: z.enum(TASK_PRIORITIES),\n    tags: z.array(tag).max(20),\n    dueDate: isoDate.nullable(),\n  })\n  .partial()\n  .refine((body) => Object.keys(body).length > 0, {\n    message: 'At least one field must be provided',\n  });\n\nexport const taskIdParamsSchema = z.object({\n  id: z.string().uuid(),\n});\n\nexport type CreateTaskBody = z.infer<typeof createTaskSchema>;\nexport type UpdateTaskBody = z.infer<typeof updateTaskSchema>;\nexport type TaskIdParams = z.infer<typeof taskIdParamsSchema>;"
+      },
+      {
+        "id": "ev-2",
+        "file": "src/schemas/task.schema.ts",
+        "startLine": 1,
+        "endLine": 48,
+        "excerpt": "import { z } from 'zod';\nimport { TASK_PRIORITIES } from '../domain/task-priority.js';\nimport { TASK_STATUSES } from '../domain/task-status.js';\n\n/**\n * Request validation lives here and only here. Every incoming body and query is\n * parsed against one of these Zod schemas before a controller ever runs, so the\n * answer to \"how are incoming requests validated?\" is: schema-first, at the\n * route boundary, with the parsed (and typed) value handed to the controller.\n */\n\nconst isoDate = z\n  .string()\n  .datetime({ offset: true })\n  .describe('ISO-8601 timestamp with offset');\n\nconst tag = z.string().trim().min(1).max(32);\n\nexport const createTaskSchema = z.object({\n  title: z.string().trim().min(1).max(200),\n  description: z.string().max(2000).nullish(),\n  status: z.enum(TASK_STATUSES).default('todo'),\n  priority: z.enum(TASK_PRIORITIES).default('medium'),\n  tags: z.array(tag).max(20).default([]),\n  dueDate: isoDate.nullish(),\n});\n\nexport const updateTaskSchema = z\n  .object({\n    title: z.string().trim().min(1).max(200),\n    description: z.string().max(2000).nullable(),\n    status: z.enum(TASK_STATUSES),\n    priority: z.enum(TASK_PRIORITIES),\n    tags: z.array(tag).max(20),\n    dueDate: isoDate.nullable(),\n  })\n  .partial()\n  .refine((body) => Object.keys(body).length > 0, {\n    message: 'At least one field must be provided',\n  });\n\nexport const taskIdParamsSchema = z.object({\n  id: z.string().uuid(),\n});\n\nexport type CreateTaskBody = z.infer<typeof createTaskSchema>;\nexport type UpdateTaskBody = z.infer<typeof updateTaskSchema>;\nexport type TaskIdParams = z.infer<typeof taskIdParamsSchema>;"
+      },
+      {
+        "id": "ev-3",
+        "file": "src/schemas/task.schema.ts",
+        "startLine": 1,
+        "endLine": 48,
+        "excerpt": "import { z } from 'zod';\nimport { TASK_PRIORITIES } from '../domain/task-priority.js';\nimport { TASK_STATUSES } from '../domain/task-status.js';\n\n/**\n * Request validation lives here and only here. Every incoming body and query is\n * parsed against one of these Zod schemas before a controller ever runs, so the\n * answer to \"how are incoming requests validated?\" is: schema-first, at the\n * route boundary, with the parsed (and typed) value handed to the controller.\n */\n\nconst isoDate = z\n  .string()\n  .datetime({ offset: true })\n  .describe('ISO-8601 timestamp with offset');\n\nconst tag = z.string().trim().min(1).max(32);\n\nexport const createTaskSchema = z.object({\n  title: z.string().trim().min(1).max(200),\n  description: z.string().max(2000).nullish(),\n  status: z.enum(TASK_STATUSES).default('todo'),\n  priority: z.enum(TASK_PRIORITIES).default('medium'),\n  tags: z.array(tag).max(20).default([]),\n  dueDate: isoDate.nullish(),\n});\n\nexport const updateTaskSchema = z\n  .object({\n    title: z.string().trim().min(1).max(200),\n    description: z.string().max(2000).nullable(),\n    status: z.enum(TASK_STATUSES),\n    priority: z.enum(TASK_PRIORITIES),\n    tags: z.array(tag).max(20),\n    dueDate: isoDate.nullable(),\n  })\n  .partial()\n  .refine((body) => Object.keys(body).length > 0, {\n    message: 'At least one field must be provided',\n  });\n\nexport const taskIdParamsSchema = z.object({\n  id: z.string().uuid(),\n});\n\nexport type CreateTaskBody = z.infer<typeof createTaskSchema>;\nexport type UpdateTaskBody = z.infer<typeof updateTaskSchema>;\nexport type TaskIdParams = z.infer<typeof taskIdParamsSchema>;"
+      },
+      {
+        "id": "ev-4",
+        "file": "src/schemas/task.schema.ts",
+        "startLine": 1,
+        "endLine": 48,
+        "excerpt": "import { z } from 'zod';\nimport { TASK_PRIORITIES } from '../domain/task-priority.js';\nimport { TASK_STATUSES } from '../domain/task-status.js';\n\n/**\n * Request validation lives here and only here. Every incoming body and query is\n * parsed against one of these Zod schemas before a controller ever runs, so the\n * answer to \"how are incoming requests validated?\" is: schema-first, at the\n * route boundary, with the parsed (and typed) value handed to the controller.\n */\n\nconst isoDate = z\n  .string()\n  .datetime({ offset: true })\n  .describe('ISO-8601 timestamp with offset');\n\nconst tag = z.string().trim().min(1).max(32);\n\nexport const createTaskSchema = z.object({\n  title: z.string().trim().min(1).max(200),\n  description: z.string().max(2000).nullish(),\n  status: z.enum(TASK_STATUSES).default('todo'),\n  priority: z.enum(TASK_PRIORITIES).default('medium'),\n  tags: z.array(tag).max(20).default([]),\n  dueDate: isoDate.nullish(),\n});\n\nexport const updateTaskSchema = z\n  .object({\n    title: z.string().trim().min(1).max(200),\n    description: z.string().max(2000).nullable(),\n    status: z.enum(TASK_STATUSES),\n    priority: z.enum(TASK_PRIORITIES),\n    tags: z.array(tag).max(20),\n    dueDate: isoDate.nullable(),\n  })\n  .partial()\n  .refine((body) => Object.keys(body).length > 0, {\n    message: 'At least one field must be provided',\n  });\n\nexport const taskIdParamsSchema = z.object({\n  id: z.string().uuid(),\n});\n\nexport type CreateTaskBody = z.infer<typeof createTaskSchema>;\nexport type UpdateTaskBody = z.infer<typeof updateTaskSchema>;\nexport type TaskIdParams = z.infer<typeof taskIdParamsSchema>;"
+      },
+      {
+        "id": "ev-5",
+        "file": "src/schemas/task.schema.ts",
+        "startLine": 1,
+        "endLine": 48,
+        "excerpt": "import { z } from 'zod';\nimport { TASK_PRIORITIES } from '../domain/task-priority.js';\nimport { TASK_STATUSES } from '../domain/task-status.js';\n\n/**\n * Request validation lives here and only here. Every incoming body and query is\n * parsed against one of these Zod schemas before a controller ever runs, so the\n * answer to \"how are incoming requests validated?\" is: schema-first, at the\n * route boundary, with the parsed (and typed) value handed to the controller.\n */\n\nconst isoDate = z\n  .string()\n  .datetime({ offset: true })\n  .describe('ISO-8601 timestamp with offset');\n\nconst tag = z.string().trim().min(1).max(32);\n\nexport const createTaskSchema = z.object({\n  title: z.string().trim().min(1).max(200),\n  description: z.string().max(2000).nullish(),\n  status: z.enum(TASK_STATUSES).default('todo'),\n  priority: z.enum(TASK_PRIORITIES).default('medium'),\n  tags: z.array(tag).max(20).default([]),\n  dueDate: isoDate.nullish(),\n});\n\nexport const updateTaskSchema = z\n  .object({\n    title: z.string().trim().min(1).max(200),\n    description: z.string().max(2000).nullable(),\n    status: z.enum(TASK_STATUSES),\n    priority: z.enum(TASK_PRIORITIES),\n    tags: z.array(tag).max(20),\n    dueDate: isoDate.nullable(),\n  })\n  .partial()\n  .refine((body) => Object.keys(body).length > 0, {\n    message: 'At least one field must be provided',\n  });\n\nexport const taskIdParamsSchema = z.object({\n  id: z.string().uuid(),\n});\n\nexport type CreateTaskBody = z.infer<typeof createTaskSchema>;\nexport type UpdateTaskBody = z.infer<typeof updateTaskSchema>;\nexport type TaskIdParams = z.infer<typeof taskIdParamsSchema>;"
+      },
+      {
+        "id": "ev-6",
+        "file": "src/schemas/task.schema.ts",
+        "startLine": 1,
+        "endLine": 48,
+        "excerpt": "import { z } from 'zod';\nimport { TASK_PRIORITIES } from '../domain/task-priority.js';\nimport { TASK_STATUSES } from '../domain/task-status.js';\n\n/**\n * Request validation lives here and only here. Every incoming body and query is\n * parsed against one of these Zod schemas before a controller ever runs, so the\n * answer to \"how are incoming requests validated?\" is: schema-first, at the\n * route boundary, with the parsed (and typed) value handed to the controller.\n */\n\nconst isoDate = z\n  .string()\n  .datetime({ offset: true })\n  .describe('ISO-8601 timestamp with offset');\n\nconst tag = z.string().trim().min(1).max(32);\n\nexport const createTaskSchema = z.object({\n  title: z.string().trim().min(1).max(200),\n  description: z.string().max(2000).nullish(),\n  status: z.enum(TASK_STATUSES).default('todo'),\n  priority: z.enum(TASK_PRIORITIES).default('medium'),\n  tags: z.array(tag).max(20).default([]),\n  dueDate: isoDate.nullish(),\n});\n\nexport const updateTaskSchema = z\n  .object({\n    title: z.string().trim().min(1).max(200),\n    description: z.string().max(2000).nullable(),\n    status: z.enum(TASK_STATUSES),\n    priority: z.enum(TASK_PRIORITIES),\n    tags: z.array(tag).max(20),\n    dueDate: isoDate.nullable(),\n  })\n  .partial()\n  .refine((body) => Object.keys(body).length > 0, {\n    message: 'At least one field must be provided',\n  });\n\nexport const taskIdParamsSchema = z.object({\n  id: z.string().uuid(),\n});\n\nexport type CreateTaskBody = z.infer<typeof createTaskSchema>;\nexport type UpdateTaskBody = z.infer<typeof updateTaskSchema>;\nexport type TaskIdParams = z.infer<typeof taskIdParamsSchema>;"
+      },
+      {
+        "id": "ev-7",
+        "file": "src/schemas/task.schema.ts",
+        "startLine": 1,
+        "endLine": 48,
+        "excerpt": "import { z } from 'zod';\nimport { TASK_PRIORITIES } from '../domain/task-priority.js';\nimport { TASK_STATUSES } from '../domain/task-status.js';\n\n/**\n * Request validation lives here and only here. Every incoming body and query is\n * parsed against one of these Zod schemas before a controller ever runs, so the\n * answer to \"how are incoming requests validated?\" is: schema-first, at the\n * route boundary, with the parsed (and typed) value handed to the controller.\n */\n\nconst isoDate = z\n  .string()\n  .datetime({ offset: true })\n  .describe('ISO-8601 timestamp with offset');\n\nconst tag = z.string().trim().min(1).max(32);\n\nexport const createTaskSchema = z.object({\n  title: z.string().trim().min(1).max(200),\n  description: z.string().max(2000).nullish(),\n  status: z.enum(TASK_STATUSES).default('todo'),\n  priority: z.enum(TASK_PRIORITIES).default('medium'),\n  tags: z.array(tag).max(20).default([]),\n  dueDate: isoDate.nullish(),\n});\n\nexport const updateTaskSchema = z\n  .object({\n    title: z.string().trim().min(1).max(200),\n    description: z.string().max(2000).nullable(),\n    status: z.enum(TASK_STATUSES),\n    priority: z.enum(TASK_PRIORITIES),\n    tags: z.array(tag).max(20),\n    dueDate: isoDate.nullable(),\n  })\n  .partial()\n  .refine((body) => Object.keys(body).length > 0, {\n    message: 'At least one field must be provided',\n  });\n\nexport const taskIdParamsSchema = z.object({\n  id: z.string().uuid(),\n});\n\nexport type CreateTaskBody = z.infer<typeof createTaskSchema>;\nexport type UpdateTaskBody = z.infer<typeof updateTaskSchema>;\nexport type TaskIdParams = z.infer<typeof taskIdParamsSchema>;"
+      },
+      {
+        "id": "ev-8",
+        "file": "src/schemas/task.schema.ts",
+        "startLine": 1,
+        "endLine": 48,
+        "excerpt": "import { z } from 'zod';\nimport { TASK_PRIORITIES } from '../domain/task-priority.js';\nimport { TASK_STATUSES } from '../domain/task-status.js';\n\n/**\n * Request validation lives here and only here. Every incoming body and query is\n * parsed against one of these Zod schemas before a controller ever runs, so the\n * answer to \"how are incoming requests validated?\" is: schema-first, at the\n * route boundary, with the parsed (and typed) value handed to the controller.\n */\n\nconst isoDate = z\n  .string()\n  .datetime({ offset: true })\n  .describe('ISO-8601 timestamp with offset');\n\nconst tag = z.string().trim().min(1).max(32);\n\nexport const createTaskSchema = z.object({\n  title: z.string().trim().min(1).max(200),\n  description: z.string().max(2000).nullish(),\n  status: z.enum(TASK_STATUSES).default('todo'),\n  priority: z.enum(TASK_PRIORITIES).default('medium'),\n  tags: z.array(tag).max(20).default([]),\n  dueDate: isoDate.nullish(),\n});\n\nexport const updateTaskSchema = z\n  .object({\n    title: z.string().trim().min(1).max(200),\n    description: z.string().max(2000).nullable(),\n    status: z.enum(TASK_STATUSES),\n    priority: z.enum(TASK_PRIORITIES),\n    tags: z.array(tag).max(20),\n    dueDate: isoDate.nullable(),\n  })\n  .partial()\n  .refine((body) => Object.keys(body).length > 0, {\n    message: 'At least one field must be provided',\n  });\n\nexport const taskIdParamsSchema = z.object({\n  id: z.string().uuid(),\n});\n\nexport type CreateTaskBody = z.infer<typeof createTaskSchema>;\nexport type UpdateTaskBody = z.infer<typeof updateTaskSchema>;\nexport type TaskIdParams = z.infer<typeof taskIdParamsSchema>;"
+      },
+      {
+        "id": "ev-9",
+        "file": "src/schemas/task.schema.ts",
+        "startLine": 1,
+        "endLine": 48,
+        "excerpt": "import { z } from 'zod';\nimport { TASK_PRIORITIES } from '../domain/task-priority.js';\nimport { TASK_STATUSES } from '../domain/task-status.js';\n\n/**\n * Request validation lives here and only here. Every incoming body and query is\n * parsed against one of these Zod schemas before a controller ever runs, so the\n * answer to \"how are incoming requests validated?\" is: schema-first, at the\n * route boundary, with the parsed (and typed) value handed to the controller.\n */\n\nconst isoDate = z\n  .string()\n  .datetime({ offset: true })\n  .describe('ISO-8601 timestamp with offset');\n\nconst tag = z.string().trim().min(1).max(32);\n\nexport const createTaskSchema = z.object({\n  title: z.string().trim().min(1).max(200),\n  description: z.string().max(2000).nullish(),\n  status: z.enum(TASK_STATUSES).default('todo'),\n  priority: z.enum(TASK_PRIORITIES).default('medium'),\n  tags: z.array(tag).max(20).default([]),\n  dueDate: isoDate.nullish(),\n});\n\nexport const updateTaskSchema = z\n  .object({\n    title: z.string().trim().min(1).max(200),\n    description: z.string().max(2000).nullable(),\n    status: z.enum(TASK_STATUSES),\n    priority: z.enum(TASK_PRIORITIES),\n    tags: z.array(tag).max(20),\n    dueDate: isoDate.nullable(),\n  })\n  .partial()\n  .refine((body) => Object.keys(body).length > 0, {\n    message: 'At least one field must be provided',\n  });\n\nexport const taskIdParamsSchema = z.object({\n  id: z.string().uuid(),\n});\n\nexport type CreateTaskBody = z.infer<typeof createTaskSchema>;\nexport type UpdateTaskBody = z.infer<typeof updateTaskSchema>;\nexport type TaskIdParams = z.infer<typeof taskIdParamsSchema>;"
+      },
+      {
+        "id": "ev-10",
+        "file": "src/schemas/task.schema.ts",
+        "startLine": 1,
+        "endLine": 48,
+        "excerpt": "import { z } from 'zod';\nimport { TASK_PRIORITIES } from '../domain/task-priority.js';\nimport { TASK_STATUSES } from '../domain/task-status.js';\n\n/**\n * Request validation lives here and only here. Every incoming body and query is\n * parsed against one of these Zod schemas before a controller ever runs, so the\n * answer to \"how are incoming requests validated?\" is: schema-first, at the\n * route boundary, with the parsed (and typed) value handed to the controller.\n */\n\nconst isoDate = z\n  .string()\n  .datetime({ offset: true })\n  .describe('ISO-8601 timestamp with offset');\n\nconst tag = z.string().trim().min(1).max(32);\n\nexport const createTaskSchema = z.object({\n  title: z.string().trim().min(1).max(200),\n  description: z.string().max(2000).nullish(),\n  status: z.enum(TASK_STATUSES).default('todo'),\n  priority: z.enum(TASK_PRIORITIES).default('medium'),\n  tags: z.array(tag).max(20).default([]),\n  dueDate: isoDate.nullish(),\n});\n\nexport const updateTaskSchema = z\n  .object({\n    title: z.string().trim().min(1).max(200),\n    description: z.string().max(2000).nullable(),\n    status: z.enum(TASK_STATUSES),\n    priority: z.enum(TASK_PRIORITIES),\n    tags: z.array(tag).max(20),\n    dueDate: isoDate.nullable(),\n  })\n  .partial()\n  .refine((body) => Object.keys(body).length > 0, {\n    message: 'At least one field must be provided',\n  });\n\nexport const taskIdParamsSchema = z.object({\n  id: z.string().uuid(),\n});\n\nexport type CreateTaskBody = z.infer<typeof createTaskSchema>;\nexport type UpdateTaskBody = z.infer<typeof updateTaskSchema>;\nexport type TaskIdParams = z.infer<typeof taskIdParamsSchema>;"
+      },
+      {
+        "id": "ev-11",
+        "file": "src/schemas/task.schema.ts",
+        "startLine": 1,
+        "endLine": 48,
+        "excerpt": "import { z } from 'zod';\nimport { TASK_PRIORITIES } from '../domain/task-priority.js';\nimport { TASK_STATUSES } from '../domain/task-status.js';\n\n/**\n * Request validation lives here and only here. Every incoming body and query is\n * parsed against one of these Zod schemas before a controller ever runs, so the\n * answer to \"how are incoming requests validated?\" is: schema-first, at the\n * route boundary, with the parsed (and typed) value handed to the controller.\n */\n\nconst isoDate = z\n  .string()\n  .datetime({ offset: true })\n  .describe('ISO-8601 timestamp with offset');\n\nconst tag = z.string().trim().min(1).max(32);\n\nexport const createTaskSchema = z.object({\n  title: z.string().trim().min(1).max(200),\n  description: z.string().max(2000).nullish(),\n  status: z.enum(TASK_STATUSES).default('todo'),\n  priority: z.enum(TASK_PRIORITIES).default('medium'),\n  tags: z.array(tag).max(20).default([]),\n  dueDate: isoDate.nullish(),\n});\n\nexport const updateTaskSchema = z\n  .object({\n    title: z.string().trim().min(1).max(200),\n    description: z.string().max(2000).nullable(),\n    status: z.enum(TASK_STATUSES),\n    priority: z.enum(TASK_PRIORITIES),\n    tags: z.array(tag).max(20),\n    dueDate: isoDate.nullable(),\n  })\n  .partial()\n  .refine((body) => Object.keys(body).length > 0, {\n    message: 'At least one field must be provided',\n  });\n\nexport const taskIdParamsSchema = z.object({\n  id: z.string().uuid(),\n});\n\nexport type CreateTaskBody = z.infer<typeof createTaskSchema>;\nexport type UpdateTaskBody = z.infer<typeof updateTaskSchema>;\nexport type TaskIdParams = z.infer<typeof taskIdParamsSchema>;"
+      }
+    ],
+    "confidence": 0.7265667307661425,
+    "usage": {
+      "inputTokens": 11435,
+      "outputTokens": 597,
+      "baselineTokens": 3319,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -244.5,
+      "costUsd": 0,
+      "latencyMs": 304437,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 2948,
+        "outputTokens": 508,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 11,
+        "cacheHits": 0,
+        "inputTokens": 8487,
+        "outputTokens": 89,
+        "costUsd": 0,
+        "latencyMs": 150689
+      }
+    }
+  }
+}

@@ -144,3 +144,6 @@ export function calledNames(site: { call: string; form: string }, language: stri
 
 /** Runs the command and returns its exit code (0 success, 1 an input check failed, 2 usage error). */
 export function runMeasureGraph(args: string[], options: MeasureGraphOptions): number;
+
+/** Reads the row of one `INSERT INTO <table> (<columns>) VALUES (<values>);` line, or the reason it cannot be read. */
+export function readRow(line: string): Map<string, string | number | boolean | null> | string;

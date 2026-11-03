@@ -1,0 +1,92 @@
+{
+  "formatVersion": 1,
+  "fixture": "task-api",
+  "questionId": "Q15",
+  "question": "¿Qué hace TaskService al borrar una tarea?",
+  "receivedAt": "2026-11-03T12:13:58.251Z",
+  "status": 200,
+  "body": {
+    "answer": "La clase TaskService en el archivo src/services/task.service.ts es responsable de borrar una tarea al implementar la función delete(id: string): Promise<void>. Esta función utiliza el repositorio para eliminar la tarea y lanza un error TaskNotFoundError si no se encuentra la tarea.",
+    "statements": [
+      {
+        "text": "La función delete(id: string): Promise<void> en la clase TaskService implementa la lógica para borrar una tarea.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      },
+      {
+        "text": "La función delete(id: string): Promise<void> invoca al método delete(id: string) del repositorio para eliminar la tarea.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-2"
+        ]
+      },
+      {
+        "text": "Si la tarea no se encuentra en el repositorio, la función delete(id: string): Promise<void> lanza un error TaskNotFoundError.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-3",
+          "ev-4"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "src/services/task.service.ts",
+        "startLine": 13,
+        "endLine": 68,
+        "excerpt": "export class TaskService {\n  constructor(\n    private readonly repository: TaskRepository,\n    private readonly clock: () => string = () => new Date().toISOString(),\n  ) {}\n\n  async get(id: string): Promise<Task> {\n    const task = await this.repository.findById(id);\n    if (!task) throw new TaskNotFoundError(id);\n    return task;\n  }\n\n  async list(query: TaskQuery): Promise<Page<Task>> {\n    return this.repository.list(query);\n  }\n\n  async create(input: CreateTaskInput): Promise<Task> {\n    const now = this.clock();\n    const task: Task = {\n      id: newId(),\n      title: input.title,\n      description: input.description ?? null,\n      status: input.status ?? 'todo',\n      priority: input.priority ?? 'medium',\n      tags: input.tags ?? [],\n      dueDate: input.dueDate ?? null,\n      createdAt: now,\n      updatedAt: now,\n    };\n    return this.repository.create(task);\n  }\n\n  async update(id: string, input: UpdateTaskInput): Promise<Task> {\n    const current = await this.get(id);\n\n    if (input.status && input.status !== current.status) {\n      if (!canTransition(current.status, input.status)) {\n        throw new IllegalStatusTransitionError(current.status, input.status);\n      }\n    }\n\n    const updated: Task = {\n      ...current,\n      ...pruneUndefined(input),\n      id: current.id,\n      createdAt: current.createdAt,\n      updatedAt: this.clock(),\n    };\n    return this.repository.update(updated);\n  }\n\n  async delete(id: string): Promise<void> {\n    const deleted = await this.repository.delete(id);\n    if (!deleted) throw new TaskNotFoundError(id);\n  }\n}"
+      },
+      {
+        "id": "ev-2",
+        "file": "src/services/task.service.ts",
+        "startLine": 13,
+        "endLine": 68,
+        "excerpt": "export class TaskService {\n  constructor(\n    private readonly repository: TaskRepository,\n    private readonly clock: () => string = () => new Date().toISOString(),\n  ) {}\n\n  async get(id: string): Promise<Task> {\n    const task = await this.repository.findById(id);\n    if (!task) throw new TaskNotFoundError(id);\n    return task;\n  }\n\n  async list(query: TaskQuery): Promise<Page<Task>> {\n    return this.repository.list(query);\n  }\n\n  async create(input: CreateTaskInput): Promise<Task> {\n    const now = this.clock();\n    const task: Task = {\n      id: newId(),\n      title: input.title,\n      description: input.description ?? null,\n      status: input.status ?? 'todo',\n      priority: input.priority ?? 'medium',\n      tags: input.tags ?? [],\n      dueDate: input.dueDate ?? null,\n      createdAt: now,\n      updatedAt: now,\n    };\n    return this.repository.create(task);\n  }\n\n  async update(id: string, input: UpdateTaskInput): Promise<Task> {\n    const current = await this.get(id);\n\n    if (input.status && input.status !== current.status) {\n      if (!canTransition(current.status, input.status)) {\n        throw new IllegalStatusTransitionError(current.status, input.status);\n      }\n    }\n\n    const updated: Task = {\n      ...current,\n      ...pruneUndefined(input),\n      id: current.id,\n      createdAt: current.createdAt,\n      updatedAt: this.clock(),\n    };\n    return this.repository.update(updated);\n  }\n\n  async delete(id: string): Promise<void> {\n    const deleted = await this.repository.delete(id);\n    if (!deleted) throw new TaskNotFoundError(id);\n  }\n}"
+      },
+      {
+        "id": "ev-3",
+        "file": "src/services/task.service.ts",
+        "startLine": 13,
+        "endLine": 68,
+        "excerpt": "export class TaskService {\n  constructor(\n    private readonly repository: TaskRepository,\n    private readonly clock: () => string = () => new Date().toISOString(),\n  ) {}\n\n  async get(id: string): Promise<Task> {\n    const task = await this.repository.findById(id);\n    if (!task) throw new TaskNotFoundError(id);\n    return task;\n  }\n\n  async list(query: TaskQuery): Promise<Page<Task>> {\n    return this.repository.list(query);\n  }\n\n  async create(input: CreateTaskInput): Promise<Task> {\n    const now = this.clock();\n    const task: Task = {\n      id: newId(),\n      title: input.title,\n      description: input.description ?? null,\n      status: input.status ?? 'todo',\n      priority: input.priority ?? 'medium',\n      tags: input.tags ?? [],\n      dueDate: input.dueDate ?? null,\n      createdAt: now,\n      updatedAt: now,\n    };\n    return this.repository.create(task);\n  }\n\n  async update(id: string, input: UpdateTaskInput): Promise<Task> {\n    const current = await this.get(id);\n\n    if (input.status && input.status !== current.status) {\n      if (!canTransition(current.status, input.status)) {\n        throw new IllegalStatusTransitionError(current.status, input.status);\n      }\n    }\n\n    const updated: Task = {\n      ...current,\n      ...pruneUndefined(input),\n      id: current.id,\n      createdAt: current.createdAt,\n      updatedAt: this.clock(),\n    };\n    return this.repository.update(updated);\n  }\n\n  async delete(id: string): Promise<void> {\n    const deleted = await this.repository.delete(id);\n    if (!deleted) throw new TaskNotFoundError(id);\n  }\n}"
+      },
+      {
+        "id": "ev-4",
+        "file": "src/domain/errors.ts",
+        "startLine": 18,
+        "endLine": 20,
+        "excerpt": "  constructor(id: string) {\n    super(`Task ${id} not found`, 404, 'TASK_NOT_FOUND');\n  }"
+      }
+    ],
+    "confidence": 0.7310585786300049,
+    "usage": {
+      "inputTokens": 8631,
+      "outputTokens": 254,
+      "baselineTokens": 5917,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -45.9,
+      "costUsd": 0,
+      "latencyMs": 194767,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 6285,
+        "outputTokens": 218,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 4,
+        "cacheHits": 0,
+        "inputTokens": 2346,
+        "outputTokens": 36,
+        "costUsd": 0,
+        "latencyMs": 35994
+      }
+    }
+  }
+}

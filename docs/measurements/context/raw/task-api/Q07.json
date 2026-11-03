@@ -1,0 +1,14 @@
+{
+  "formatVersion": 1,
+  "fixture": "task-api",
+  "questionId": "Q07",
+  "question": "¿Qué guarda InMemoryTaskRepository y cómo lo hace?",
+  "receivedAt": "2026-11-03T11:57:56.428Z",
+  "status": 200,
+  "body": {
+    "answer": "UNKNOWN",
+    "reason": "invalid-model-output",
+    "statements": [],
+    "evidence": []
+  }
+}

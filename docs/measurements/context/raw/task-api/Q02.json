@@ -1,0 +1,54 @@
+{
+  "formatVersion": 1,
+  "fixture": "task-api",
+  "questionId": "Q02",
+  "question": "¿Qué hace buildPage con los resultados paginados?",
+  "receivedAt": "2026-11-03T11:47:25.135Z",
+  "status": 200,
+  "body": {
+    "answer": "buildPage se utiliza para construir una página de resultados paginados, tomando como parámetros los items, el total de elementos, la página actual y el tamaño de la página.",
+    "statements": [
+      {
+        "text": "buildPage construye una página tomando los parámetros que la definen: items, total, página y tamaño de página.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "src/domain/pagination.ts",
+        "startLine": 13,
+        "endLine": 21,
+        "excerpt": "export function buildPage<T>(items: T[], total: number, page: number, pageSize: number): Page<T> {\n  return {\n    items,\n    total,\n    page,\n    pageSize,\n    pageCount: pageSize > 0 ? Math.ceil(total / pageSize) : 0,\n  };\n}"
+      }
+    ],
+    "confidence": 0.8519528019683106,
+    "usage": {
+      "inputTokens": 2721,
+      "outputTokens": 111,
+      "baselineTokens": 3368,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": 19.2,
+      "costUsd": 0,
+      "latencyMs": 62980,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 2383,
+        "outputTokens": 104,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 1,
+        "cacheHits": 0,
+        "inputTokens": 338,
+        "outputTokens": 7,
+        "costUsd": 0,
+        "latencyMs": 5968
+      }
+    }
+  }
+}

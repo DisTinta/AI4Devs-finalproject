@@ -1,0 +1,114 @@
+{
+  "formatVersion": 1,
+  "fixture": "task-api",
+  "questionId": "Q12",
+  "question": "¿Qué endpoints registra tasks.routes.ts?",
+  "receivedAt": "2026-11-03T12:09:13.522Z",
+  "status": 200,
+  "body": {
+    "answer": "Los endpoints registrados por tasks.routes.ts son:",
+    "statements": [
+      {
+        "text": "El endpoint /tasks/list GET es registrado por tasks.routes.ts usando el método list de TasksController.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      },
+      {
+        "text": "El endpoint /tasks:id GET es registrado por tasks.routes.ts usando el método getById de TasksController.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-2"
+        ]
+      },
+      {
+        "text": "El endpoint /tasks POST es registrado por tasks.routes.ts usando el método create de TasksController.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-3"
+        ]
+      },
+      {
+        "text": "El endpoint /tasks:id PATCH es registrado por tasks.routes.ts usando el método update de TasksController.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-4"
+        ]
+      },
+      {
+        "text": "El endpoint /tasks:id DELETE es registrado por tasks.routes.ts usando el método remove de TasksController.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-5"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "src/routes/tasks.routes.ts",
+        "startLine": 15,
+        "endLine": 31,
+        "excerpt": "export async function taskRoutes(app: FastifyInstance): Promise<void> {\n  const controller = new TasksController();\n\n  app.get('/tasks', { schema: { querystring: listTasksQuerySchema } }, controller.list);\n\n  app.get('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.getById);\n\n  app.post('/tasks', { schema: { body: createTaskSchema } }, controller.create);\n\n  app.patch(\n    '/tasks/:id',\n    { schema: { params: taskIdParamsSchema, body: updateTaskSchema } },\n    controller.update,\n  );\n\n  app.delete('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.remove);\n}"
+      },
+      {
+        "id": "ev-2",
+        "file": "src/routes/tasks.routes.ts",
+        "startLine": 15,
+        "endLine": 31,
+        "excerpt": "export async function taskRoutes(app: FastifyInstance): Promise<void> {\n  const controller = new TasksController();\n\n  app.get('/tasks', { schema: { querystring: listTasksQuerySchema } }, controller.list);\n\n  app.get('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.getById);\n\n  app.post('/tasks', { schema: { body: createTaskSchema } }, controller.create);\n\n  app.patch(\n    '/tasks/:id',\n    { schema: { params: taskIdParamsSchema, body: updateTaskSchema } },\n    controller.update,\n  );\n\n  app.delete('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.remove);\n}"
+      },
+      {
+        "id": "ev-3",
+        "file": "src/routes/tasks.routes.ts",
+        "startLine": 15,
+        "endLine": 31,
+        "excerpt": "export async function taskRoutes(app: FastifyInstance): Promise<void> {\n  const controller = new TasksController();\n\n  app.get('/tasks', { schema: { querystring: listTasksQuerySchema } }, controller.list);\n\n  app.get('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.getById);\n\n  app.post('/tasks', { schema: { body: createTaskSchema } }, controller.create);\n\n  app.patch(\n    '/tasks/:id',\n    { schema: { params: taskIdParamsSchema, body: updateTaskSchema } },\n    controller.update,\n  );\n\n  app.delete('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.remove);\n}"
+      },
+      {
+        "id": "ev-4",
+        "file": "src/routes/tasks.routes.ts",
+        "startLine": 15,
+        "endLine": 31,
+        "excerpt": "export async function taskRoutes(app: FastifyInstance): Promise<void> {\n  const controller = new TasksController();\n\n  app.get('/tasks', { schema: { querystring: listTasksQuerySchema } }, controller.list);\n\n  app.get('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.getById);\n\n  app.post('/tasks', { schema: { body: createTaskSchema } }, controller.create);\n\n  app.patch(\n    '/tasks/:id',\n    { schema: { params: taskIdParamsSchema, body: updateTaskSchema } },\n    controller.update,\n  );\n\n  app.delete('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.remove);\n}"
+      },
+      {
+        "id": "ev-5",
+        "file": "src/routes/tasks.routes.ts",
+        "startLine": 15,
+        "endLine": 31,
+        "excerpt": "export async function taskRoutes(app: FastifyInstance): Promise<void> {\n  const controller = new TasksController();\n\n  app.get('/tasks', { schema: { querystring: listTasksQuerySchema } }, controller.list);\n\n  app.get('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.getById);\n\n  app.post('/tasks', { schema: { body: createTaskSchema } }, controller.create);\n\n  app.patch(\n    '/tasks/:id',\n    { schema: { params: taskIdParamsSchema, body: updateTaskSchema } },\n    controller.update,\n  );\n\n  app.delete('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.remove);\n}"
+      }
+    ],
+    "confidence": 0.8519528019683106,
+    "usage": {
+      "inputTokens": 9229,
+      "outputTokens": 263,
+      "baselineTokens": 6798,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -35.8,
+      "costUsd": 0,
+      "latencyMs": 210849,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 7110,
+        "outputTokens": 228,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 5,
+        "cacheHits": 0,
+        "inputTokens": 2119,
+        "outputTokens": 35,
+        "costUsd": 0,
+        "latencyMs": 28021
+      }
+    }
+  }
+}

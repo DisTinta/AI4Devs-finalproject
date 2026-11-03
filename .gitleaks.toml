@@ -86,3 +86,7 @@ regexes = ['''^A[K]IAABCDEFGHIJKLMNOP$''']
 [[allowlists]]
 description = "Synthetic sentinel API key of the model-configuration scenario of the impact-risk-cli change (DIS-90) - openspec/changes/impact-risk-cli/specs/cli-impact/spec.md and tests/unit/cli/impact-command.spec.ts, generic-api-key, lines 82 and 191 when generated (also in the git history of this branch)"
 regexes = ['''^S[E]NTINEL\-key\-9a1f$''']
+
+[[allowlists]]
+description = "Synthetic LLM API key planted by the no-variable-value-written scenario of the context-measurement change (DIS-81) - tests/unit/scripts/measure-context.spec.ts, generic-api-key, lines 196 and 409 when generated (also in the git history of this branch)"
+regexes = ['''^k[e]y\-distinctive\-123$''']

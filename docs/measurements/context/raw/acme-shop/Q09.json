@@ -1,0 +1,122 @@
+{
+  "formatVersion": 1,
+  "fixture": "acme-shop",
+  "questionId": "Q09",
+  "question": "¿Para qué sirve la clase Money?",
+  "receivedAt": "2026-11-03T11:24:26.798Z",
+  "status": 200,
+  "body": {
+    "answer": "La clase Money es un valor object que se utiliza para representar cantidades monetarias con centavos y una moneda específica. Permite realizar operaciones matemáticas aritméticas y comparaciones entre cantidades monetarias de forma segura y precisa.",
+    "statements": [
+      {
+        "text": "La clase Money contiene dos propiedades, 'cents' y 'currency', que representan respectivamente la cantidad en centavos y la moneda de los objetos Money.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      },
+      {
+        "text": "En el archivo 'DiscountServiceTest.php' (E3 y E4), se utilizan varias veces instancias de la clase Money para calcular descuentos en función del número de líneas de un pedido y si un cupón es aplicable.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-2",
+          "ev-3"
+        ]
+      },
+      {
+        "text": "El método 'fromFloat' de la clase Money se utiliza para crear una instancia de Money a partir de un número de tipo flotante, convirtiéndolo internamente a centavos.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-4"
+        ]
+      },
+      {
+        "text": "El método 'percentage' de la clase Money se utiliza para calcular el porcentaje de una cantidad monetaria, redondeando el resultado al centro de la unidad más cercana.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-5"
+        ]
+      },
+      {
+        "text": "La clase Order incluye un 'accessor' llamado 'subtotal' que utiliza la clase Money para calcular la suma de todas las líneas de pedido en una instancia de Order.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-6"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "app/Support/Money.php",
+        "startLine": 14,
+        "endLine": 75,
+        "excerpt": "final class Money\n{\n    private function __construct(\n        public readonly int $cents,\n        public readonly string $currency = 'EUR',\n    ) {\n    }\n\n    public static function fromCents(int $cents, string $currency = 'EUR'): self\n    {\n        return new self($cents, $currency);\n    }\n\n    public static function fromFloat(float $amount, string $currency = 'EUR'): self\n    {\n        return new self((int) round($amount * 100), $currency);\n    }\n\n    public static function zero(string $currency = 'EUR'): self\n    {\n        return new self(0, $currency);\n    }\n\n    public function add(Money $other): self\n    {\n        $this->assertSameCurrency($other);\n\n        return new self($this->cents + $other->cents, $this->currency);\n    }\n\n    public function subtract(Money $other): self\n    {\n        $this->assertSameCurrency($other);\n\n        return new self(max(0, $this->cents - $other->cents), $this->currency);\n    }\n\n    /** Percentage of this amount, rounded half-up to the nearest cent. */\n    public function percentage(float $percent): self\n    {\n        return new self((int) round($this->cents * $percent / 100), $this->currency);\n    }\n\n    public function isGreaterThan(Money $other): bool\n    {\n        $this->assertSameCurrency($other);\n\n        return $this->cents > $other->cents;\n    }\n\n    public function amount(): float\n    {\n        return $this->cents / 100;\n    }\n\n    private function assertSameCurrency(Money $other): void\n    {\n        if ($other->currency !== $this->currency) {\n            throw new InvalidArgumentException('Cannot operate on mixed currencies');\n        }\n    }\n}"
+      },
+      {
+        "id": "ev-2",
+        "file": "tests/Unit/DiscountServiceTest.php",
+        "startLine": 58,
+        "endLine": 68,
+        "excerpt": "    public function test_no_volume_bonus_at_or_below_five_lines(): void\n    {\n        Event::fake();\n        $coupons = Mockery::mock(CouponValidator::class);\n        $coupons->shouldReceive('percentFor')->andReturn(0.0);\n\n        $service = new DiscountService($coupons);\n        $discount = $service->discountFor($this->orderWith('standard', 5), Money::fromCents(10000));\n\n        $this->assertSame(0, $discount->cents);\n    }"
+      },
+      {
+        "id": "ev-3",
+        "file": "tests/Unit/DiscountServiceTest.php",
+        "startLine": 70,
+        "endLine": 81,
+        "excerpt": "    public function test_total_discount_is_capped_at_thirty_percent(): void\n    {\n        Event::fake();\n        $coupons = Mockery::mock(CouponValidator::class);\n        $coupons->shouldReceive('percentFor')->andReturn(25.0);\n\n        $service = new DiscountService($coupons);\n        // gold (10) + coupon (25) + volume (5) = 40% -> capped to 30%\n        $discount = $service->discountFor($this->orderWith('gold', 6, 'BIG25'), Money::fromCents(10000));\n\n        $this->assertSame(3000, $discount->cents);\n    }"
+      },
+      {
+        "id": "ev-4",
+        "file": "app/Support/Money.php",
+        "startLine": 14,
+        "endLine": 75,
+        "excerpt": "final class Money\n{\n    private function __construct(\n        public readonly int $cents,\n        public readonly string $currency = 'EUR',\n    ) {\n    }\n\n    public static function fromCents(int $cents, string $currency = 'EUR'): self\n    {\n        return new self($cents, $currency);\n    }\n\n    public static function fromFloat(float $amount, string $currency = 'EUR'): self\n    {\n        return new self((int) round($amount * 100), $currency);\n    }\n\n    public static function zero(string $currency = 'EUR'): self\n    {\n        return new self(0, $currency);\n    }\n\n    public function add(Money $other): self\n    {\n        $this->assertSameCurrency($other);\n\n        return new self($this->cents + $other->cents, $this->currency);\n    }\n\n    public function subtract(Money $other): self\n    {\n        $this->assertSameCurrency($other);\n\n        return new self(max(0, $this->cents - $other->cents), $this->currency);\n    }\n\n    /** Percentage of this amount, rounded half-up to the nearest cent. */\n    public function percentage(float $percent): self\n    {\n        return new self((int) round($this->cents * $percent / 100), $this->currency);\n    }\n\n    public function isGreaterThan(Money $other): bool\n    {\n        $this->assertSameCurrency($other);\n\n        return $this->cents > $other->cents;\n    }\n\n    public function amount(): float\n    {\n        return $this->cents / 100;\n    }\n\n    private function assertSameCurrency(Money $other): void\n    {\n        if ($other->currency !== $this->currency) {\n            throw new InvalidArgumentException('Cannot operate on mixed currencies');\n        }\n    }\n}"
+      },
+      {
+        "id": "ev-5",
+        "file": "app/Support/Money.php",
+        "startLine": 14,
+        "endLine": 75,
+        "excerpt": "final class Money\n{\n    private function __construct(\n        public readonly int $cents,\n        public readonly string $currency = 'EUR',\n    ) {\n    }\n\n    public static function fromCents(int $cents, string $currency = 'EUR'): self\n    {\n        return new self($cents, $currency);\n    }\n\n    public static function fromFloat(float $amount, string $currency = 'EUR'): self\n    {\n        return new self((int) round($amount * 100), $currency);\n    }\n\n    public static function zero(string $currency = 'EUR'): self\n    {\n        return new self(0, $currency);\n    }\n\n    public function add(Money $other): self\n    {\n        $this->assertSameCurrency($other);\n\n        return new self($this->cents + $other->cents, $this->currency);\n    }\n\n    public function subtract(Money $other): self\n    {\n        $this->assertSameCurrency($other);\n\n        return new self(max(0, $this->cents - $other->cents), $this->currency);\n    }\n\n    /** Percentage of this amount, rounded half-up to the nearest cent. */\n    public function percentage(float $percent): self\n    {\n        return new self((int) round($this->cents * $percent / 100), $this->currency);\n    }\n\n    public function isGreaterThan(Money $other): bool\n    {\n        $this->assertSameCurrency($other);\n\n        return $this->cents > $other->cents;\n    }\n\n    public function amount(): float\n    {\n        return $this->cents / 100;\n    }\n\n    private function assertSameCurrency(Money $other): void\n    {\n        if ($other->currency !== $this->currency) {\n            throw new InvalidArgumentException('Cannot operate on mixed currencies');\n        }\n    }\n}"
+      },
+      {
+        "id": "ev-6",
+        "file": "app/Models/Order.php",
+        "startLine": 19,
+        "endLine": 57,
+        "excerpt": "class Order extends Model\n{\n    use HasFactory;\n\n    protected $fillable = ['customer_id', 'status', 'coupon_code', 'shipping_country'];\n\n    public function customer(): BelongsTo\n    {\n        return $this->belongsTo(Customer::class);\n    }\n\n    public function lines(): HasMany\n    {\n        return $this->hasMany(OrderLine::class);\n    }\n\n    public function coupon(): BelongsTo\n    {\n        // Resolved by string column, not by id — the coupon_code magic attribute.\n        return $this->belongsTo(Coupon::class, 'coupon_code', 'code');\n    }\n\n    /**\n     * Accessor exposed as $order->subtotal. Sums the order lines. Because this is\n     * a magic accessor, callers reference a property the analyzer cannot see.\n     */\n    public function getSubtotalAttribute(): Money\n    {\n        return $this->lines->reduce(\n            fn (Money $carry, OrderLine $line) => $carry->add($line->lineTotal()),\n            Money::zero(),\n        );\n    }\n\n    public function lineCount(): int\n    {\n        return $this->lines->count();\n    }\n}"
+      }
+    ],
+    "confidence": 0.7700039187406861,
+    "usage": {
+      "inputTokens": 9790,
+      "outputTokens": 427,
+      "baselineTokens": 5999,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -63.2,
+      "costUsd": 0,
+      "latencyMs": 262278,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 6203,
+        "outputTokens": 373,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 6,
+        "cacheHits": 0,
+        "inputTokens": 3587,
+        "outputTokens": 54,
+        "costUsd": 0,
+        "latencyMs": 58052
+      }
+    }
+  }
+}

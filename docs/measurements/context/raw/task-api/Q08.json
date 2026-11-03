@@ -1,0 +1,54 @@
+{
+  "formatVersion": 1,
+  "fixture": "task-api",
+  "questionId": "Q08",
+  "question": "¿Cómo convierte registerErrorHandler los errores en respuestas HTTP?",
+  "receivedAt": "2026-11-03T11:59:30.133Z",
+  "status": 200,
+  "body": {
+    "answer": "El código convierte los errores en respuestas HTTP mediante la función `registerErrorHandler` en el archivo `src/plugins/error-handler.ts`. Esta función maneja diferentes tipos de errores y las convierte en respuestas HTTP con los códigos de estado y mensajes de error adecuados.",
+    "statements": [
+      {
+        "text": "La función `registerErrorHandler` define diferentes condiciones para manejar diferentes tipos de errores y los convierte en respuestas HTTP correspondientes.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "src/plugins/error-handler.ts",
+        "startLine": 10,
+        "endLine": 38,
+        "excerpt": "export function registerErrorHandler(app: FastifyInstance): void {\n  app.setErrorHandler((error, _request, reply) => {\n    if (error instanceof ZodError) {\n      reply.code(400).send({\n        error: {\n          code: 'VALIDATION_ERROR',\n          message: 'Request validation failed',\n          details: error.issues.map((issue) => ({\n            path: issue.path.join('.'),\n            message: issue.message,\n          })),\n        },\n      });\n      return;\n    }\n\n    if (error instanceof DomainError) {\n      reply.code(error.statusCode).send({\n        error: { code: error.code, message: error.message },\n      });\n      return;\n    }\n\n    app.log.error(error);\n    reply.code(500).send({\n      error: { code: 'INTERNAL_ERROR', message: 'Unexpected error' },\n    });\n  });\n}"
+      }
+    ],
+    "confidence": 0.8519528019683106,
+    "usage": {
+      "inputTokens": 4078,
+      "outputTokens": 130,
+      "baselineTokens": 3822,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -6.7,
+      "costUsd": 0,
+      "latencyMs": 93634,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 3588,
+        "outputTokens": 123,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 1,
+        "cacheHits": 0,
+        "inputTokens": 490,
+        "outputTokens": 7,
+        "costUsd": 0,
+        "latencyMs": 8401
+      }
+    }
+  }
+}

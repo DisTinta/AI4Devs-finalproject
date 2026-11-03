@@ -97,6 +97,7 @@
 81. [Suite E2E con Playwright y job `e2e` en CI (DIS-75)](#81-suite-e2e-con-playwright-y-job-e2e-en-ci-dis-75)
 82. [Cobertura informativa y puerta de mutación (DIS-77)](#82-cobertura-informativa-y-puerta-de-mutación-dis-77)
 83. [Medición de la calidad del grafo (DIS-79)](#83-medición-de-la-calidad-del-grafo-dis-79)
+84. [Medición del ahorro de contexto y del verificador (DIS-81)](#84-medición-del-ahorro-de-contexto-y-del-verificador-dis-81)
 
 ---
 
@@ -5613,3 +5614,25 @@ escribió cada test en rojo con datos sintéticos y lo completó (texto del agen
 letra: los tests de congelación de la tarea 1.3 se escribieron junto con su implementación, sin una ejecución en
 rojo propia, y la comprobación byte a byte de PowerShell usó el SHA-256 del JSON porque el fichero aún no estaba
 versionado.
+
+---
+
+# 84. Medición del ahorro de contexto y del verificador (DIS-81)
+
+### Prompt 1 — Paso de apply del cambio `context-measurement` en la ejecución autónoma
+
+Extracto literal del encargo que recibió el subagente:
+
+```
+Run /opsx:apply on change context-measurement: every task in TDD (failing test first, then implementation, in the layer order), marking tasks.md as you go, with the mandatory verification steps. Run the tests, lint and typecheck. Commit, push and open the PR to final-project-CRN with /pr-describe (write the "why" yourself and mark it as agent-written). Return pr.
+```
+
+**Por qué funcionó.** El `design.md` y la spec, cerrados tras cinco rondas de auditoría, fijaban el orden de las
+comprobaciones, las formas del JSON y de los ficheros en bruto y los formatos de cada cifra, así que el agente pudo
+escribir el script y los tests sin preguntar nada y lanzar la medición real una sola vez (texto del agente). La
+ejecución viva de 40 preguntas con `qwen2.5-coder:latest` en una GTX 970 tardó unos 90 minutos y no se reanudó.
+
+**Ajuste humano.** Ninguno: ejecución autónoma (texto del agente). Dos cosas no siguieron el plan al pie de la
+letra: el script se escribió antes que su suite de tests y la ejecución en rojo se obtuvo retirando el módulo de
+forma temporal; y el clasificador del modo automático denegó cerrar la aplicación de bandeja de Ollama de la máquina,
+así que la medición usó un `ollama serve` propio en otro puerto con `OLLAMA_CONTEXT_LENGTH=16384`.

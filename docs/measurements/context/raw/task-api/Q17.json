@@ -1,0 +1,69 @@
+{
+  "formatVersion": 1,
+  "fixture": "task-api",
+  "questionId": "Q17",
+  "question": "¿Cómo se genera el identificador de una tarea nueva con newId?",
+  "receivedAt": "2026-11-03T12:19:46.983Z",
+  "status": 200,
+  "body": {
+    "answer": "El identificador de una tarea nueva es generado con el método newId que devuelve un UUID aleatorio.",
+    "statements": [
+      {
+        "text": "El método newId se define en el archivo src/services/id.ts y devuelve un UUID aleatorio.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      },
+      {
+        "text": "El método newId se utiliza dentro de la función create del archivo src/services/task.service.ts para generar el identificador de una tarea nueva.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-2"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "src/services/id.ts",
+        "startLine": 7,
+        "endLine": 9,
+        "excerpt": "export function newId(): string {\n  return randomUUID();\n}"
+      },
+      {
+        "id": "ev-2",
+        "file": "src/services/task.service.ts",
+        "startLine": 29,
+        "endLine": 43,
+        "excerpt": "  async create(input: CreateTaskInput): Promise<Task> {\n    const now = this.clock();\n    const task: Task = {\n      id: newId(),\n      title: input.title,\n      description: input.description ?? null,\n      status: input.status ?? 'todo',\n      priority: input.priority ?? 'medium',\n      tags: input.tags ?? [],\n      dueDate: input.dueDate ?? null,\n      createdAt: now,\n      updatedAt: now,\n    };\n    return this.repository.create(task);\n  }"
+      }
+    ],
+    "confidence": 0.8670357598021706,
+    "usage": {
+      "inputTokens": 1286,
+      "outputTokens": 140,
+      "baselineTokens": 962,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -33.7,
+      "costUsd": 0,
+      "latencyMs": 44144,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 621,
+        "outputTokens": 126,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 2,
+        "cacheHits": 0,
+        "inputTokens": 665,
+        "outputTokens": 14,
+        "costUsd": 0,
+        "latencyMs": 10279
+      }
+    }
+  }
+}

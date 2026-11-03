@@ -1,0 +1,99 @@
+{
+  "formatVersion": 1,
+  "fixture": "acme-shop",
+  "questionId": "Q02",
+  "question": "¿Cómo se validan los cupones?",
+  "receivedAt": "2026-11-03T11:01:00.157Z",
+  "status": 200,
+  "body": {
+    "answer": "Los cupones se validan en el servicio CouponValidator. Este servicio verifica el código del cupón, si es válido (es decir, si está activo y no ha expirado) y devuelve el porcentaje de descuento asociado al cupón.",
+    "statements": [
+      {
+        "text": "El método CouponValidator::isRedeemable verifica si el código del cupón es válido devolviendo true o false.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      },
+      {
+        "text": "El método CouponValidator::percentFor calcula el porcentaje de descuento para el código de cupón proporcionado.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-2"
+        ]
+      },
+      {
+        "text": "El método CouponValidator::percentFor usa el método find de la clase Coupon para buscar un cupón activo con el código proporcionado.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-3"
+        ]
+      },
+      {
+        "text": "El método CouponValidator::percentFor verifica si el cupón ha expirado antes de devolver el porcentaje de descuento.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-4"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "app/Services/CouponValidator.php",
+        "startLine": 14,
+        "endLine": 39,
+        "excerpt": "class CouponValidator\n{\n    public function percentFor(?string $code): float\n    {\n        if ($code === null || $code === '') {\n            return 0.0;\n        }\n\n        $coupon = Coupon::query()->find($code);\n\n        if (! $coupon instanceof Coupon || ! $coupon->active) {\n            return 0.0;\n        }\n\n        if ($coupon->expires_at !== null && $coupon->expires_at->isPast()) {\n            return 0.0;\n        }\n\n        return $coupon->percent_off;\n    }\n\n    public function isRedeemable(?string $code): bool\n    {\n        return $this->percentFor($code) > 0.0;\n    }\n}"
+      },
+      {
+        "id": "ev-2",
+        "file": "app/Services/CouponValidator.php",
+        "startLine": 14,
+        "endLine": 39,
+        "excerpt": "class CouponValidator\n{\n    public function percentFor(?string $code): float\n    {\n        if ($code === null || $code === '') {\n            return 0.0;\n        }\n\n        $coupon = Coupon::query()->find($code);\n\n        if (! $coupon instanceof Coupon || ! $coupon->active) {\n            return 0.0;\n        }\n\n        if ($coupon->expires_at !== null && $coupon->expires_at->isPast()) {\n            return 0.0;\n        }\n\n        return $coupon->percent_off;\n    }\n\n    public function isRedeemable(?string $code): bool\n    {\n        return $this->percentFor($code) > 0.0;\n    }\n}"
+      },
+      {
+        "id": "ev-3",
+        "file": "app/Services/CouponValidator.php",
+        "startLine": 14,
+        "endLine": 39,
+        "excerpt": "class CouponValidator\n{\n    public function percentFor(?string $code): float\n    {\n        if ($code === null || $code === '') {\n            return 0.0;\n        }\n\n        $coupon = Coupon::query()->find($code);\n\n        if (! $coupon instanceof Coupon || ! $coupon->active) {\n            return 0.0;\n        }\n\n        if ($coupon->expires_at !== null && $coupon->expires_at->isPast()) {\n            return 0.0;\n        }\n\n        return $coupon->percent_off;\n    }\n\n    public function isRedeemable(?string $code): bool\n    {\n        return $this->percentFor($code) > 0.0;\n    }\n}"
+      },
+      {
+        "id": "ev-4",
+        "file": "app/Services/CouponValidator.php",
+        "startLine": 14,
+        "endLine": 39,
+        "excerpt": "class CouponValidator\n{\n    public function percentFor(?string $code): float\n    {\n        if ($code === null || $code === '') {\n            return 0.0;\n        }\n\n        $coupon = Coupon::query()->find($code);\n\n        if (! $coupon instanceof Coupon || ! $coupon->active) {\n            return 0.0;\n        }\n\n        if ($coupon->expires_at !== null && $coupon->expires_at->isPast()) {\n            return 0.0;\n        }\n\n        return $coupon->percent_off;\n    }\n\n    public function isRedeemable(?string $code): bool\n    {\n        return $this->percentFor($code) > 0.0;\n    }\n}"
+      }
+    ],
+    "confidence": 0.8175744761936437,
+    "usage": {
+      "inputTokens": 6068,
+      "outputTokens": 287,
+      "baselineTokens": 4422,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -37.2,
+      "costUsd": 0,
+      "latencyMs": 159420,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 4302,
+        "outputTokens": 255,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 4,
+        "cacheHits": 0,
+        "inputTokens": 1766,
+        "outputTokens": 32,
+        "costUsd": 0,
+        "latencyMs": 24703
+      }
+    }
+  }
+}

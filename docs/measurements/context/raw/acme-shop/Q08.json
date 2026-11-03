@@ -1,0 +1,92 @@
+{
+  "formatVersion": 1,
+  "fixture": "acme-shop",
+  "questionId": "Q08",
+  "question": "¿Qué hace el listener SendOrderConfirmation cuando se crea un pedido?",
+  "receivedAt": "2026-11-03T11:20:04.439Z",
+  "status": 200,
+  "body": {
+    "answer": "El listener SendOrderConfirmation se encarga de registrar la confirmación de un pedido en el log, calculando el total del pedido utilizando la clase Pricing y registrando el valor del pedido y el total en los logs.",
+    "statements": [
+      {
+        "text": "El listener SendOrderConfirmation maneja el evento OrderPlaced cuando se crea un pedido.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      },
+      {
+        "text": "Cuando se crea un pedido, el método handle de SendOrderConfirmation calcula el total del pedido usando el método compute de la clase Pricing.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-2",
+          "ev-3"
+        ]
+      },
+      {
+        "text": "El total del pedido y la información del pedido son registrados en los logs usando el método info de la clase Log.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-4"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "app/Listeners/SendOrderConfirmation.php",
+        "startLine": 15,
+        "endLine": 26,
+        "excerpt": "class SendOrderConfirmation\n{\n    public function handle(OrderPlaced $event): void\n    {\n        $total = Pricing::compute($event->order);\n\n        Log::info('order.confirmation', [\n            'order_id' => $event->order->id,\n            'total' => $total->amount(),\n        ]);\n    }\n}"
+      },
+      {
+        "id": "ev-2",
+        "file": "app/Listeners/SendOrderConfirmation.php",
+        "startLine": 15,
+        "endLine": 26,
+        "excerpt": "class SendOrderConfirmation\n{\n    public function handle(OrderPlaced $event): void\n    {\n        $total = Pricing::compute($event->order);\n\n        Log::info('order.confirmation', [\n            'order_id' => $event->order->id,\n            'total' => $total->amount(),\n        ]);\n    }\n}"
+      },
+      {
+        "id": "ev-3",
+        "file": "app/Services/PriceCalculator.php",
+        "startLine": 16,
+        "endLine": 44,
+        "excerpt": "class PriceCalculator\n{\n    public function __construct(\n        private readonly DiscountService $discounts,\n        private readonly TaxService $taxes,\n        private readonly ShippingService $shipping,\n    ) {\n    }\n\n    public function compute(Order $order): Money\n    {\n        $subtotal = $order->subtotal;                       // magic accessor\n        $discount = $this->discounts->discountFor($order, $subtotal);\n        $taxable = $subtotal->subtract($discount);\n\n        $tax = $this->taxes->taxFor($order, $taxable);\n        $shipping = $this->shipping->shippingFor($order, $taxable);\n\n        return $taxable->add($tax)->add($shipping);\n    }\n\n    /** Returns the discounted amount before tax and shipping. */\n    public function taxableBase(Order $order): Money\n    {\n        $subtotal = $order->subtotal;\n\n        return $subtotal->subtract($this->discounts->discountFor($order, $subtotal));\n    }\n}"
+      },
+      {
+        "id": "ev-4",
+        "file": "app/Listeners/SendOrderConfirmation.php",
+        "startLine": 15,
+        "endLine": 26,
+        "excerpt": "class SendOrderConfirmation\n{\n    public function handle(OrderPlaced $event): void\n    {\n        $total = Pricing::compute($event->order);\n\n        Log::info('order.confirmation', [\n            'order_id' => $event->order->id,\n            'total' => $total->amount(),\n        ]);\n    }\n}"
+      }
+    ],
+    "confidence": 0.7772998611746911,
+    "usage": {
+      "inputTokens": 6929,
+      "outputTokens": 223,
+      "baselineTokens": 5689,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -21.8,
+      "costUsd": 0,
+      "latencyMs": 164862,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 5381,
+        "outputTokens": 195,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 4,
+        "cacheHits": 0,
+        "inputTokens": 1548,
+        "outputTokens": 28,
+        "costUsd": 0,
+        "latencyMs": 24550
+      }
+    }
+  }
+}

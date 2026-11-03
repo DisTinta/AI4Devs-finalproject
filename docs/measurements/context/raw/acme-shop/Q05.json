@@ -1,0 +1,54 @@
+{
+  "formatVersion": 1,
+  "fixture": "acme-shop",
+  "questionId": "Q05",
+  "question": "¿Cómo calcula TaxService el impuesto de un pedido?",
+  "receivedAt": "2026-11-03T11:11:42.699Z",
+  "status": 200,
+  "body": {
+    "answer": "TaxService calcula el impuesto de un pedido solicitando un monto basado en el subtotal descontado, es decir, el 'precio base' después de aplicar descuentos.",
+    "statements": [
+      {
+        "text": "El monto sobre el que se calcula el impuesto es el 'precio base' después de aplicar descuentos.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "app/Services/PriceCalculator.php",
+        "startLine": 16,
+        "endLine": 44,
+        "excerpt": "class PriceCalculator\n{\n    public function __construct(\n        private readonly DiscountService $discounts,\n        private readonly TaxService $taxes,\n        private readonly ShippingService $shipping,\n    ) {\n    }\n\n    public function compute(Order $order): Money\n    {\n        $subtotal = $order->subtotal;                       // magic accessor\n        $discount = $this->discounts->discountFor($order, $subtotal);\n        $taxable = $subtotal->subtract($discount);\n\n        $tax = $this->taxes->taxFor($order, $taxable);\n        $shipping = $this->shipping->shippingFor($order, $taxable);\n\n        return $taxable->add($tax)->add($shipping);\n    }\n\n    /** Returns the discounted amount before tax and shipping. */\n    public function taxableBase(Order $order): Money\n    {\n        $subtotal = $order->subtotal;\n\n        return $subtotal->subtract($this->discounts->discountFor($order, $subtotal));\n    }\n}"
+      }
+    ],
+    "confidence": 0.6224593312018546,
+    "usage": {
+      "inputTokens": 7431,
+      "outputTokens": 111,
+      "baselineTokens": 7123,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -4.3,
+      "costUsd": 0,
+      "latencyMs": 156979,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 6929,
+        "outputTokens": 104,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 1,
+        "cacheHits": 0,
+        "inputTokens": 502,
+        "outputTokens": 7,
+        "costUsd": 0,
+        "latencyMs": 9413
+      }
+    }
+  }
+}

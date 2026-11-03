@@ -1,0 +1,92 @@
+{
+  "formatVersion": 1,
+  "fixture": "acme-shop",
+  "questionId": "Q12",
+  "question": "¿Qué hace CheckoutController?",
+  "receivedAt": "2026-11-03T11:31:16.769Z",
+  "status": 200,
+  "body": {
+    "answer": "El controller CheckoutController maneja procesos relacionados con la finalización de una compra, mientras que las rutas y servicios como Pricing calculan los precios finales considerando descuentos, impuestos yShipping.",
+    "statements": [
+      {
+        "text": "El controller CheckoutController crea órdenes y devuelve el total de la compra.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      },
+      {
+        "text": "Rutas de la aplicación web definen las URL y controladores para manejar las solicitudes de check-out.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-2"
+        ]
+      },
+      {
+        "text": "El servicio PricingService se utiliza en varios lugares para calcular el precio final de las órdenes, incluyendo en CheckoutController y OrderController.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-3",
+          "ev-4"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "app/Http/Controllers/CheckoutController.php",
+        "startLine": 17,
+        "endLine": 34,
+        "excerpt": "class CheckoutController extends Controller\n{\n    public function store(StoreOrderRequest $request): JsonResponse\n    {\n        $order = Order::create($request->validated());\n\n        foreach ($request->lines() as $line) {\n            $order->lines()->create($line);\n        }\n\n        $order->refresh();\n\n        return response()->json([\n            'id' => $order->id,\n            'total' => Pricing::compute($order)->amount(),\n        ], 201);\n    }\n}"
+      },
+      {
+        "id": "ev-2",
+        "file": "routes/web.php",
+        "startLine": 13,
+        "endLine": 15,
+        "excerpt": "Route::post('/checkout', 'App\\Http\\Controllers\\CheckoutController@store')\n    ->middleware('cart.not_empty')\n    ->name('checkout.store');"
+      },
+      {
+        "id": "ev-3",
+        "file": "app/Services/PriceCalculator.php",
+        "startLine": 25,
+        "endLine": 35,
+        "excerpt": "    public function compute(Order $order): Money\n    {\n        $subtotal = $order->subtotal;                       // magic accessor\n        $discount = $this->discounts->discountFor($order, $subtotal);\n        $taxable = $subtotal->subtract($discount);\n\n        $tax = $this->taxes->taxFor($order, $taxable);\n        $shipping = $this->shipping->shippingFor($order, $taxable);\n\n        return $taxable->add($tax)->add($shipping);\n    }"
+      },
+      {
+        "id": "ev-4",
+        "file": "app/Http/Controllers/OrderController.php",
+        "startLine": 16,
+        "endLine": 26,
+        "excerpt": "    public function show(Order $order): JsonResponse\n    {\n        $total = Pricing::compute($order);\n\n        return response()->json([\n            'id' => $order->id,\n            'status' => $order->status,\n            'subtotal' => $order->subtotal->amount(),\n            'total' => $total->amount(),\n        ]);\n    }"
+      }
+    ],
+    "confidence": 0.7549149868676283,
+    "usage": {
+      "inputTokens": 4322,
+      "outputTokens": 223,
+      "baselineTokens": 3643,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -18.6,
+      "costUsd": 0,
+      "latencyMs": 113420,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 2891,
+        "outputTokens": 195,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 4,
+        "cacheHits": 0,
+        "inputTokens": 1431,
+        "outputTokens": 28,
+        "costUsd": 0,
+        "latencyMs": 20683
+      }
+    }
+  }
+}

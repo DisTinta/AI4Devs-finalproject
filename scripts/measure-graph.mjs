@@ -170,7 +170,7 @@ function readLiteral(text, position) {
  * @param {string} line - The line.
  * @returns {Map<string, string | number | boolean | null> | string} The row by column, or the reason it cannot be read.
  */
-function readRow(line) {
+export function readRow(line) {
   const head = /^INSERT INTO [a-z_]+ \(([^)]*)\) VALUES \(/.exec(line);
   if (head === null) return 'the INSERT does not have the form INSERT INTO <table> (<columns>) VALUES (<values>);';
   const columns = (head[1] ?? '').split(',').map((column) => column.trim());

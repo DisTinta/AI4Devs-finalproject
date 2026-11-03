@@ -1,0 +1,84 @@
+{
+  "formatVersion": 1,
+  "fixture": "acme-shop",
+  "questionId": "Q16",
+  "question": "¿Qué relaciones declara el modelo Order?",
+  "receivedAt": "2026-11-03T11:39:48.764Z",
+  "status": 200,
+  "body": {
+    "answer": "El modelo Order declara las siguientes relaciones:",
+    "statements": [
+      {
+        "text": "Order tiene una relación con Customer a través de la propiedad customer.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      },
+      {
+        "text": "Order tiene una relación con OrderLine a través de la propiedad lines.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-2"
+        ]
+      },
+      {
+        "text": "Order tiene una relación con Coupon a través del método coupon().",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-3"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "app/Models/Order.php",
+        "startLine": 19,
+        "endLine": 57,
+        "excerpt": "class Order extends Model\n{\n    use HasFactory;\n\n    protected $fillable = ['customer_id', 'status', 'coupon_code', 'shipping_country'];\n\n    public function customer(): BelongsTo\n    {\n        return $this->belongsTo(Customer::class);\n    }\n\n    public function lines(): HasMany\n    {\n        return $this->hasMany(OrderLine::class);\n    }\n\n    public function coupon(): BelongsTo\n    {\n        // Resolved by string column, not by id — the coupon_code magic attribute.\n        return $this->belongsTo(Coupon::class, 'coupon_code', 'code');\n    }\n\n    /**\n     * Accessor exposed as $order->subtotal. Sums the order lines. Because this is\n     * a magic accessor, callers reference a property the analyzer cannot see.\n     */\n    public function getSubtotalAttribute(): Money\n    {\n        return $this->lines->reduce(\n            fn (Money $carry, OrderLine $line) => $carry->add($line->lineTotal()),\n            Money::zero(),\n        );\n    }\n\n    public function lineCount(): int\n    {\n        return $this->lines->count();\n    }\n}"
+      },
+      {
+        "id": "ev-2",
+        "file": "app/Models/Order.php",
+        "startLine": 19,
+        "endLine": 57,
+        "excerpt": "class Order extends Model\n{\n    use HasFactory;\n\n    protected $fillable = ['customer_id', 'status', 'coupon_code', 'shipping_country'];\n\n    public function customer(): BelongsTo\n    {\n        return $this->belongsTo(Customer::class);\n    }\n\n    public function lines(): HasMany\n    {\n        return $this->hasMany(OrderLine::class);\n    }\n\n    public function coupon(): BelongsTo\n    {\n        // Resolved by string column, not by id — the coupon_code magic attribute.\n        return $this->belongsTo(Coupon::class, 'coupon_code', 'code');\n    }\n\n    /**\n     * Accessor exposed as $order->subtotal. Sums the order lines. Because this is\n     * a magic accessor, callers reference a property the analyzer cannot see.\n     */\n    public function getSubtotalAttribute(): Money\n    {\n        return $this->lines->reduce(\n            fn (Money $carry, OrderLine $line) => $carry->add($line->lineTotal()),\n            Money::zero(),\n        );\n    }\n\n    public function lineCount(): int\n    {\n        return $this->lines->count();\n    }\n}"
+      },
+      {
+        "id": "ev-3",
+        "file": "app/Models/Order.php",
+        "startLine": 19,
+        "endLine": 57,
+        "excerpt": "class Order extends Model\n{\n    use HasFactory;\n\n    protected $fillable = ['customer_id', 'status', 'coupon_code', 'shipping_country'];\n\n    public function customer(): BelongsTo\n    {\n        return $this->belongsTo(Customer::class);\n    }\n\n    public function lines(): HasMany\n    {\n        return $this->hasMany(OrderLine::class);\n    }\n\n    public function coupon(): BelongsTo\n    {\n        // Resolved by string column, not by id — the coupon_code magic attribute.\n        return $this->belongsTo(Coupon::class, 'coupon_code', 'code');\n    }\n\n    /**\n     * Accessor exposed as $order->subtotal. Sums the order lines. Because this is\n     * a magic accessor, callers reference a property the analyzer cannot see.\n     */\n    public function getSubtotalAttribute(): Money\n    {\n        return $this->lines->reduce(\n            fn (Money $carry, OrderLine $line) => $carry->add($line->lineTotal()),\n            Money::zero(),\n        );\n    }\n\n    public function lineCount(): int\n    {\n        return $this->lines->count();\n    }\n}"
+      }
+    ],
+    "confidence": 0.8519528019683106,
+    "usage": {
+      "inputTokens": 8925,
+      "outputTokens": 146,
+      "baselineTokens": 7341,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -21.6,
+      "costUsd": 0,
+      "latencyMs": 190109,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 7328,
+        "outputTokens": 125,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 3,
+        "cacheHits": 0,
+        "inputTokens": 1597,
+        "outputTokens": 21,
+        "costUsd": 0,
+        "latencyMs": 27383
+      }
+    }
+  }
+}

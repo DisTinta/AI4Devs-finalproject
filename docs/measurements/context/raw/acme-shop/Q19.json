@@ -1,0 +1,14 @@
+{
+  "formatVersion": 1,
+  "fixture": "acme-shop",
+  "questionId": "Q19",
+  "question": "¿Cómo se gestionan los reembolsos de un pedido?",
+  "receivedAt": "2026-11-03T11:43:02.949Z",
+  "status": 200,
+  "body": {
+    "answer": "UNKNOWN",
+    "reason": "no-anchor",
+    "statements": [],
+    "evidence": []
+  }
+}

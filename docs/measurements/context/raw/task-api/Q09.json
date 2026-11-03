@@ -1,0 +1,84 @@
+{
+  "formatVersion": 1,
+  "fixture": "task-api",
+  "questionId": "Q09",
+  "question": "¿Qué campos tiene la entidad de tarea de task.entity.ts?",
+  "receivedAt": "2026-11-03T12:02:44.528Z",
+  "status": 200,
+  "body": {
+    "answer": "La entidad de tarea en task.entity.ts tiene los siguientes campos: id, title, description, status, priority, tags, dueDate, createdAt y updatedAt.",
+    "statements": [
+      {
+        "text": "La entidad de tarea se define en el archivo src/domain/task.entity.ts bajo la interfaz Task (id E5).",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      },
+      {
+        "text": "Además de los campos mencionados en la interfaz Task, se define una interfaz CreateTaskInput para los campos que pueden ser enviados al crear una tarea (id E6).",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-2"
+        ]
+      },
+      {
+        "text": "Se también define una interfaz UpdateTaskInput para los campos que pueden ser actualizados en una tarea (id E7).",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-3"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "src/domain/task.entity.ts",
+        "startLine": 8,
+        "endLine": 18,
+        "excerpt": "export interface Task {\n  id: string;\n  title: string;\n  description: string | null;\n  status: TaskStatus;\n  priority: TaskPriority;\n  tags: string[];\n  dueDate: string | null;\n  createdAt: string;\n  updatedAt: string;\n}"
+      },
+      {
+        "id": "ev-2",
+        "file": "src/domain/task.entity.ts",
+        "startLine": 20,
+        "endLine": 27,
+        "excerpt": "export interface CreateTaskInput {\n  title: string;\n  description?: string | null | undefined;\n  status?: TaskStatus;\n  priority?: TaskPriority;\n  tags?: string[];\n  dueDate?: string | null | undefined;\n}"
+      },
+      {
+        "id": "ev-3",
+        "file": "src/domain/task.entity.ts",
+        "startLine": 29,
+        "endLine": 36,
+        "excerpt": "export interface UpdateTaskInput {\n  title?: string | undefined;\n  description?: string | null | undefined;\n  status?: TaskStatus | undefined;\n  priority?: TaskPriority | undefined;\n  tags?: string[] | undefined;\n  dueDate?: string | null | undefined;\n}"
+      }
+    ],
+    "confidence": 0.8807970779778823,
+    "usage": {
+      "inputTokens": 8163,
+      "outputTokens": 223,
+      "baselineTokens": 6228,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -31.1,
+      "costUsd": 0,
+      "latencyMs": 194323,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 7168,
+        "outputTokens": 199,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 3,
+        "cacheHits": 0,
+        "inputTokens": 995,
+        "outputTokens": 24,
+        "costUsd": 0,
+        "latencyMs": 16780
+      }
+    }
+  }
+}
