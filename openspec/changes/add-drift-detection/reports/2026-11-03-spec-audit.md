@@ -564,3 +564,184 @@ add-drift-detection --strict` passes after the edits.
 
 - DIS-71 `[enhanced]` §3 "Confrontación" gains the note on `C1`/`D1` the audit asked for. The
   `[original]` block is untouched. A Spanish comment summarises this round.
+
+---
+
+## Run 3 (2026-11-03)
+
+APPROVED
+
+# Spec audit: add-drift-detection (DIS-71), run 3
+
+- Date: 2026-11-03
+- Change: `openspec/changes/add-drift-detection/` as of commit `1fe1d37`, after the round 2 corrections. It contains the proposal, design D1–D19 with Follow-ups E1–E12, P1–P5 and R1–R15, the delta `specs/drift-detection/spec.md` with 29 scenarios, and tasks 0–13.
+- Ticket: I loaded DIS-71 (sub-issue, In Progress) and its 4 comments from Linear, plus its parent DIS-48 (Backlog, no comments).
+- Earlier runs: run 1 found B1–B6 and run 2 found B7–B8. I checked both resolution sections against the artifacts and every fix they list is present. The answers to the run 1 questions are the agent's text (R10, R8) and do not contradict the ticket: the `[enhanced]` AC 1 now names `driftProvenanceSchema`, and §3 "Confrontación" carries the `C1`/`D1` rule.
+
+## Questions for the author
+
+None.
+
+## 1. Scope against the ticket
+
+Clean. The change covers what DIS-71 asks for:
+- the three modules of the `[original]` block;
+- the DoD as an integration test with a scripted LLM;
+- no CLI.
+
+The parent's CLI, golden Q5 and `query_log` row stay with DIS-73 (D10, R8). Case B is left out, as the parent's non-goals say (D11). The extra work is a consequence of the change, not new scope:
+- rewording the "until DIS-71" texts (D14, R5);
+- exporting `unfenceModelOutput` (D16);
+- excluding `.env*` files from prompts (D15);
+- keeping `UNSTORED_FILE_ID` internal (R9).
+
+## 2. Inherited acceptance criteria
+
+Clean. Each of the five ACs of DIS-71 `[enhanced]` has a requirement and at least one scenario:
+- **AC1** → "The two planted contradictions of the pricing document are found". It now asks for `driftProvenanceSchema`.
+- **AC2** → "A claim the code confirms is not a contradiction", with `claimsChecked` 3.
+- **AC3** → the three "Unknown drift answers" scenarios.
+- **AC4** → "An invalid extraction…", "A claim outside the document is dropped", "…citing an unknown id…" and "…without evidence or statement…".
+- **AC5** → the four "Verification of a contradiction" scenarios, "An unknown or unindexed project fails…" and "A failing answer call propagates unchanged".
+
+From the parent DIS-48, DIS-71 inherits four criteria and all are covered: `INFERENCE` with provenance, a confirmed claim not reported, `verification` on both sides, and `no-docs`. The golden Q5 in evaluation mode and the `query_log` row belong to DIS-73. The ticket's DIS-73 comment and D8 record this.
+
+## 3. Missing scenarios
+
+Clean for blocking purposes. Some MUST behaviours are tested only as extra cases (tasks 3.5, 4.3, 4.7, 5.8); R11 accepted that (destination D).
+
+- **Improvable.** In the confrontation, `sanitizeForPrompt(claim.text, spans)` reports flags on the claim text as `explain`'s `untrusted_content_flagged` events with `source: 'question'` (`packages/core/src/explain/sanitize.ts:78-83`). Those events have no `evidenceId`, not `C1`. The document citation sent as `D1` does not pass through `sanitizeForPrompt` there, so it raises no new event; the extraction has already flagged it. The spec ("Confrontation of a claim") does not say either thing. The extra case of task 4.7, which checks the confrontation's flag events, would settle it on its own. State both in the requirement (text under Corrections).
+
+## 4. Ambiguity
+
+Clean. The proposal, design, spec and tasks contain none of fast, easy, secure, efficient, appropriate or robust. "many" appears only in task 4.3 ("however many claims are confronted"), where it means "any number" and is not a defect.
+
+## 5. Open decisions
+
+No blocking open decision. The decisions of runs 1 and 2 are settled in the spec and the design:
+- `claimsChecked` of a dropped `contradicted` claim;
+- `missing` propagates;
+- the configuration budget;
+- the subcodes and their order;
+- `C1`/`D1`/`E1…En`;
+- `promptHash`.
+
+- **Improvable: the claim texts of the integration script (task 6.1) are not fixed.** Whether `app/Services/PriceCalculator.php` reaches the 11–17 claim's context depends on that text. `buildContextPack` anchors on symbol names that contain a term of the question (`packages/core/src/context/anchor.ts:91-105`), and `docs/pricing.md` names no symbol.
+  - The document's own sentence at line 17, "tax is applied to the gross subtotal, before any discount", gives the terms `tax`, `subtotal` and `discount`. `tax` anchors `PriceCalculator::taxableBase` (`fixtures/acme-shop/app/Services/PriceCalculator.php:38`), `TaxService` and `taxFor`.
+  - The line-31 sentence "Orders over €50.00 ship for free" anchors `ShippingService`/`shippingFor` through `ship` and matches `config/shop.php`.
+
+  Task 6.1's fallback ("record the real context before changing the script") covers a failure, but fixing the texts up front removes the guess. Text under Corrections.
+
+## 6. Contradictions inside the change
+
+Clean. The proposal, D1–D19, the spec and the tasks agree on:
+- the order of a call;
+- the event shapes (D17 and "Drift report" verbatim);
+- no `schema_violation` event;
+- the `D1` id of the extraction events;
+- the line-cut drop;
+- the quarantine order and its subcodes;
+- the `C1`/`D1`/`E1…En` ids;
+- the `promptHash` rule;
+- the D14 table against tasks 5.10, 11.1 and 11.3;
+- the internal `UNSTORED_FILE_ID` and `driftShapeSubcode`.
+
+## 7. Contradictions with the project
+
+Clean.
+- A fresh grep for "DIS-71" over the repository (archives excluded) matches the D14 table:
+  - reworded: `explain.ts:375`, `claim-items.ts:82,106`, `docs/project-context.md:1118`, `readme.md:1131`;
+  - left: `confidence.ts:30`, `docs/CONFIDENCE.md:79`, `openspec/specs/confidence-score/spec.md:193` with `tests/unit/knowledge/confidence-doc.spec.ts:84`, and `openspec/specs/explain/spec.md:601`;
+  - `fixtures/README.md:192` is task 11.2;
+  - `docs/DEMO.md:485` stays true.
+- `docs/adr/20261013-fact-statements-stored-as-l2-inference.md:35` names DIS-71 among the "readers of claims". `drift` reads and writes no claims (D7), so the ADR's rule does not apply and is not broken.
+- `docs/backend-standards.md` §8: the `withDailyBudget` blind spot is in Risks and in task 10.2.
+- Merging in 13.7 is the documented autonomous-run exception.
+
+## 8. Contrast with the real code
+
+Verified, and correct:
+- **Absolute workspace root, budget range, `not-indexed`.** `buildContextPack` rejects a relative `workspaceRoot` and a `tokenBudget` outside `[1000, 32000]` with a `RangeError`. Its `not-indexed` rule (`packages/core/src/context/context-pack.ts:167-169,183`) matches the spec's request bounds and D1's `getProject` step. `tokenBudget: 10` in task 10.3 is below `TOKEN_BUDGET_MIN = 1000` (`budget.ts:8`), so it gives `InvalidDriftRequest`.
+- **D6's document check.** `verifyCitations` (`packages/core/src/verify/syntactic.ts:51-61`) returns bare verdicts, so drift builds the `D1` `evidence_broken` event itself, in the shape of `EvidenceBrokenEvent` (`explain-event.ts:142-155`). Its excerpt rule (`spanText` over `redactedLines`, no cut) matches the spec's "redacted text of its lines, all of them sent whole".
+- **D6's code side.** `verifyAnswer` (`verify-answer.ts:75-113`) drops broken citations and statements left with none. It calls the model only when something is left, and emits `evidence_broken` then `entailment_unverified`, as D6 relies on.
+- **The "writes nothing" requirement.** `VerificationCache` is in memory (`verification-cache.ts:50`), so the spec's "no … cache entry" refers to the store's `answer_cache` and holds.
+- **Model name.** The model's response carries `model` (`packages/core/src/llm/llm-request.ts:33`), which the provenance needs.
+
+The integration claim texts are under point 5.
+
+## 9. Task size
+
+Clean. 3.2 and 5.2 are split. 1.1 and 6.1 are the largest, and each follows an existing template (`tests/support/explain-doubles.ts`, `tests/integration/explain/explain.spec.ts`).
+
+## 10. Mandatory steps
+
+Clean, checked against `docs/openspec-tasks-mandatory-steps.md` §2 and §7:
+- Step 0 creates the branch `feature/dis-71-drift-detection`, with commit scope `DIS-71`.
+- The required sections are present and labelled:
+  - 8, Review existing tests;
+  - 9, Run tests and verify data state, with the report from template §6;
+  - 10, Manual interface testing (AGENT MUST EXECUTE);
+  - 11, Documentation;
+  - 13, Pre-merge review (AGENT MUST EXECUTE), placed last.
+- E2E is declared not applicable with its reason (10.7).
+- State restoration: the change writes nothing, and 0.4, 9.5 and 10.4 compare counts and fingerprints. The conditional `db:seed` in 10.1 is the idempotent restoration, and the scratchpad script is deleted.
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| Drift request | An invalid drift request is rejected before the store | 1.2, 1.3 |
+| Drift request | A relative workspace root is rejected before the store | 1.4 |
+| Unknown drift answers | Evaluation mode answers llm-required without reading anything | 1.5 |
+| Unknown drift answers | A project without documents answers no-docs | 1.6 |
+| Unknown drift answers | A docPath that is not a stored document answers no-docs | 1.7 |
+| Documents checked by a call | Documents are checked in byte order and the rest is skipped by the limit | 3.6 |
+| Documents checked by a call | A docPath checks only that document | 3.7 |
+| Documents checked by a call | An unknown or unindexed project fails without calling the model | 3.8 |
+| Claim extraction | The document is sent numbered and as untrusted data | 3.1, 3.2a |
+| Claim extraction | An invalid extraction skips the document and the next one is checked | 3.2b, 3.3 |
+| Claim extraction | A claim outside the document is dropped | 3.4 |
+| Claim extraction | Claims beyond the per-document limit are omitted | 3.5 |
+| Claim extraction | Secrets are redacted before any drift prompt | 4.8 |
+| Context of a claim | Document spans are left out of a claim's context | 4.1, 4.2 |
+| Context of a claim | A configuration file that shares a term with the claim joins the context | 4.3 |
+| Context of a claim | A claim with no context is checked without a model call | 4.4 |
+| Confrontation of a claim | A consistent claim is checked and not reported | 4.5 |
+| Confrontation of a claim | A contradicted verdict citing an unknown id skips the claim | 4.6 |
+| Confrontation of a claim | A contradicted verdict without evidence or statement skips the claim | 4.7 |
+| Verification of a contradiction | A contradiction whose only code citation is broken is not reported | 5.2a, 5.3 |
+| Verification of a contradiction | A contradiction keeps only its valid code citations | 5.4 |
+| Verification of a contradiction | An unavailable verifier leaves the evidence cited | 5.5 |
+| Verification of a contradiction | A broken document citation drops the contradiction | 5.6 |
+| Drift report | The report of a contradiction carries both citations, its type and its provenance | 5.1, 5.2a, 5.2b |
+| Drift report | The usage adds every answer and verify call of the run | 5.2c, 5.7 |
+| Drift failures, logging and writes | A failing answer call propagates unchanged | 5.8 |
+| Drift failures, logging and writes | A drift run writes nothing | 5.9 |
+| Drift over the indexed acme-shop | The two planted contradictions of the pricing document are found | 6.1, 6.2 |
+| Drift over the indexed acme-shop | A claim the code confirms is not a contradiction | 6.3 |
+
+No row is empty. The spec has 29 scenarios, and task 8.2's per-file count matches it: 16 in `drift.spec.ts`, 5 in `doc-claims.spec.ts`, 6 in `contradiction.spec.ts` and 2 in the integration file.
+
+## Corrections to apply
+
+All are improvable; none blocks the apply.
+
+### `specs/drift-detection/spec.md`
+
+1. **Requirement "Confrontation of a claim" (point 3).** After "…as untrusted data with the sanitisation of `explain` (flags, truncation, neutralised markers and their events)", add: "The claim's text is sanitised as `explain`'s question: each instruction pattern it matches gives one `untrusted_content_flagged` event with `source: 'question'`. The document citation `D1` is only neutralised in this prompt and raises no event of its own, since its extraction already flagged it."
+
+### `design.md`
+
+1. **D5 (point 3).** Add the same sentence after "the claim is the "question": its flags and the spans' events come from there".
+2. **Follow-ups.** Add these rows, destination A:
+   - R16 (Audit run 3, improvable; D5): the claim's flags are `source: 'question'` events; `D1` raises none in the confrontation.
+   - R17 (Audit run 3, improvable; task 6.1): the integration claim texts are the document's own sentences.
+
+### `tasks.md`
+
+1. **Task 6.1 (point 5).** After "returns, for `docs/pricing.md`, the claims of lines 11–17, 21–27 and 31", add: "with the texts `Tax is applied to the gross subtotal, before any discount` (11–17), `Loyalty discounts: standard 0%, silver 5%, gold 10%` (21–27) and `Orders over €50.00 ship for free` (31)".
+2. **Task 4.7 (point 3).** Extend the last extra case: "…and a claim text matching an instruction pattern gives one `untrusted_content_flagged` event with `source: 'question'`, wrapped with the document path and the claim index".
+
+### Linear (in Spanish; the `[original]` block is not touched)
+
+- **DIS-71, new comment:** «*(Texto del agente, spec-audit ronda 3, 2026-11-03.)* Tercera auditoría de `add-drift-detection`: APPROVED, sin hallazgos bloqueantes. Dos mejorables: (1) la spec y D5 deben decir que las marcas de la afirmación en la confrontación son eventos `untrusted_content_flagged` con `source: 'question'` y que la cita `D1` no emite eventos nuevos allí; (2) la tarea 6.1 fija los textos de las tres afirmaciones del script de integración (las frases del propio `docs/pricing.md`), para que el anclaje de `PriceCalculator.php` y `ShippingService.php` no dependa de la elección del implementador.»
