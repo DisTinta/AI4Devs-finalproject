@@ -36,7 +36,8 @@ What the change builds on, as it is today on `final-project-CRN`:
   come out the same way, as in `explain`.
 - The command is a thin composition root: parse, check, resolve, compose, print.
 - The golden drift report is reproducible (fingerprint, canonical render, rolled-back build) and
-  refused when it holds a secret, an absolute path or a URL.
+  refused when it holds the planted AWS key shape, the absolute path of the repository or of the build
+  workspace, the value of `DATABASE_URL` or `LLM_BASE_URL`, or the API key.
 - No change to `explain`, to `npm run cache:build` or to any fingerprint input of the `explain`
   golden answers or of the seed.
 
@@ -79,7 +80,9 @@ otherwise, `cacheHit`) and `saveDriftRow(store, entry)` maps `QueryLogWriteFaile
 `saveImpactRow`. `drift.ts` wraps the model with the meter before anything else and puts the whole
 pipeline in a `try`: on a rejection with `meter.resolvedCalls() > 0` it sends the row of the resolved
 calls (`meter.generation()`, `meter.verification()`, `meter.verifyCalls()`, `verifyLatencyMs: null`)
-with `.catch(() => undefined)` and rethrows. A returned answered report gets
+with `.catch(() => undefined)` and rethrows. The rejection row covers only a rejection of the pipeline
+before the report is built; a failed row write of a returned report is never followed by a second row
+(as `explain.ts:189-203`, where the row of a returned answer is written outside the `try`). A returned answered report gets
 `{ type: 'query_not_logged', code }` appended last when the write was absorbed; an unknown report has
 no `events` field (its shape is closed), so the code is dropped. `DriftEvent` gains the
 `query_not_logged` member (the `QueryNotLoggedEvent` type of `explain-event.ts`, imported, not
@@ -91,7 +94,10 @@ calls that resolved before a failure.
 ### D4. The command (enrich D4)
 
 `packages/cli/src/commands/drift.ts`, `runDriftCommand(argv, deps)` with the seams of `ask`
-(`openStore`, `createLlm`, `source`, `drift`, `now`), `application_name` `codemind-drift`.
+(`openStore`, `createLlm`, `source`, `drift`, `now`). `drift.ts` defines its own `defaultOpenStore`
+with `application_name` `codemind-drift` (`DRIFT_APPLICATION_NAME`), as `impact.ts:90` has its own;
+`ask.ts:138` hard-codes `codemind-ask`, so its `defaultOpenStore` is not reused and no shared helper is
+extracted (the smallest change).
 Order: parse (`commander`, `exitOverride`, fixed `USAGE` messages) → `parseDriftRequest({ projectId:
 '', ...(doc !== undefined && { docPath: doc }) })` (exit 2) → `DATABASE_URL` → `llmConfigFromEnv` →
 open store → resolve the name exactly → compose (`withDailyBudget` in `live` with a budget, a new
@@ -126,7 +132,15 @@ current `driftFingerprint`, acme-shop's `indexed_commit`, every cited path a fil
 the seed, no `AKIA…`, the `Q5` row of `fixtures/README.md`, and `seeds/drift/` holding only
 `acme-shop.json`. Unlike the `explain` golden coherence test, it checks fingerprint freshness, since
 `verify` does not check this file (D9): a change to a fingerprint input then needs `npm run
-drift:build` in the same change.
+drift:build` in the same change. The freshness check is criterion 5(c) of DIS-73, so it is kept
+(audit run 1, B1, option a).
+
+This diverges from the consequence of ADR `20261017-stale-fingerprint-fails-verify` that only the
+`verify` job goes red for a stale fingerprint. The divergence is recorded in the ADR
+`docs/adr/20261103-drift-golden-freshness-in-unit-suite.md` (task 15.5). From now on, a change to a
+shared input (`explain/sanitize.ts`, `explain/untrusted-text.ts`, `verify/verify-prompt.ts`,
+`verify/policy.ts`) or a `seed:build` also needs `npm run drift:build`; the regeneration recipe
+becomes `seed:build`, then `cache:build`, then `drift:build`.
 
 ### D9. `verify` does not check the golden drift report (enrich D9, destination D)
 
@@ -149,9 +163,13 @@ with `pwsh -NoProfile` and `powershell.exe -NoProfile`).
 
 `query_capability` holds `drift` since 0002; the golden is a `cache_entry` row.
 
-### D14. No ADR (enrich D14, destination D)
+### D14. One ADR: the freshness of the golden drift report is checked by the unit suite (amends `20261017`; revised in audit run 1, B1)
 
-The change reuses the patterns of `explain`, `impact`, `ask` and `cache:build`.
+The enrich said "No ADR", since the change reuses the patterns of `explain`, `impact`, `ask` and
+`cache:build`. The spec audit (run 1, B1) showed that D8 goes against a consequence of the accepted
+ADR `20261017-stale-fingerprint-fails-verify`. The agent keeps D8 (it is criterion 5(c) of the ticket)
+and records the exception in `docs/adr/20261103-drift-golden-freshness-in-unit-suite.md`, added to
+`docs/adr/README.md` (task 15.5).
 
 ### P1. A separate `npm run drift:build`, not an extension of `cache:build` (propose; revises D6)
 
@@ -194,7 +212,8 @@ records which contradictions of case A the versioned golden holds.
 
 The first clock read moves from after the project is resolved to right after validation (before the
 lookup), so a hit, an unknown and a live report all measure their latency from the same instant and
-the row of an unknown report has a latency. The provenance instant stays "the clock's first read".
+the row of an unknown report has a latency. The first read is unconditional (also with
+`useCache: false`). The provenance instant stays "the clock's first read".
 The tests of `drift.spec.ts` that script the clock are adjusted (tasks step 9).
 
 ### P6. Zero usage of a golden hit (propose)
@@ -235,6 +254,18 @@ existing tests keep their names (tasks 1.10, 2.9).
   printed, not its content; P4 retries broken outputs; the apply report records the contradictions and
   `fixtures/README.md` says the golden is unreviewed (D10). If Ollama cannot produce an answered report
   in three attempts, `CACHE_BUILD_TIMEOUT_MS` is raised and the build re-run; the apply records it.
+- [A live Ollama run takes tens of minutes to hours on CPU (3.5–9 min per answer, DIS-72 gotcha of
+  `docs/project-context.md`), beyond the 10-minute limit of one tool call] → Tasks 6.2, 11.5 and 13.3
+  run the command detached with its output to a log in the session scratch directory, poll the log in
+  calls shorter than 10 minutes and record start, end and total. `drift:build` has a wall-clock
+  ceiling of 3 hours per run (3 attempts at up to about 9 min per answer over 2 extractions, up to 24
+  confrontations and their `verify` calls); past it with no file written the agent stops the run and
+  applies the previous risk (raise `CACHE_BUILD_TIMEOUT_MS`, one more run); a second miss is a clean
+  stop of the ticket.
+- [The golden is generated before tasks that could edit its fingerprint inputs] → The final JSDoc of
+  `drift-report.ts` and `drift-cache.ts` is written in tasks 1.5 and 2.2, task 9.1 excludes
+  `DRIFT_FINGERPRINT_FILES`, and tasks 11.5 and 17.6 re-run `drift:build` and `db:seed` if any input
+  changed after task 6.2.
 - [A future change to a fingerprint input breaks the coherence test until `drift:build` runs] →
   Intended (D8): the golden would otherwise go stale silently. The test's failure message names the
   command.
@@ -271,7 +302,7 @@ All rows are the agent's text (autonomous run, 2026-11-03). No row has destinati
 | E11 | (D11) `--json`, HTTP, web, corrections and case B out. | D — accepted |
 | E12 | (D12) Docs: `readme.md`, `docs/project-context.md`, `fixtures/README.md`, `docs/DEMO.md` with the PowerShell captures done by the agent. | A |
 | E13 | (D13) No migration. | D — accepted |
-| E14 | (D14) No ADR. | D — accepted |
+| E14 | (D14, revised in audit run 1) One ADR, `docs/adr/20261103-drift-golden-freshness-in-unit-suite.md`, amending `20261017-stale-fingerprint-fails-verify` for the golden drift report; recipe `seed:build` → `cache:build` → `drift:build` (task 15.5). | A |
 | P1 | (P1) Separate `npm run drift:build`; `cache:build` and its tests unchanged; helpers moved to `cache/build-support.ts`. Deviation from the ticket's D6, recorded on DIS-73. | A |
 | P2 | (P2) `DRIFT_GOLDEN` and the format in `cache/drift-golden-file.ts`; `demo-questions.ts` not edited. | A |
 | P3 | (P3) The ceiling variable is `DAILY_BUDGET_USD`, not `LLM_DAILY_BUDGET_USD`. | A |
@@ -282,4 +313,16 @@ All rows are the agent's text (autonomous run, 2026-11-03). No row has destinati
 | P8 | (P8) `driftDir` seam of `db:seed`; seed-load tests set it. | A |
 | P9 | (P9) Fixed output template without plural agreement. | D — accepted |
 | P10 | (P10) Scenario names "Evaluation mode answers llm-required without reading anything" and "A drift run writes nothing" kept, their THEN updated; one new evaluation scenario. | A |
+| B1 | (Spec audit run 1, question for the author, decided by the agent as lead engineer) Option (a): the unit coherence test keeps the fingerprint freshness check, because it is criterion 5(c) of DIS-73 ("`driftFingerprint` es el del código actual", "sus huellas de semilla son las de `seeds/graph-dump.sql`"); option (b) would drop an acceptance criterion. The exception to ADR `20261017` is recorded in a new ADR (D8, D14, task 15.5). | A |
+| B2 | (Audit run 1) The clock's first read happens in every call, right after the request and workspace checks; the lookup follows unless `useCache: false` (spec "Golden drift report lookup", P5). | A |
+| B3 | (Audit run 1) The rejection row covers only a pipeline rejection before the report is built, with all its fields stated; a failed row write of a returned report never leads to a second row; "Other row write errors propagate" asserts one `saveQueryLog` (D3). | A |
+| B4 | (Audit run 1) The DoD scenario "Q5 is printed from the golden report in evaluation mode" runs over the harness transaction (`loadSeed` plus the versioned entry saved through the real store); the `db:seed` path is covered by seed-load and manual task 13.2 (task 8.4). | A |
+| B5 | (Audit run 1) Fingerprint inputs are final before the golden is generated (tasks 1.5, 2.2, 9.1); tasks 11.5 and 17.6 re-run `drift:build` and `db:seed` if an input changed after task 6.2. | A |
+| B6 | (Audit run 1) Live Ollama runs (tasks 6.2, 11.5, 13.3) run detached with a log in the session scratch directory, polled in calls under 10 minutes; `drift:build` has a 3-hour ceiling per run (Risks). | A |
+| I1 | (Audit run 1) The `[enhanced]` text of DIS-73 gets an agent note saying P1–P3 supersede `cache:build acme-shop Q5`, `GOLDEN_DRIFT` and `LLM_DAILY_BUDGET_USD`; the `[original]` block is not edited. | A — done in Linear |
+| I2 | (Audit run 1) The rejection-row scenario also covers `LlmUnavailable` reason `timeout` (task 2.5). | A |
+| I3 | (Audit run 1) Cases added inside existing scenarios: `touchCacheEntry` failure (1.9), failed `drift:` save (5.3), stale fingerprints not checked by `db:seed` (5.3), `DATABASE_UNAVAILABLE` and no report text in build output (4.2, 4.10), terminal-safe event lines on stderr (7.11, 7.14). | A |
+| I4 | (Audit run 1) Proposal and design wording aligned with the spec: what the build refuses, and the rows per call. | A |
+| I5 | (Audit run 1) seed-load "Sample projects are loaded idempotently" added as MODIFIED (golden drift reports, entries replaced by key), both scenarios kept by name (task 5.3, counts of 10.3). | A |
+| I6 | (Audit run 1) `drift.ts` has its own `defaultOpenStore` with `codemind-drift` (D4, task 7.2); the manual budget check of task 13.3 states its expected outcome (`LLM_CONFIG_INVALID` for an unpriced model, `BUDGET_EXHAUSTED` otherwise). | A |
 | R8-in | Inbound from DIS-71 (`add-drift-detection` Follow-ups E10 and R8): CLI, golden Q5, row, `withDailyBudget`, `readme.md`. Closed by E1, E3–E8, E12. | A |

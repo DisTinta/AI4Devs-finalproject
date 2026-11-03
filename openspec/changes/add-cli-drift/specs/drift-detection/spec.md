@@ -160,10 +160,10 @@ report.
 ### Requirement: Golden drift report lookup
 
 The answer cache key of a drift call SHALL be `drift:` when the request has no `docPath`, and
-`drift:` followed by `docPath` exactly as given otherwise. Unless the request sets `useCache: false`,
-`drift` SHALL, after checking the request and the workspace root and before the evaluation-mode
-check, in both modes, read the clock once (its first read) and look the key up once in the project's
-answer cache. An entry whose response is a **stored drift report** SHALL be a hit: an object with
+`drift:` followed by `docPath` exactly as given otherwise. After checking the request and the
+workspace root, `drift` SHALL read the clock once (its first read) in every call. Then, unless the
+request sets `useCache: false`, and before the evaluation-mode check, in both modes, it SHALL look the
+key up once in the project's answer cache. An entry whose response is a **stored drift report** SHALL be a hit: an object with
 exactly the keys `commit` (a non-empty string without U+0000) and `documents` (a non-empty list of
 document entries of the shapes of "Drift report": counts that are integers from 0, every
 contradiction with `type` `INFERENCE`, its claim verification `cited`, every evidence with a file kind
@@ -213,10 +213,13 @@ for an id that names no project the lookup rejects with `ProjectNotFound`, in bo
   `false`, and the entry under `drift:` is unchanged (no save, no hit)
 
 #### Scenario: A failing golden lookup stops before the model
-- **GIVEN** a store whose `findCacheEntry` rejects with an `Error`, and then an id that names no project
-- **WHEN** `drift` is called with a `live` model, and then with an `evaluation` model for the unknown id
-- **THEN** the first call rejects with that same error and the second with `ProjectNotFound`; neither
-  called the model or wrote a `query_log` row
+- **GIVEN** a store whose `findCacheEntry` rejects with an `Error`, then an id that names no project,
+  then a store holding a valid golden entry under `drift:` whose `touchCacheEntry` rejects with an
+  `Error`
+- **WHEN** `drift` is called with a `live` model, then with an `evaluation` model for the unknown id,
+  then with a `live` model
+- **THEN** the first call rejects with that same error, the second with `ProjectNotFound` and the third
+  with that same `touchCacheEntry` error; none called the model or wrote a `query_log` row
 
 ### Requirement: Drift query log
 
@@ -229,11 +232,14 @@ before it is returned, with: `projectId` the request's; `question` the call's an
 for a golden report; for an unknown report every token, cost and call counter 0 and
 `verifyLatencyMs` `null`; `baselineTokens` `null`; `latencyMs` the latency between the clock's first
 read and a last read (the report's `usage.latencyMs` for an answered report); and `cacheHit` the
-report's `cacheHit` (`false` for an unknown report). When `drift` rejects after at least one model
-call resolved, it SHALL write one row with the tokens and cost of the `answer` and `verify` calls that
-resolved (the `verify*` counters from the resolved `verify` calls), `verifyLatencyMs` `null` and
-`cacheHit` `false`, and then reject with the same error; a failure of that write SHALL never replace
-the error. No row SHALL be written when `drift` rejects before any model call resolved. When the write
+report's `cacheHit` (`false` for an unknown report). When the pipeline rejects before its report is
+built, after at least one model call resolved, `drift` SHALL write one row with `projectId` the
+request's, `question` the call's key, `capability` `drift`, the tokens and cost of the `answer` and
+`verify` calls that resolved (the `verify*` counters from the resolved `verify` calls),
+`baselineTokens` `null`, `latencyMs` the latency between the clock's first read and a read taken at
+the rejection, `verifyLatencyMs` `null` and `cacheHit` `false`, and then reject with the same error; a
+failure of that write SHALL never replace the error. A failure of the row write of a returned report
+SHALL NOT lead to a second row. No row SHALL be written when `drift` rejects before any model call resolved. When the write
 of a returned report's row fails with `QueryLogWriteFailed`, `ProjectNotFound` or
 `InvalidStoreQuery`, an answered report SHALL be returned with the event
 `{ type: 'query_not_logged', code }` last (`store-write-failed`, `project-not-found` and
@@ -264,11 +270,13 @@ that write SHALL propagate.
 #### Scenario: A failure after a model call leaves a row and keeps its error
 - **GIVEN** a model whose first `answer` call resolves reporting 100 input and 10 output tokens and
   whose second `answer` call rejects with `BudgetExhausted`
-- **WHEN** `drift` is called over a project whose first document has one claim with context
+- **WHEN** `drift` is called over a project whose first document has one claim with context, and then
+  with a model whose second `answer` call rejects with `LlmUnavailable` reason `timeout`
 - **THEN** it rejects with that same `BudgetExhausted` error, after writing exactly one row with
-  `inputTokens` 100, `outputTokens` 10, every `verify*` counter 0, `verifyLatencyMs` `null` and
-  `cacheHit` `false`; and with a store whose `saveQueryLog` also rejects, it still rejects with the
-  `BudgetExhausted` error
+  `question` `drift:`, `capability` `drift`, `inputTokens` 100, `outputTokens` 10, every `verify*`
+  counter 0, `baselineTokens` `null`, `latencyMs` at least 1, `verifyLatencyMs` `null` and `cacheHit`
+  `false`; the same holds with that `LlmUnavailable` error; and with a store whose `saveQueryLog` also
+  rejects, it still rejects with the `BudgetExhausted` error
 
 #### Scenario: No row when drift fails before a model call resolves
 - **WHEN** `drift` is called in `live` mode for a project that has stored documents but no indexed
@@ -288,4 +296,4 @@ that write SHALL propagate.
 #### Scenario: Other row write errors propagate
 - **GIVEN** a store whose `saveQueryLog` rejects with an `Error`
 - **WHEN** `drift` answers a `live` run
-- **THEN** the call rejects with that same error
+- **THEN** the call rejects with that same error and `saveQueryLog` was called exactly once

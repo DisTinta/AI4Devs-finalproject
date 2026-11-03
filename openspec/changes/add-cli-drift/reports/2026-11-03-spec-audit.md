@@ -305,3 +305,43 @@ Do not edit the `[original]` block. Two changes:
 **Comment (Spanish):**
 
 > *(Texto del agente, auditoría de la spec de `add-cli-drift`, 2026-11-03.)* Veredicto: CHANGES REQUIRED, con 6 hallazgos bloqueantes. B1: el test unitario de coherencia del golden de drift comprueba la frescura de las huellas, en contra de la consecuencia del ADR `20261017-stale-fingerprint-fails-verify`; se propone un ADR que lo modifique (opción a), pendiente de que la autora lo revise. B2: la primera lectura del reloj no debe depender de `useCache`. B3: qué rechazos escriben fila y con qué campos. B4: el escenario del DoD debe usar la transacción del arnés, no las conexiones por defecto. B5: el golden se genera antes de tareas que tocan sus entradas de huella. B6: las ejecuciones con Ollama deben correr en segundo plano y consultarse por sondeo. Las correcciones se aplican en los artefactos del cambio; no se crea ninguna issue nueva.
+
+---
+
+## Resolution of run 1
+
+*Agent's text (autonomous run, correction round 1, 2026-11-03).* Every decision is also in
+`design.md` → Follow-ups with its destination; none has destination C. `openspec validate add-cli-drift
+--strict` passes after the corrections.
+
+**Question for the author (B1)** — decided by the agent as lead engineer: option (a). The freshness of
+the seed and drift fingerprints is criterion 5(c) of DIS-73 itself ("sus huellas de semilla son las de
+`seeds/graph-dump.sql`, que `driftFingerprint` es el del código actual"), so option (b) would drop an
+acceptance criterion of the ticket. The exception to ADR `20261017-stale-fingerprint-fails-verify` is
+recorded in a new ADR, `docs/adr/20261103-drift-golden-freshness-in-unit-suite.md`, written by new task
+15.5. Nothing is left for the author to review: the ADR states the decision as the agent's.
+
+| Finding | Resolution |
+|---|---|
+| B1 | Decided by the agent (option a), see above. design D8 states the divergence and the new recipe (`seed:build` → `cache:build` → `drift:build`); D14 replaced ("One ADR"); Follow-up E14 changed to destination A and B1 added; proposal Impact gains a "Process" line; task 15.1 updates the gotcha and recipe in `docs/project-context.md`; new task 15.5 writes the ADR and adds it to `docs/adr/README.md`. No text change in drift-golden (correction 12). Fixed. |
+| B2 | Fixed: drift-detection "Golden drift report lookup" now reads the clock once in every call after the request and workspace checks, and looks up unless `useCache: false`, with the audit's wording; design P5 says the first read is unconditional. |
+| B3 | Fixed: drift-detection "Drift query log" limits the rejection row to a pipeline rejection before the report is built, states `projectId`, `question`, `capability`, `baselineTokens`, `latencyMs`, and says a failed row write of a returned report never leads to a second row; "Other row write errors propagate" asserts `saveQueryLog` called exactly once; design D3 cites `explain.ts:189-203`; tasks 2.5 and 2.8 updated. |
+| B4 | Fixed: cli-drift "Q5 is printed from the golden report in evaluation mode" GIVEN/WHEN rewritten over the harness transaction (`loadSeed` plus the versioned entry saved through the real store); task 8.4 says how. The `db:seed` path stays covered by seed-load "A golden drift report is loaded under its key" and manual task 13.2. |
+| B5 | Fixed: tasks 1.5 and 2.2 write the final JSDoc of `drift-report.ts` and `drift-cache.ts`; task 9.1 excludes `DRIFT_FINGERPRINT_FILES`; new task 11.5 and a clause in 17.6 re-run `drift:build` and `db:seed` if an input changed after 6.2; design Risks gains the row. |
+| B6 | Fixed: tasks 6.2 and 13.3 (and 11.5) run the live command detached with a log in the session scratch directory, polled in calls under 10 minutes, with start, end and total recorded; `drift:build` has a 3-hour ceiling per run (N = 3, as the audit suggested), then design → Risks; a second miss is a clean stop. design Risks gains the row. |
+| I1 | Fixed in Linear: the agent note of correction "Linear: DIS-73" was added at the start of the `[enhanced]` part; the `[original]` block was not edited. |
+| I2 | Fixed: "A failure after a model call leaves a row and keeps its error" also runs with `LlmUnavailable` reason `timeout`, and asserts the row's stated fields; task 2.5. |
+| I3a | Fixed: "A failing golden lookup stops before the model" gains the `touchCacheEntry` case (in-memory store `failCacheCall.touch`, which exists); tasks 1.1 and 1.9. |
+| I3b | Fixed: "A failed golden save leaves the database unchanged" gains the run whose `drift:` save fails; task 5.3. |
+| I3c | Fixed: "A golden drift report is loaded under its key" uses a file whose fingerprints are not current; task 5.3. |
+| I3d | Fixed: "Drift build arguments and configuration fail before anything else" gains the unreachable `DATABASE_URL` case (`DATABASE_UNAVAILABLE`, no URL leaked, file unchanged); "The golden drift report is generated with a scripted model" asserts no output holds report text; tasks 4.2 and 4.10. |
+| I3e | Fixed: "Drift events and failures" renders event lines with `toTerminalSafeJson`; "Control characters in a drift report are escaped" adds a `drift_doc_skipped` event and the stderr assertion; tasks 7.11 and 7.14. |
+| I4a | Fixed: proposal Impact and design Goals use the spec's list (AWS key shape, absolute path of the repository or workspace, `DATABASE_URL` or `LLM_BASE_URL` value, API key); task 15.4 aligned. |
+| I4b | Fixed: proposal Modified Capabilities says one row per returned report and one per rejection after a resolved model call. |
+| I5 | Fixed: seed-load delta adds MODIFIED "Sample projects are loaded idempotently" (golden drift reports saved, entries replaced by key); both scenarios copied byte for byte from the main spec; task 5.3 and the counts of task 10.3 (seed-load 6 → 8). |
+| I6a | Fixed: design D4 and task 7.2 say `drift.ts` defines its own `defaultOpenStore` with `codemind-drift`, as `impact.ts` does; no shared helper is extracted (the smallest change). |
+| I6b | Fixed: task 13.3 states the expected outcome (`LLM_CONFIG_INVALID` with `details.variable` `DAILY_BUDGET_USD` for an unpriced model, `BUDGET_EXHAUSTED` otherwise). |
+| Note (JSDoc of `DriftDependencies`) | No change needed, as the audit says: task 1.5 covers it. |
+
+The scenario count per file of task 10.3 stays the same for drift-detection (22), drift-golden (13) and
+cli-drift (19); seed-load goes from 6 to 8 with the two kept scenarios of the new MODIFIED requirement.

@@ -55,10 +55,11 @@ claims (D7 of DIS-71 stands); checking the golden drift report in `npm run verif
 
 - `drift-detection`: the request accepts `useCache`; the golden drift report is looked up in the
   answer cache before the evaluation-mode check and served with `cacheHit: true`; the report carries
-  `cacheHit`; `drift` writes one `query_log` row per call (and records the hit of a golden entry)
-  instead of writing nothing.
+  `cacheHit`; `drift` writes one `query_log` row per returned report and one per rejection after a
+  resolved model call (and records the hit of a golden entry) instead of writing nothing.
 - `seed-load`: `npm run db:seed` also checks the golden drift files of `seeds/drift/` before
-  connecting and saves their reports as answer cache entries in the same transaction.
+  connecting and saves their reports as answer cache entries in the same transaction; the idempotent
+  load replaces them by key.
 
 ## Impact
 
@@ -79,6 +80,10 @@ claims (D7 of DIS-71 stands); checking the golden drift report in `npm run verif
 - **Cost and privacy**: a live run is bounded by the DIS-71 limits and is now visible to
   `withDailyBudget`; the document text and the model output reach stdout only as escaped excerpts
   and statements, never an error line or a log line; the versioned golden is refused if it holds the
-  planted AWS key shape, an absolute path, a URL or the API key.
+  planted AWS key shape, the absolute path of the repository or of the build workspace, the value of
+  `DATABASE_URL` or `LLM_BASE_URL`, or the API key.
+- **Process**: the coherence test of the golden drift report checks its fingerprints in the unit
+  suite, which amends a consequence of ADR `20261017-stale-fingerprint-fails-verify`; a new ADR records
+  it (design D8, D14).
 - **Tests**: new unit and integration tests for the command, the cache lookup, the row, the golden
   file, the build and the coherence; existing tests that change are named in `tasks.md` step 9.

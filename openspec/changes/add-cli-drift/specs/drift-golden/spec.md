@@ -42,14 +42,16 @@ or its credentials, the model's base URL or its API key, or any text of the repo
 - **GIVEN** a previous golden drift file with known content, and then, one at a time: an empty
   environment with the argument `Q5`; `DATABASE_URL` unset; `DATABASE_URL` set and `LLM_BASE_URL` and
   `LLM_API_KEY` empty; a valid model configuration with `CACHE_BUILD_TIMEOUT_MS` = `0`; and
-  `LLM_BASE_URL` = `ftp://x`
+  `LLM_BASE_URL` = `ftp://x`; and last a valid configuration and a current seed with the unreachable
+  `DATABASE_URL=postgres://u:s3cret@127.0.0.1:1/db`
 - **WHEN** the drift build runs
 - **THEN** each run exits with `1`; stdout is empty; stderr holds one error line with code `USAGE`,
   the message `usage: npm run drift:build` and `details` `{}`, then `MISSING_CONFIG` and
   `details.variable` = `DATABASE_URL`, then `MISSING_CONFIG` and `LLM_BASE_URL`, then
-  `INVALID_CONFIG` and `CACHE_BUILD_TIMEOUT_MS`, then `LLM_CONFIG_INVALID` and `LLM_BASE_URL`; no
-  history is rebuilt, no database connection is opened, the model is not called, and the previous
-  golden drift file is unchanged
+  `INVALID_CONFIG` and `CACHE_BUILD_TIMEOUT_MS`, then `LLM_CONFIG_INVALID` and `LLM_BASE_URL`, then
+  `DATABASE_UNAVAILABLE` with no output containing the URL, `s3cret` or `u:`; for the first five no
+  history is rebuilt and no database connection is opened; the model is never called; and the
+  previous golden drift file is unchanged after every run
 
 #### Scenario: The drift build's request limit applies and the daily ceiling does not
 
@@ -106,8 +108,9 @@ on success and on failure, and every connection SHALL be closed. A non-sample pr
   entry `Q5` with key `drift:`, `reviews` empty and a `response` that is a stored drift report whose
   `commit` is the seed's acme-shop `indexed_commit` and whose `docs/pricing.md` entry holds two
   contradictions; stdout is one `Q5: answered` line followed by
-  `acme-shop: golden drift report with 2 contradictions -> acme-shop.json`; stderr is empty; the
-  transaction was rolled back and released; and the recorded project ids and rows are unchanged
+  `acme-shop: golden drift report with 2 contradictions -> acme-shop.json`; stderr is empty; no output
+  contains the text of any statement or claim of the report; the transaction was rolled back and
+  released; and the recorded project ids and rows are unchanged
 
 #### Scenario: A non-sample acme-shop blocks the drift build
 

@@ -168,9 +168,10 @@ neither the usage nor the provenance.
 
 #### Scenario: Q5 is printed from the golden report in evaluation mode
 
-- **GIVEN** a migrated database where `db:seed` loaded the versioned seed, the versioned golden files
-  and the versioned `seeds/drift/acme-shop.json`, and no `LLM_*` variable (evaluation mode)
-- **WHEN** `drift acme-shop` runs through the default connections
+- **GIVEN** the versioned seed loaded with `loadSeed` in the harness transaction, the entry of the
+  versioned `seeds/drift/acme-shop.json` saved under `drift:` through the real store on that
+  transaction (as `db:seed` saves it), and no `LLM_*` variable (evaluation mode)
+- **WHEN** `drift acme-shop` runs over a store on that transaction
 - **THEN** it exits with `0`; stdout is the golden report of `seeds/drift/acme-shop.json` printed as
   above, one block per document of its response, and ends with the line
   `note: golden report (answer cache)`; no request reaches a model; the `hit_count` of acme-shop's
@@ -219,7 +220,7 @@ and exit with `0`.
 ### Requirement: Drift events and failures
 
 After the report is printed, every event of an answered report SHALL be written to stderr as one JSON
-line with the event's fields and a `level` (`{"level":…,"type":…,…}`), in report order: `error` for a
+line, rendered terminal-safe as the error line is (`toTerminalSafeJson`), with the event's fields and a `level` (`{"level":…,"type":…,…}`), in report order: `error` for a
 `drift_check_event` whose inner event is `evidence_broken`, and `info` for every other event; the
 events SHALL NOT change the exit code. On error stdout SHALL stay empty and stderr SHALL hold one
 `{"error":{"code","message","details"}}` line, whose message is built by the command, never taken from
@@ -269,7 +270,8 @@ so no output line holds a raw control character.
 
 - **GIVEN** a store double holding acme-shop and a drift use case double that answers a report whose
   document path is `docs/evil\u001b[2J.md`, whose contradiction statement holds `\u0007`, whose claim
-  text holds `\u0008` and whose evidence excerpt holds `\u001b[31m` and a tab
+  text holds `\u0008` and whose evidence excerpt holds `\u001b[31m` and a tab, and one
+  `drift_doc_skipped` event of that path
 - **WHEN** `drift acme-shop` runs
-- **THEN** it exits with `0` and stdout holds no character U+0000 to U+001F other than the line feed,
-  nor U+007F
+- **THEN** it exits with `0`; stdout holds no character U+0000 to U+001F other than the line feed, nor
+  U+007F; and stderr holds no character U+0000 to U+001F other than the line feed, nor U+007F

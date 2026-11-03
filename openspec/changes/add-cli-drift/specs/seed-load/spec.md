@@ -1,5 +1,40 @@
 ## MODIFIED Requirements
 
+### Requirement: Sample projects are loaded idempotently
+
+The seed load SHALL run in one database transaction: it SHALL delete every project with
+`is_sample = true`, together with every row that depends on it, then execute the seed's statements,
+then save the golden answers and the golden drift reports (see "Golden answers are loaded with the
+seed"), then commit. On any failure the transaction SHALL be rolled back, so the database is left
+exactly as it was, and the connection SHALL always be closed. Projects with `is_sample = false` and
+their rows SHALL never be modified or deleted. Loading the same seed again SHALL leave the same rows,
+with the same ids, as loading it once, except the answer cache entries of the sample projects, which
+SHALL be replaced by entries with the same project, key (the normalized question of a golden answer
+or the `key` of a golden drift report) and response, new ids, a hit count of `0` and no last hit.
+
+#### Scenario: The seed is loaded into an empty database
+
+- **GIVEN** a migrated database without projects and the versioned seed file
+- **WHEN** the seed load runs
+- **THEN** it exits with `0`; stdout is exactly the three lines `2 projects loaded`,
+  `  acme-shop  php/laravel  174 nodes · 170 edges` and
+  `  task-api  typescript/fastify  <n> nodes · <m> edges`, `<n>` and `<m>` being the `node_count` and
+  `edge_count` of task-api's project row in the versioned seed; the project
+  `a794456d-6d1b-5b55-a360-13fec83dc7bc` exists with `is_sample = true`, `node_count = 174` and
+  `edge_count = 170`; its `file` plus `symbol` rows are 174 and its `edge` rows are 170; task-api
+  exists with `is_sample = true` and its `file` plus `symbol` rows are `<n>` and its `edge` rows are
+  `<m>`; the `commit` and `file_commit` rows of each project are as many as the seed's `INSERT`s into
+  those tables for it; a symbol search for `Checkout` in acme-shop returns at least one symbol; and a
+  symbol search for `TaskService` in task-api returns at least one symbol
+
+#### Scenario: Loading again changes nothing and keeps the user's projects
+
+- **GIVEN** the database of "The seed is loaded into an empty database" and a non-sample project with
+  a saved graph
+- **WHEN** the seed load runs again
+- **THEN** it exits with `0` with the same stdout; acme-shop and task-api keep their ids and the same
+  number of rows in every table; and the non-sample project keeps its id, its counts and all its rows
+
 ### Requirement: Golden answers are loaded with the seed
 
 After executing the seed's statements and inside the same transaction, the seed load SHALL save, for
@@ -46,9 +81,10 @@ directory and the golden drift directory are read independently: either may be m
 #### Scenario: A failed golden save leaves the database unchanged
 
 - **GIVEN** a database holding a loaded seed and its golden answers, recorded, and a load whose save
-  of the second golden entry fails
+  of the second golden entry fails; then a load, with a golden drift directory holding a valid
+  `acme-shop.json`, whose save of the `drift:` entry fails
 - **WHEN** the seed load runs
-- **THEN** it exits with `1` and `INTERNAL` with the message `seed load failed; the database is
+- **THEN** each run exits with `1` and `INTERNAL` with the message `seed load failed; the database is
   unchanged`; the projects, their rows and the `cache_entry` rows are those recorded
 
 ## ADDED Requirements
@@ -81,7 +117,8 @@ before any database connection is opened. The loaded golden drift reports SHALL 
 #### Scenario: A golden drift report is loaded under its key
 
 - **GIVEN** a migrated database without projects, the versioned seed, an empty golden directory, and a
-  golden drift directory holding a valid `acme-shop.json` with one entry under the key `drift:`
+  golden drift directory holding a valid `acme-shop.json` with one entry under the key `drift:`, whose
+  `driftFingerprint` and `seed` fingerprints are not the ones of the current code
 - **WHEN** the seed load runs, and then runs again
 - **THEN** each run exits with `0` with the same stdout as "The seed is loaded into an empty
   database"; after each, acme-shop has exactly one `cache_entry` row, keyed `drift:`, holding the
