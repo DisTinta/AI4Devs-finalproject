@@ -68,3 +68,8 @@ No dependency was installed in this change, so `npm audit --audit-level=high` wa
 ## Outcome
 - Status: PASS
 - Blocking issues: none
+
+## Addendum: CI (task 13.2, review step, agent's text)
+- First run on head `9acea03` (run 41716790094): `secrets` failed on a synthetic Stripe-shaped value quoted in the first spec audit (`stripe-access-token`, commit `a04ab56`); every other check that finished passed. Fixed by an exact-value allowlist entry in `.gitleaks.toml` (design Follow-up V3).
+- Run on head `670d911` (the review fixes): https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/41719088370 — `scope`, `secrets`, `verify`, `e2e`, `quality` (8m51s), `mutation` (12m28s) pass; `frontend` (run 41719088330) passes. No check pending.
+- The review step added two unit tests (`tests/unit/drift/drift.spec.ts`: "An absolute project root is read as it is", "A relative project root is joined to the workspace root for every read"): drift unit tests now 5 files, 84 tests, all green.
