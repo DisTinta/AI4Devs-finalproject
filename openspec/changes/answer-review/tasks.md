@@ -108,7 +108,7 @@ This group is done by independent agents launched by the workflow, outside the a
 
 ## 12. Pull request preparation
 
-- [ ] 12.1 `/pr-describe` in Spanish against `final-project-CRN`: the Why marked as the agent's text; the panel (models, date, agreement figures, number of disagreements); the counts per verdict; the hashes; the one existing test changed; `packages/**`, `fixtures/**` and `docs/measurements/context/**` untouched
+- [x] 12.1 `/pr-describe` in Spanish against `final-project-CRN`: the Why marked as the agent's text; the panel (models, date, agreement figures, number of disagreements); the counts per verdict; the hashes; the one existing test changed; `packages/**`, `fixtures/**` and `docs/measurements/context/**` untouched
 
 ## 13. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
