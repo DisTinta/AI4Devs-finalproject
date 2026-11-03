@@ -238,5 +238,11 @@ their findings here. No line has destination C.
 | Audit 9-I1 | Task 1 split into three red-green pairs | **A** — this change (tasks 1.1–1.7) |
 | Audit run 2, 5-I1 | A valid citation stays "an existing `.php`, `.ts` or `.json` file of the fixture" as the approved spec says; restricting it to the reviewer allowlist was an improvement, not a blocker, and would change an approved requirement during the apply. The criterion already tells reviewers not to read those files and the report states that `sourcesRead` is self-declared (*agent's text, apply-prepare, 2026-11-03*) | **D** — accepted |
 
+| Review 13.4, block 3 | Unspecified behaviour of the script: the `wrote <path>` stdout line (as DIS-80), `percent` `null` / `no definida` for a project with no answers (guard, unreachable with 20 answers), `checkFreeze` re-exported (P7) (*agent's text, review step, 2026-11-03*) | **D** — accepted |
+| Review 13.5, Minor 1 | Through the CLI a resolution answering an agreed answer is rejected as `unknown answer <project> <questionId>`; the spec only asks that the answer be named, which it is (*agent's text, review step*) | **D** — accepted |
+| Review 13.5, Minor 2 | A valid citation may name any existing fixture file (also `tests/`); no real reason does (checked over the 83 reasons). Same decision as «Audit run 2, 5-I1» (*agent's text, review step*) | **D** — accepted |
+| Review 13.5, Minor 3 | `sourcesRead` is self-declared and may omit a source (reviewer 1 lists neither the ticket description nor `docs/base-standards.md`); frozen outputs are not edited, and the report's limitations already say it (*agent's text, review step*) | **D** — accepted |
+| Review 13.5, Minor 4 | The README prose repeats verdict figures no test ties to `verdicts.csv`; correct today, and any regeneration fails the freeze test and forces the rewrite (*agent's text, review step*) | **D** — accepted |
+
 *Agent's text (correction round 1, 2026-11-03): rows P11–P14 and "Audit" come from the first spec
 audit; the audit asked no question of the author.*
