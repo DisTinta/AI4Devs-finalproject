@@ -546,3 +546,248 @@ There are no holes in the table.
 | B8 | Fixed: 11.4 records three fresh anchored questions D₁, D₂, D₃ (keys absent from the 11.1 snapshot, from 11.3 and from each other); D₁ with `LLM_EMBED_MODEL` empty, D₂ with the broken embedding model (skip event), and the rephrased question only in evaluation mode (`UNKNOWN (llm-required)`, it has no entry after 11.3); 11.5 sends D₃ with `"useCache": false` to the API restarted with the broken embedding model and expects the `semantic_cache_skipped` line; the new entries are removed by the 11.7 rule | tasks 11.4, 11.5 |
 | I1 | Fixed: the GIVEN of "The threshold is inclusive at the boundary" names a live scripted model that answers one statement citing the anchor span and accepts every verification | semantic-cache delta |
 | I2 | Fixed: the GIVEN of "The most similar entry of the project wins" adds that none of A, B, C or D is stored under the rephrased question's key | semantic-cache delta |
+
+---
+
+## Run 3 (2026-11-03)
+
+APPROVED
+
+**Change:** `openspec/changes/semantic-cache` · **Ticket:** DIS-67 (CM-HU-19.1), parent DIS-46 (CM-HU-19). I loaded both from Linear with their comments. · **Audit:** third run, 2026-11-03, on the change after correction round 2.
+
+**Questions for the author:** none. The earlier rounds left agent decisions marked as agent's text:
+- Q1 of run 1: the ADR belongs to DIS-67.
+- S1: `not-configured` skips without an event.
+- S12: no `answer-cache` delta.
+- D2: the threshold is inclusive.
+
+All of them are consistent with the ticket, the DIS-46 review comment and the project, so I accept them.
+
+**Status of run 2.** B7, B8, I1 and I2 are resolved in the artifacts, and I checked each fix:
+- **B7:** "Precedence and UNKNOWN answers" now has the sentence that in `explain` scenarios a "received" call is a completion (explain delta, lines 61–63). "Query log" says "when no completion was made" (line 624). Task 7.3 names the three "0 calls" scenarios.
+- **B8:** 11.4 and 11.5 use D₁, D₂ and D₃. The rephrased question is asked only in evaluation mode, and D₃ is sent with `useCache: false` to the API with the broken embedding model.
+- **I1 and I2:** both GIVENs are completed.
+
+This run found no blocking defect. It lists seven improvable findings below.
+
+---
+
+## 1. Scope against the ticket
+
+Clean. Every item follows from DIS-67 `[original]` ("SQL, umbral, orden de comprobación"; DoD: a rephrasing hits, a different topic does not, and without `embed()` the call degrades without error) or from its `[enhanced]` part:
+- The 768 migration follows from the DIS-46 note "Decisión de embeddings para esta HU".
+- The ADR follows from the DIS-46 review comment of 2026-10-16.
+- The changes to the test doubles follow from S2 and S9.
+
+The hit rate, `UsagePanel`, and seed and golden vectors stay with DIS-69. Nothing invented was found.
+
+- **Improvable (I6).** The `[enhanced]` text of DIS-67 still states two things the change has since replaced:
+  - "`docs/backend-standards.md` §5 ya dice que cambiar de modelo obliga a re-embeber, no cambia". Task 9.5 now edits §5 (design S7).
+  - The SQL is described as `LEFT JOIN LATERAL … ORDER BY question_embedding <=> $2::vector … LIMIT 1` and as "una sentencia indexada por proyecto". This is exactly the HNSW post-filtering shape that S3 rejects in favour of an exact search through a `MATERIALIZED` CTE.
+
+  The round-1 note covers the rule for a change of model but not these two points. Append a note (see Corrections → Linear).
+
+## 2. Inherited acceptance criteria
+
+Every parent AC that DIS-67 inherits has a requirement and a scenario:
+
+| Parent AC (DIS-46) | Requirement | Scenario(s) |
+|---|---|---|
+| A rephrasing hits: `cacheHit`, `hit_count` +1, `embed()` once, no `complete()` | semantic-cache "Similarity lookup in explain" | "A rephrased question is answered from the similar entry"; explain "A similarity hit over the database counts in its entry and its row" |
+| A different topic is answered live | same | "A question on another topic is answered live and saved with its embedding"; "The threshold is inclusive at the boundary" |
+| Two projects: only that project's entries count | same, plus graph-store "Answer cache entries" | "The most similar entry of the project wins"; "A saved embedding is found by similarity within its project"; "The similarity search is exact whatever the other projects hold" |
+| Evaluation mode: exact hit only, otherwise `UNKNOWN llm-required`, never fails | semantic-cache "Similarity lookup…", "Degradation without embeddings" | "Evaluation mode requests no embedding"; the four degradation scenarios |
+| Hit rate 0.4 in CLI and `UsagePanel` | not inherited (DIS-69, D10) | — |
+
+The DIS-46 review obligation (an ADR on `LlmPort.embed()` versus `EmbeddingPort`, and an update to the DIS-101 note) is covered by S13 and tasks 9.1 and 9.4.
+
+The DIS-46 note asking to correct the DIS-5 non-goal is covered by S7 and task 9.5.
+
+The parent's "supera el umbral" against the inclusive `>=` was already accepted in run 2.
+
+## 3. Missing scenarios
+
+Every MUST clause has a scenario that observes it. The clause "a question with no anchor or with an empty key requests no embedding" is pinned by "A question without anchor requests no embedding". The empty key is a documented guard that cannot be reached after anchoring.
+
+- **Improvable (I2).** graph-store, "The most similar entry wins and ties go to the most recent". The GIVEN does not bound the similarity of C and D with Q, nor the similarity of A and B with the embedding of C and D. If the test author picked vectors where C or D reaches more than 0.95 with Q, the first search would not resolve to B. If A or B reached 0.99 or more with C's embedding, the second search would not resolve to D. The THEN pins the outcome, so a careful author picks consistent data, but the scenario should say so. The in-memory double's scenario reuses these entries, so it inherits the gap. Correction: add to the GIVEN "C and D have a similarity below 0.88 with Q, and A and B a similarity below 0.99 with the embedding of C and D".
+
+## 4. Ambiguity
+
+Clean. Searching the change outside `reports/` for fast, easy, secure, efficient, many, appropriate, robust, small and large finds only:
+- "a small vector builder" (task 6.1), a description of test support;
+- "too-large", an error reason;
+- "as many … as" and "however many", exact counts in unchanged scenarios.
+
+## 5. Open decisions
+
+None blocking. Formats, limits, error cases, empty and absent inputs, orderings and test names are all fixed:
+- the vector text and the `::vector` cast;
+- the order of the checks;
+- `minSimilarity` in [0, 1];
+- ties by `created_at DESC`, then `id DESC`;
+- the closed event codes;
+- the D₁, D₂ and D₃ questions of the manual plan.
+
+Two small gaps remain in the manual plan:
+
+- **Improvable (I4).** 11.3 expects the CLI rephrasing «Explícame el cálculo del precio final» to be a similarity hit. That only holds if the 11.2 calibration gives that pair a similarity at or above the final constant. S11 allows the outcome "no value in [0.80, 0.95] separates them; the constant stays 0.85 and the limitation is recorded", and then the planned hit cannot happen. The plan does not say what the executing agent does in that case. Correction: in 11.3 (and 11.5), use a rephrasing of the price question whose similarity measured in 11.2 reaches the final constant. Name it in the step 11 report. If no measured rephrasing reaches it, record that, run the step with the observed miss, and add the limitation to `design.md` → Follow-ups (D).
+- **Improvable (I5).** 11.5 sends `"useCache": false` without naming the question, and expects "entry replaced with an embedding". With the rephrased question there is no entry under its key to replace: 11.3 served it by similarity and 11.4 asked it in evaluation mode. A new one is created. With the price question, the entry is replaced. Correction: write "with the rephrased question and `"useCache": false` (200, live answer; a new entry under the rephrased key with a non-`NULL` `question_embedding`, checked in SQL, deleted in 11.7)".
+
+## 6. Contradictions inside the change
+
+No blocking contradiction. These parts are consistent across proposal, design and deltas:
+- the order anchor → exact → similarity (live) → evaluation → live;
+- S1/S2 and "Degradation without embeddings";
+- the `useCache: false` path (no lookup of any kind, embedding still requested, skip event on failure);
+- S8 and "Query log";
+- S10 and the boundary scenarios;
+- S11 and 11.2.
+
+- **Improvable (I1).** Task 1.2 adds an exported `reachesThreshold(similarity)` to `similarity-cache.ts`. Design S4, which lists the module's exports (`SEMANTIC_CACHE_MIN_SIMILARITY`, `usableVector`, `skipCode`), does not mention it. In production the threshold is applied by the store (`1 - distance >= $3` in Postgres, and the in-memory double's own comparison), so `reachesThreshold` would be called only by its unit test. That makes it a third copy of the inclusive rule that no production path uses, and Stryker would not protect the real comparison. Correction, either of:
+  - (a) add `reachesThreshold` to S4 as the single TypeScript statement of the inclusive rule, and have the in-memory double (task 4.3) apply it;
+  - (b) drop it and let "The threshold is 0.85 and inclusive" compare with `>=` against the exported constant.
+
+  Option (a) keeps the scenario's wording, "compared with it".
+
+## 7. Contradictions with the project
+
+Clean.
+- The quote of `docs/backend-standards.md` §5 is now correct (S7), its edit is task 9.5, and the Expand → Contract exception is stated in S6 and confirmed in task 3.2.
+- The budget rule ("before every completion and every embedding") matches S8 and "A spent daily budget skips the lookup and the answer call still fails".
+- Every cross-reference in the deltas resolves to an existing main requirement:
+  - `answer-cache` "Question normalization", "Cacheable answers", "Stored response" and "Answer of a cache hit";
+  - `llm-adapter` "Daily spend ceiling" (`openspec/specs/llm-adapter/spec.md:518`);
+  - `graph-store` "Query log write" (`openspec/specs/graph-store/spec.md:887`).
+- `openspec/specs/local-startup/spec.md:549` ("no embeddings, which `ask` does not need") stays true, because `ask` degrades.
+
+- **Improvable (I7).** `openspec/specs/graph-schema/spec.md:633` describes the purpose of the HNSW index on `cache_entry.question_embedding` as "cache hit by question similarity". S3 deliberately does not use that index for the lookup. The text is not wrong (the index stays as the schema contract, for future use), but a reader of the main spec would assume the lookup uses it. Correction: add to S3 one sentence saying that the purpose column of the graph-schema index table describes the intended use and stays as it is, because the cache lookup is exact and does not use the index. No delta is needed.
+
+## 8. Contrast with the real code
+
+Clean.
+- The insertion point lies between `store.findCacheEntry` (`packages/core/src/explain/explain.ts:322`) and `if (llm.mode === 'evaluation')` (`:331`).
+- `saveCache` is at `:249`, and the row on error is guarded by `meter.resolvedCalls() > 0` (`:193`).
+
+I checked every `LlmPort` double in `tests/` whose `embed` throws a plain `Error`, because design S2 makes such an error propagate:
+- `tests/support/scripted-llm.ts:139` changes in 6.1;
+- `tests/unit/cli/ask-command.spec.ts:248` changes in 6.1;
+- `tests/unit/api/composition.spec.ts:85` never reaches `explain` (it calls `complete` only);
+- `tests/unit/cli/cache-build.spec.ts:189` replaces `explain` with a stub;
+- `tests/integration/store/query-cost.spec.ts:165` returns a result and only calls `complete`;
+- `tests/unit/explain/explain-verification.spec.ts:460` delegates to the scripted model, which falls back to `not-configured`.
+
+No other existing test changes behaviour.
+
+- **Improvable (I3), also point 10.** The restoration in 11.7 deletes claims by `created_at` and compares counts and the acme-shop `cache_entry` rows. A live answered answer also runs the stale claim refresh (`openspec/specs/explain/spec.md:1611`). The refresh rewrites existing claim rows through `UPDATE_REFRESHED_CLAIM` (`packages/adapters/store-postgres/src/queries.ts:383`). If acme-shop holds due stale claims among the prior claims of the questions asked, 11.3–11.5 change pre-existing rows that 11.7 neither restores nor detects. Correction:
+  - in 11.1, record the acme-shop `claim` rows with `status = 'stale'` in full (`id, object, status, type, provenance, updated_at`);
+  - in 11.7, restore any of them that changed and compare them with the snapshot;
+  - if 11.1 finds none, record that and skip the step.
+
+## 9. Task size
+
+Clean. The largest tasks are:
+- 9.1, several edits to `readme.md`;
+- 5.3, two new Postgres scenarios and two extended tests, one at a time;
+- 6.4 and 6.6, several scenarios each, one at a time;
+- 4.5, a bounded set of doubles.
+
+Each fits in one agent turn.
+
+## 10. Mandatory steps
+
+- Step 0 is the branch: 0.1 (`feature/dis-67-semantic-cache`, matching `BRANCH_PREFIX`), verified in 0.2. ✓
+- Labels: groups 7, 9 and 10 are `(MANDATORY)`; 11 is `(MANDATORY - AGENT MUST EXECUTE)`; 12 is `(MANDATORY if applicable - AGENT MUST EXECUTE)`; 14 is Pre-merge and comes last, with the three checks in order. Fixes go to the same PR, and the archive commit comes before the merge. ✓
+- Group 9 is placed before group 10 on purpose, with the reason stated (the docs gate in 10.3). ✓
+- The reports are created in 10.7 and 11.8. ✓
+- State restoration is in 10.6 and 11.7: counts, seeded rows that were replaced, `hit_count` and `last_hit_at`, stopped servers. ✓ The refreshed claims gap is I3 (improvable).
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| semantic-cache · Similarity threshold and embedded text | The threshold is 0.85 and inclusive | 1.1, 1.2 |
+| | Only one finite non-zero vector of the schema's dimension is usable | 1.3 |
+| semantic-cache · Similarity lookup in explain | A rephrased question is answered from the similar entry | 6.2, 6.3 |
+| | A question on another topic is answered live and saved with its embedding | 6.4 |
+| | The threshold is inclusive at the boundary | 6.4 |
+| | An exact hit requests no embedding | 6.4 |
+| | The most similar entry of the project wins | 6.5 |
+| | Equal similarities go to the most recent entry | 6.5 |
+| | A rejected similar entry is a miss without trying the next | 6.5 |
+| | Evaluation mode requests no embedding | 6.4 |
+| | Turning the cache off embeds only for the save (both cases) | 6.4 |
+| | A question without anchor requests no embedding | 6.4 |
+| | A failing similarity lookup or hit record stops before the model | 6.5 |
+| semantic-cache · Degradation without embeddings | Without an embedding model the call is answered as today | 6.6 |
+| | An unavailable endpoint or an unusable vector degrades with an event | 6.6 |
+| | A spent daily budget skips the lookup and the answer call still fails | 6.6 |
+| | Another embedding error propagates before the model | 6.6 |
+| | The skip event carries nothing of the question or the error | 6.7 |
+| | The embedding request is not counted in the usage or the row | 6.7 |
+| | (`skipCode` classification, unit cases, no scenario of its own) | 1.4 |
+| semantic-cache · Embedding of a saved answer | A live answer is saved with its embedding and found by a rephrasing | 6.7 |
+| | (rule for a change of model, operator duty) | 9.3, 9.4, 9.5 |
+| explain · Precedence and UNKNOWN answers | A live miss requests one embedding before the pack (new) | 6.8 |
+| | 15 unchanged scenarios (three "0 calls" scenarios count completions) | existing tests (7.3) |
+| explain · Answer cache | A similarity hit over the database counts in its entry and its row (new) | 6.9 |
+| | 15 unchanged scenarios | existing tests (7.3) |
+| explain · Explain events and logging | The skip event comes before the sanitisation events (new) | 6.8 |
+| | 7 unchanged scenarios | existing tests (7.3) |
+| explain · Query log | 15 unchanged scenarios; new no-row cases pinned by semantic-cache scenarios | 7.3 (6.5, 6.6) |
+| graph-store · Answer cache entries | A saved embedding is found by similarity within its project | 5.1, 5.2 |
+| | The most similar entry wins and ties go to the most recent | 5.3 |
+| | The similarity search is exact whatever the other projects hold | 5.3 |
+| | The in-memory double searches by similarity like the database | 4.1, 4.3 |
+| | Invalid cache arguments are rejected before querying (modified) | 5.3 (4.6 for the double) |
+| | Cache calls on an unknown project fail without writing (modified) | 5.3 |
+| | 10 unchanged scenarios | 5.4 |
+| graph-schema · Roll back the latest migration | Roll back only the latest migration (modified) | 3.1, 3.2 |
+| | Roll back the query log verification migration (new) | 3.1 |
+| | Roll back the L1 graph / both / every migration (unchanged) | 3.4 |
+| graph-schema · L1 column contract | Migrated schema matches the column contract | 3.1 |
+| | Defaults apply on a minimal insert | 3.4 |
+| | An embedding of another dimension is rejected by the column | 3.3 |
+| graph-schema · History, claim, usage and cache column contract | Migrated schema matches the history, claim, usage and cache column contract | 3.1 |
+| | Defaults apply on a minimal claim, query log and cache entry | 3.4 |
+| llm-adapter · The client waits as long as the configured timeout | Without an injected fetch the request does not use the global fetch | 2.3 |
+| | Timeouts, refusals and redirects keep their mapping; A response after 300 s is accepted | unchanged (7.3) |
+| llm-adapter · Completion request and response | A null usage reports zero tokens; A usage field of the wrong type is an invalid response | 2.3 |
+| | other scenarios | unchanged (7.3) |
+| llm-adapter · Embedding request, order and dimension | Embeddings are returned in input order; Missing or duplicated indexes; A vector of another dimension is rejected | 2.3 |
+| | Embeddings without usage report zero tokens; Embeddings for no texts send nothing | 2.3, 2.4 |
+| | The schema dimension is 768 | 2.1, 2.2 |
+
+The table has no holes.
+
+---
+
+## Corrections to apply
+
+None of these block the apply. They can go in one pass before task 1.1, or be recorded as accepted.
+
+### `openspec/changes/semantic-cache/design.md`
+1. **I1.** S4, list of the module's exports: add "`reachesThreshold(similarity)` (similarity `>=` `SEMANTIC_CACHE_MIN_SIMILARITY`), the single TypeScript statement of the inclusive rule, applied by the in-memory double". Alternatively, remove `reachesThreshold` from task 1.2.
+2. **I7.** S3, after "The HNSW index stays (schema contract; …)": add "The purpose column of the `graph-schema` index table ('cache hit by question similarity') describes the intended use and stays unchanged; the cache lookup of this change is exact and does not use the index."
+3. Follow-ups: add a table "Spec audit, run 3" with I1–I7 and their destinations.
+
+### `openspec/changes/semantic-cache/specs/graph-store/spec.md`
+1. **I2.** "The most similar entry wins and ties go to the most recent", GIVEN: append "; C and D have a similarity below 0.88 with Q, and A and B a similarity below 0.99 with the embedding of C and D".
+
+### `openspec/changes/semantic-cache/tasks.md`
+1. **I1.** 4.3: add "the threshold check applies `reachesThreshold`" (or, if option (b) is chosen, remove `reachesThreshold` from 1.2).
+2. **I3.** 11.1: add "record the acme-shop `claim` rows with `status = 'stale'` in full (`id, object, status, type, provenance, updated_at`), or that there are none". 11.7: add "restore and compare those rows (a live answer's stale claim refresh rewrites them through `UPDATE_REFRESHED_CLAIM`)".
+3. **I4.** 11.3: replace the fixed rephrasing with "a rephrasing of the price question whose similarity measured in 11.2 reaches the final constant (named in the step 11 report); if none reaches it, record that, run the step with the observed miss, and add the limitation to `design.md` → Follow-ups (D)". Apply the same rule in 11.5.
+4. **I5.** 11.5: replace "with `"useCache": false` (200, live answer, entry replaced with an embedding)" with "with the rephrased question and `"useCache": false` (200, live answer; a new entry under the rephrased key with a non-`NULL` `question_embedding`, checked in SQL, deleted in 11.7)".
+
+### Linear (Spanish; the `[original]` block is not touched)
+- **DIS-67, `[enhanced]` part** (append at the end):
+  > *Nota del agente (auditoría de spec, tercera ejecución, 2026-11-03):* dos frases de esta parte quedan superadas por el diseño. (1) `docs/backend-standards.md` §5 sí se edita (tarea 9.5, S7): otra dimensión exige migración y otro modelo de la misma dimensión exige invalidar la caché de cada proyecto; no se re-embebe. (2) La búsqueda por similitud no es `LEFT JOIN LATERAL … ORDER BY <=> LIMIT 1` sobre el índice HNSW, sino una búsqueda exacta sobre las entradas del proyecto con una CTE `MATERIALIZED` (S3), porque el filtrado posterior de HNSW podría perder la entrada del proyecto.
+- **DIS-67, new comment:**
+  > *Texto del agente (auditoría de spec, tercera ejecución, 2026-11-03).* Veredicto APPROVED, sin bloqueantes. Los bloqueantes B7 y B8 de la segunda ejecución están resueltos. Quedan 7 mejorables, que se aplican en el propio cambio `semantic-cache` o se registran como aceptados:
+  > - I1: `reachesThreshold` se declara en S4 y lo usa el doble en memoria.
+  > - I2: se acotan las similitudes de C y D en el escenario de desempate de `graph-store`.
+  > - I3: la restauración de la prueba manual cubre los claims stale que reescribe el refresco.
+  > - I4: la prueba manual usa una reformulación medida en 11.2 que alcanza el umbral.
+  > - I5: se nombra la pregunta de `useCache: false` en 11.5.
+  > - I6: nota en `[enhanced]`.
+  > - I7: frase sobre el índice HNSW en S3.
