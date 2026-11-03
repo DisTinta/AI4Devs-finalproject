@@ -320,3 +320,78 @@ Comment to add:
 ### Linear DIS-53
 
 No edit by the agent. Q1, Q2 and Q4 go to the author. If she decides them, record the decision as a Spanish comment on DIS-53, without touching its description.
+
+---
+
+## Resolution of run 1
+
+*(Agent's text, correction round 1, autonomous run, 2026-11-03.)* In an autonomous run nothing is left
+for the author (docs/AUTONOMOUS-RUN.md §6), so the agent decided the four questions as lead engineer. Each
+decision is in `design.md` → Follow-ups (P16–P27) with its destination; none is C. `openspec validate
+context-measurement --strict` passes after the edits. The spec now has 11 requirements and 40 scenarios.
+
+### Questions for the author
+
+- **Q1** — decided by the agent: a Table 1 with «Correctas (de 20)» `pendiente de DIS-82` is the DoD of
+  DIS-81; the parent's AC 3 is met when DIS-82, blocked by this ticket, fills the column. P22, **B**.
+- **Q2** — decided by the agent: the token and latency shares satisfy PH-27; the cost share stays
+  `n/a (0 USD con Ollama local)`, and no priced estimate is invented for a model the run did not pay for.
+  P23, **D**.
+- **Q3** — decided by the agent: «salidas parciales» means the final outputs (CSV, JSON, `answers/`);
+  the raw responses are kept to resume. Now stated in "Asking each question"; recorded in the ticket.
+  P24, **A**.
+- **Q4** — decided by the agent: the parent's «revisado por la autora» no longer applies; DIS-82's
+  independent agents review the answers. P25, **A**.
+
+### Blocking findings
+
+- **B1** — fixed (decided by the agent: record, not abort). "Asking each question" keeps
+  `usage.verification.cacheHits`, the CSV gains `verifyCacheHits`, the JSON sums it, the report and the
+  README limitations declare it; new scenario "A verification answered from the API cache"; D3, Context,
+  P16; task 5.2b; the launches recorded in 7.4c explain the hits.
+- **B2** — fixed (first option). The command checks shape, ids, lengths, `expected` and the `unknown`
+  count; the golden texts are checked only by `tests/unit/docs/context-savings.spec.ts` against
+  `GOLDEN_PROJECTS`. D8, P17; tasks 2.1, 3.1 and 7.2.
+- **B3** — fixed. JSON ratios rounded to four decimals half away from zero from the integers with
+  `roundRatio` exported from `scripts/annotation-agreement.mjs`; the JSON holds Σ `latencyMs` and the
+  `estimated` / `provider` counts of `min` and `max`; README and report figures formatted from integers
+  only. "Aggregation rules", D9, D10, D11, P18; tasks 1.1 and 6.1b.
+- **B4** — fixed. «Ahorro» `null` (`no definido`) at a zero baseline; medians and `maxCallsPerAnswer`
+  `null` with no answered row; `under10s` strict `< 10 000`; `verifyMedianMs` defined. New scenarios
+  "Verifier latency and calls of three answered rows" and "A project with no answered row"; D10, P19;
+  task 6.1b. The audit's expected latency share of 0.5765 was corrected: 30 000 / 51 000 is 0.5882.
+- **B5** — fixed. `LLM_MODEL` blank, a fixture with no `project` row and a `readSeed` error each exit 1
+  before any request, and the unreachable-API line is pinned. New scenarios "The model variable is not
+  set" and "The seed has no row of a sample project"; D8, P20; tasks 3.2 and 4.1.
+- **B6** — fixed. "Published Table 1" and its scenario now require the small sample repositories, the
+  two-agent annotation of Table 2 and the verification cache in the limitations, and the caption without
+  `revisión manual`. P21; task 7.6b.
+
+### Improvable findings
+
+- Scope note on the README tree line and the extra CSV columns — fixed: recorded in the enhanced part of
+  DIS-81 (P27).
+- Missing scenarios — fixed: "The Ollama version check fails", "No variable value is written", "A
+  non-200 status stops the run", "A body that is not JSON stops the run", "An answered body without a
+  usage field stops the run", "A stale raw response stops the run", "A malformed generate answer stops
+  the count"; stdout progress and summary lines pinned in "Measurement CLI" and in two scenarios; the
+  savings scenario has output tokens and the share 0.22. The unreadable sample file stays covered by the
+  requirement text and the hash scenario (same code path); no separate scenario.
+- Ambiguity — fixed: "20 frozen questions" (Purpose and proposal), "5–10 minutes per question" in the
+  proposal, and `## Entorno` names CPU or GPU and the processor's model name.
+- "before reading any other input" — fixed: after the arguments and `.env`.
+- The frozen-file scenario — fixed: no file other than `questions.json` exists or changed.
+- "The answer files are blind" — fixed: aligned on keys and on values containing the model name;
+  `verification` added to the forbidden keys.
+- `verifyCostUsd` missing from AC 1 — fixed: recorded in the ticket (P27).
+- `events` in D10 — fixed: removed; the `/ask` body has none.
+- `roundRatio` duplication — fixed: exported once and imported (D9); the copy in `measure-graph.mjs` is
+  left untouched, out of scope.
+- `statements[].verification` in the answer files — decided by the agent: dropped, so the DIS-82
+  reviewers are not anchored by the verifier's verdict (D10, P26).
+- Task size — fixed: 7.4 split into 7.4a, 7.4b and 7.4c; 7.6 split into 7.6a and 7.6b; 2.1 kept as is
+  (the audit judged it acceptable).
+- 9.1 counts — fixed: captured in 7.3 before the API starts, referenced by 9.1.
+- 9.6 — fixed: `npm run verify` with exit 0 after `npm run db:seed`.
+- 7.6 link timing — fixed: the link goes in 7.6a, since the report exists from 7.1.
+- Scenario counts in 8.2 and 13.8 — fixed: 40.

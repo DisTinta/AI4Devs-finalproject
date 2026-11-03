@@ -15,6 +15,13 @@ See `proposal.md` → Why. The state that shapes the approach (checked by the pr
   `Math.round((baseline − input) · 1000 / baseline) / 10`, 0 when the baseline is 0.
   `baselineTokens` = Σ `estimateTokens` over the cited files whole (redacted content);
   `estimateTokens(text) = ceil(code points / 4)`.
+- The API creates one in-memory verification cache per process, shared by every request
+  (`packages/api/src/routes/ask.ts:130`); `packages/core/src/verify/semantic.ts:77-81` answers a
+  repeated (statement, path, lines, excerpt) pair from it with no call and no token and counts it in
+  `usage.verification.cacheHits`. `useCache: false` skips only the *answer* cache
+  (`packages/core/src/explain/explain.ts:321`), and the new answer still replaces the cached one
+  (`packages/api/src/schemas/ask.ts:50-51`), so the live run replaces the golden `cache_entry` rows of the
+  sample projects until `npm run db:seed`. *(Added by the agent, correction round 1 of the spec audit.)*
 - `GET /health` answers `{ "status": "ok" }` and says nothing about the LLM mode; evaluation mode shows
   only as `UNKNOWN` `llm-required`.
 - `scripts/demo-ask.mjs` has `sendWithHttp` (`node:http`, no time limit, design D23 of DIS-102) and
@@ -38,6 +45,8 @@ See `proposal.md` → Why. The state that shapes the approach (checked by the pr
   (598 s measured), with `LLM_TIMEOUT_MS=1200000` and `OLLAMA_CONTEXT_LENGTH=16384`; past autonomous
   runs started the API and Ollama as detached processes with the `LLM_*` variables set for that command
   only (`.env` is not edited by the agent).
+- `scripts/annotation-agreement.mjs:274` and `scripts/measure-graph.mjs:309` each hold an unexported
+  `roundRatio` (the second, non-negative only, says it copies the first).
 - `readme.md` §2.6: the intro paragraph (tested by `tests/unit/docs/graph-quality.spec.ts`, which needs
   `npm run measure:graph` and `DIS-81` in it), Table 1 with five *(pendiente)* columns, the limitations
   paragraph («preguntas de la Tabla 1 realizadas por la autora»). Line 29: «Medir el verificador |
@@ -77,6 +86,15 @@ Table 1.
 
 **D3 — `useCache: false` always; `cacheHit: true` aborts (ticket D3).** A cached answer measures 0
 tokens. Also a response missing any usage field aborts: the measurement never guesses a value.
+*Verification cache (spec audit B1, agent's decision):* the API's per-process verification cache
+(Context) is not bypassed by `useCache: false`. The measurement records it instead of aborting:
+`usage.verification.cacheHits` goes to the CSV column `verifyCacheHits` and is summed per project in the
+JSON (`verification.cacheHits`), and the report and the README limitations state that a verification
+answered from that cache costs no token. *Alternative:* abort on `cacheHits > 0` — rejected: it is how
+the product behaves in use, the answer cache is the one the ticket asks to avoid, and an abort would make
+a 40-question run on a CPU depend on the questions never sharing a cited excerpt. The figure depends on
+question order and API restarts; the report records the launches (task 7.4c), so that dependence is
+visible.
 
 **D4 — «CODEMIND» = total `inputTokens` (ticket D4).** Generation plus verification, the definition of
 `savingsPct`; the CSV also gives the generation alone. «Ahorro» is recomputed from the sums with the
@@ -108,35 +126,59 @@ bounded to 10 minutes.
 
 **D8 — Order of the run.** Arguments (exit 2) → `.env` (`loadEnvFile`, as `demo:ask`) →
 `checkFreeze` on `docs/measurements/context-savings.md` (problems about the report prefixed with its
-path) → question file shape → seed (`readSeed` for project ids; `readRow` for the `file` rows with
-`content_hash` and `redacted`) and the sample files' hashes → `LLM_BASE_URL` set → `GET /health` →
+path) → question file shape (no golden-text check: see the next paragraph) → seed (`readSeed` for
+project ids, its own `seeds/graph-dump.sql: …` errors written to stderr with exit 1; a sample fixture
+with no `project` row exits 1 naming the fixture and `seeds/graph-dump.sql`; `readRow` for the `file`
+rows with `content_hash` and `redacted`) and the sample files' hashes → `LLM_BASE_URL` set → `LLM_MODEL`
+set and not blank → `GET /health` (unreachable: `measure:context: the API is not reachable at
+http://127.0.0.1:<port> (start it with npm run up)`, as `scripts/demo-ask.mjs:155`) →
 Ollama `GET /api/version` and `GET /api/tags` → `raw/run.json` → missing questions in file order →
 missing counts in path order → `build` → write the outputs → summary. The Ollama origin is
 `LLM_BASE_URL` trimmed, without a trailing `/`, then without a trailing `/v1`. The API origin is
 `http://127.0.0.1:<PORT>` with `PORT` read by `apiPort` of `demo-ask.mjs` (exported, D9); an invalid
 `PORT` is a usage error (exit 2), as in `demo:ask`. The project
 id is the seed's `project.id` for the fixture name (the same deterministic ids as `SAMPLE_PROJECTS`).
+*Golden texts (spec audit B2, agent's decision):* the command does not check that each project holds
+its golden question texts, because the source of those texts is `GOLDEN_PROJECTS` in
+`packages/cli/src/cache/demo-questions.ts` (TypeScript, which a `scripts/*.mjs` may not import). The
+rule is checked by `tests/unit/docs/context-savings.spec.ts` → "The committed question set is
+complete" against `GOLDEN_PROJECTS` (itself checked against `fixtures/README.md` by
+`tests/unit/seed/golden-questions.spec.ts`). *Alternative:* parse the demo-question table of
+`fixtures/README.md` in the script — rejected: a second parser of a Markdown table for a check the
+TypeScript test already does with the canonical list.
 
 **D9 — Reuse by exports.** `scripts/demo-ask.mjs` exports `sendWithHttp` and `apiPort` (and its
-`.d.mts` the declarations); `scripts/measure-graph.mjs` exports `readRow` (and its `.d.mts`). No behaviour of either
-script changes and no existing test changes. `send` is injected as in `runDemoAsk`:
+`.d.mts` the declarations); `scripts/measure-graph.mjs` exports `readRow` (and its `.d.mts`);
+`scripts/annotation-agreement.mjs` exports `roundRatio` (and its `.d.mts`), so this script imports it
+instead of a third copy (spec audit, pattern duplication; the copy in `measure-graph.mjs` is left as it
+is, out of scope). No behaviour of any of the three scripts changes and no existing test changes. `send` is injected as in `runDemoAsk`:
 `runMeasureContext(args, { root, env, dotenvPath, send, now, stdout, stderr })`, where `now` gives the
 `receivedAt` / `startedAt` timestamps for the tests.
 
-**D10 — Output layouts.** CSV: the header of the spec, values as `String(n)`, booleans `true` /
-`false`, empty cells for an `UNKNOWN`'s usage, a field quoted when it holds `,`, `"`, CR or LF (inner
-`"` doubled), LF line ends and a final LF. JSON: `{ formatVersion: 1, run: <run.json without
-formatVersion, plus questionsSha256 and the first and last receivedAt>, projects: [ { fixture,
-questions, answered, unknown: { <reason>: n } (reasons sorted), baselineTokens, inputTokens,
-outputTokens, savingsPct, generation: { inputTokens, outputTokens }, verification: { calls, inputTokens,
-outputTokens, costUsd, latencyMs, maxCallsPerAnswer }, costUsd, shares: { tokens, latency, cost },
-latency: { medianMs, verifyMedianMs, under10s }, expectedUnknown: { declared, answeredUnknown } } ],
-tokenizer: { model, files, excluded: [paths], estimated, provider, deviation, min: { file, deviation },
-max: { file, deviation } } }`; ratios as numbers rounded to four decimals half up from the integers (the
-`roundRatio` formula of `annotation-agreement.mjs`), `null` on a zero denominator;
+**D10 — Output layouts.** CSV: the header of the spec (with `verifyCacheHits` after `verifyCalls`),
+values as `String(n)`, booleans `true` / `false`, empty cells for an `UNKNOWN`'s usage, a field quoted
+when it holds `,`, `"`, CR or LF (inner `"` doubled), LF line ends and a final LF. JSON:
+`{ formatVersion: 1, run: <run.json without formatVersion, plus questionsSha256 and the first and last
+receivedAt>, projects: [ { fixture, questions, answered, unknown: { <reason>: n } (reasons sorted),
+baselineTokens, inputTokens, outputTokens, savingsPct, latencyMs, generation: { inputTokens,
+outputTokens }, verification: { calls, cacheHits, inputTokens, outputTokens, costUsd, latencyMs,
+maxCallsPerAnswer }, costUsd, shares: { tokens, latency, cost }, latency: { medianMs, verifyMedianMs,
+under10s }, expectedUnknown: { declared, answeredUnknown } } ], tokenizer: { model, files, excluded:
+[paths], estimated, provider, deviation, min: { file, estimated, provider, deviation }, max: { file,
+estimated, provider, deviation } } }`, where `latencyMs` is Σ `latencyMs` of the answered rows. Ratios
+are numbers rounded to four decimals half away from zero from the integer numerator and denominator,
+with the `roundRatio` exported from `scripts/annotation-agreement.mjs` (D9), `null` on a zero
+denominator. Boundary rules (spec audit B4, agent's decision): `savingsPct` is `null` when
+`baselineTokens` is 0 (the product's `savingsPct` returns 0 there, but a project with no answered row
+has no savings; published `no definido`); `medianMs`, `verifyMedianMs` and `maxCallsPerAnswer` are
+`null` with no answered row; `under10s` counts `latencyMs` < 10 000 (strict, since the README criterion
+is «menos de 10 segundos»); `verifyMedianMs` is the `⌈n/2⌉`-th smallest `verification.latencyMs`.
 `JSON.stringify(value, null, 2) + "\n"`. Answer files: `{ formatVersion: 1, fixture, answers: [ {
-questionId, question, answer, reason?, statements, evidence } ] }` with `statements` and `evidence`
-copied from the body; `confidence`, `usage` and `events` dropped.
+questionId, question, answer, reason?, statements: [ { text, type, evidenceIds } ], evidence } ] }`
+with `evidence` copied from the body; `confidence` and `usage` dropped, and each statement's
+`verification` (`entailed` / `cited`) dropped too (spec audit, agent's decision: the DIS-82 reviewers
+judge correctness from the evidence, and the verifier's own verdict would anchor them). The `/ask` body
+has no `events` key, so nothing else is dropped.
 
 **D11 — Formatting for README and report.** Exported `formatTokens(n)` (digits grouped by three with a
 space from 10 000 up: `60 000`, `7000`), `formatPercent(n, d)` (one decimal, decimal comma, a space
@@ -144,7 +186,9 @@ before `%`, from the integers: `88,3 %`), `formatSigned(n, d)` for deviations (`
 `0,0 %`) and `formatSeconds(ms)` (`412,3 s`). The lines below Table 1:
 `` - `<fixture>`: <answered> respondidas y <unknown> UNKNOWN (<reason> <n>, …); verificación <tokens> de los tokens y <latency> del tiempo; coste de verificación <cost | n/a (0 USD con Ollama local)>; latencia mediana <s> (verificación <s>) ``
 and `` - Desviación de `baselineTokens` (chars/4) frente al tokenizador de `<model>` en <files> ficheros: <signed> en total (mínimo <signed>, máximo <signed> por fichero) ``.
-The documentation test uses the same formatters.
+The documentation test uses the same formatters. Every formatter takes integers (a numerator and a
+denominator, or a count), never a rounded ratio of the JSON, so no figure is rounded twice; a `null`
+measure is written `no definido`.
 
 **D12 — Model (ticket D8).** `qwen2.5-coder:latest` local for the answer and the verification
 (`LLM_MODEL_VERIFY` empty). The script records the model of its own environment; the apply agent
@@ -194,7 +238,8 @@ with its destination (`docs/project-context.md` → Tracking deferred findings):
   `pendiente de DIS-82`. **B** (DIS-82, blocked by this ticket).
 - **P8 (ticket D8)** — `qwen2.5-coder:latest` for answer and verification. **A**.
 - **P9** — raw data and resume (D7). **A**.
-- **P10** — answer files without confidence, events and cache flag too, besides model and tokens
+- **P10** — answer files without confidence and cache flag too (the `/ask` body has no events; see P26
+  for the statements' verdict), besides model and tokens
   (DIS-82: the reviewers do not see the model nor the tokens column). **A**.
 - **P11** — reuse by exporting `sendWithHttp`, `apiPort` and `readRow` (D9); no existing test edited. **A**.
 - **P12** — `graph-quality` "Published Table 2" modified so the shared intro can say Table 1 is
@@ -205,3 +250,38 @@ with its destination (`docs/project-context.md` → Tracking deferred findings):
   are a non-goal of the ticket and the parent, and no ticket of the roadmap owns it. **D**.
 - **P15** — Ollama prefix reuse: the probe shows `prompt_eval_count` is the whole prompt in Ollama
   0.40.13, so it is not a limitation; the report records the version it was checked on. **A**.
+
+*(Agent's text, correction round 1 of the spec audit of DIS-81, autonomous run, 2026-11-03.)* Decisions
+taken by the agent as lead engineer on the questions and blocking findings of the audit:
+
+- **P16 (audit B1)** — the API's per-process verification cache is recorded (`verifyCacheHits`, per row
+  and per project) and declared as a limitation, not an abort (D3). **A**.
+- **P17 (audit B2)** — the golden question texts are checked by
+  `tests/unit/docs/context-savings.spec.ts` against `GOLDEN_PROJECTS`, not by the command (D8). **A**.
+- **P18 (audit B3)** — JSON ratios rounded to four decimals half away from zero with `roundRatio`
+  exported from `scripts/annotation-agreement.mjs`; the JSON gains Σ `latencyMs` and the `estimated` /
+  `provider` counts of `min` / `max`; every published figure is formatted from integers (D9, D10, D11).
+  **A**.
+- **P19 (audit B4)** — «Ahorro» `null` (`no definido`) at a zero baseline, medians and
+  `maxCallsPerAnswer` `null` with no answered row, `under10s` strict `< 10 000` (D10). **A**.
+- **P20 (audit B5)** — `LLM_MODEL` blank, a fixture missing from the seed and a seed error each exit 1
+  before any request (D8). **A**.
+- **P21 (audit B6)** — the README limitations keep the small sample repositories and the Table 2
+  annotation by two independent agents, and add the verification cache; pinned by the spec and its
+  test. **A**.
+- **P22 (audit Q1)** — a Table 1 with «Correctas (de 20)» `pendiente de DIS-82` is the DoD of DIS-81
+  («Tabla 1 rellena» of the sub-issue); the parent's AC 3 («sin *(pendiente)*») is met when DIS-82 fills
+  the column, which is its scope and is blocked by this ticket. **B** (DIS-82).
+- **P23 (audit Q2)** — PH-27's verification ratio is published as the token and latency shares; the cost
+  share is `n/a (0 USD con Ollama local)`, and `verifyCostUsd` lets it be recomputed with a priced
+  model. No priced estimate from a reference price table: it would invent a price for a model the run
+  did not pay for, and hosted or paid models are a non-goal (P14). **D** (accepted).
+- **P24 (audit Q3)** — the ticket's AC 5 «sin escribir salidas parciales» means the final outputs (CSV,
+  JSON, `answers/`); the raw responses of `docs/measurements/context/raw/` are kept so a run resumes
+  (D7). Recorded in the enhanced part of DIS-81. **A**.
+- **P25 (audit Q4)** — the parent's «CSV revisado por la autora» no longer applies: the no-author-work
+  rule and the DIS-53 comment of 2026-10-28 give that review to independent agents (DIS-82). **A**.
+- **P26 (audit, answer files)** — the statements' `verification` verdict is left out of `answers/` so
+  the DIS-82 reviewers are not anchored (D10). **A**.
+- **P27 (audit, scope notes)** — the `scripts/` line of the README tree and the extra CSV columns
+  `verifyCostUsd` and `verifyCacheHits` are recorded in the enhanced part of DIS-81. **A**.
