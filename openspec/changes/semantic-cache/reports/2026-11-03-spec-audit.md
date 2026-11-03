@@ -305,3 +305,231 @@ The table has two holes (B6, B3), both blocking.
 | I7 | Fixed: note appended to the `[enhanced]` part of DIS-67 (AC4 refined by S1; no `answer-cache` delta, S12; model change rule); `[original]` untouched | Linear DIS-67 |
 | I8 | Fixed: S6 states the Expand → Contract exception; 3.2 asks `/migration-review` to confirm it | design S6; task 3.2 |
 | I10 | Fixed: the rephrasing scenario asserts the answer has exactly the keys of an exact-key hit's answer | semantic-cache delta |
+
+---
+
+## Run 2 (2026-11-03)
+
+CHANGES REQUIRED
+
+**Change:** `openspec/changes/semantic-cache` · **Ticket:** DIS-67 (CM-HU-19.1), parent DIS-46 (CM-HU-19). Both were loaded from Linear with their comments. · **Audit:** second run, 2026-11-03, on the change after correction round 1.
+
+**Questions for the author:** none. Q1 of run 1 was decided by the agent: the ADR belongs to DIS-67, decision S13. That answer is acceptable because it agrees with the DIS-46 review comment, which addresses "the task that first uses embeddings for real".
+
+**Status of run 1.** All six blocking findings of run 1 (B1–B6) and the improvable findings I1–I8 and I10 are resolved in the artifacts, and the fixes were checked:
+- S13 and task 9.4 (ADR);
+- the §5 quote and task 9.5;
+- the MODIFIED "Query log" requirement, with 15/15 scenarios, matching `openspec/specs/explain/spec.md:1148-1340`;
+- the explicit data in the double's scenario;
+- the seed-aware manual plan, 11.1–11.7;
+- the no-anchor scenario.
+
+This run found two new blocking defects.
+
+---
+
+## 1. Scope against the ticket
+
+Clean. Every item follows from DIS-67 `[original]` ("SQL, umbral, orden de comprobación"; DoD: a rephrasing hits, a different topic does not, and without `embed()` the call degrades without error) and from its `[enhanced]` part. The 768 migration follows from the DIS-46 note "Decisión de embeddings para esta HU". The ADR follows from the DIS-46 review comment of 2026-10-16.
+
+The following stay with DIS-69, as they should:
+- the hit rate and `UsagePanel`;
+- seed and golden vectors.
+
+The `[enhanced]` note of correction round 1 now records why the change departs from AC4 (S1) and from D11 (S12). No invented scope was found.
+
+## 2. Inherited acceptance criteria
+
+Every parent AC that DIS-67 inherits has a requirement and a scenario:
+
+| Parent AC (DIS-46) | Requirement | Scenario(s) |
+|---|---|---|
+| Rephrasing hits: `cacheHit`, `hit_count` +1, `embed()` once, no `complete()` | semantic-cache "Similarity lookup in explain" | "A rephrased question is answered from the similar entry"; explain "A similarity hit over the database counts in its entry and its row" |
+| A different topic is answered live | same | "A question on another topic is answered live and saved with its embedding"; "The threshold is inclusive at the boundary" |
+| Two projects: only that project's entries count | same + graph-store "Answer cache entries" | "The most similar entry of the project wins"; "A saved embedding is found by similarity within its project"; "The similarity search is exact whatever the other projects hold" |
+| Evaluation mode: exact hit only, otherwise `UNKNOWN llm-required`, never fails | semantic-cache "Similarity lookup…", "Degradation without embeddings" | "Evaluation mode requests no embedding"; the four degradation scenarios |
+| Hit rate 0.4 in CLI and `UsagePanel` | not inherited (DIS-69, D10) | — |
+
+The DIS-46 review obligation (an ADR on `LlmPort.embed()` versus `EmbeddingPort`) is covered by S13 and task 9.4.
+
+The parent's AC1 says the similarity "supera el umbral" (strictly above), while D2/S11 make the threshold inclusive (`>=`). This is a decision marked as the agent's text, it is documented, and it is pinned by "The threshold is 0.85 and inclusive". Accepted; not a finding.
+
+## 3. Missing scenarios
+
+Every MUST clause has a scenario that observes it. Two scenarios are underspecified:
+
+- **Improvable (I1).** semantic-cache, "The threshold is inclusive at the boundary". The second explain must be "answered live", but the GIVEN only specifies the model's embeddings, not its completions. Correction: add to the GIVEN "a live scripted model that answers one statement citing the anchor span and accepts every verification".
+- **Improvable (I2).** semantic-cache, "The most similar entry of the project wins". The scenario does not give the keys of A, B and C. Its second part depends on "D … with the same key text as A". If A's key were the rephrased key, the expected live answer would be an exact hit instead. Correction: add "none of A, B, C or D is stored under the rephrased question's key" to the GIVEN.
+
+## 4. Ambiguity
+
+Clean. The only matches in the artifacts are:
+- "a small vector builder" (tasks 6.1), a description of test support;
+- "as many symbol searches as" (an existing scenario), an exact count.
+
+The wording that run 1 flagged in S3 and R1 is now measurable.
+
+## 5. Open decisions
+
+- **Blocking (B8), also point 10.** The manual plan of 11.4 and 11.5 expects results that the plan itself makes impossible. The cache state left by earlier steps decides the outcome:
+  - After 11.3, the rephrased key `explicame el calculo del precio final` has no entry, because 11.3 served it by similarity and a hit is not saved again.
+  - The first run of 11.4 asks "the same rephrased question with `LLM_EMBED_MODEL` empty". It is answered live and, being cacheable, it is **saved under the rephrased key** (semantic-cache, "Embedding of a saved answer"; explain, "Answer cache" → Save).
+  - The second run of 11.4 (`LLM_EMBED_MODEL=qwen2.5-coder`) then gets an **exact hit**. No embedding is requested, so the expected "stderr shows the `semantic_cache_skipped` `embedding-unavailable` event" cannot happen.
+  - The evaluation run of 11.4 expects "rephrased question `UNKNOWN (llm-required)`". It will get an exact hit on that same saved entry.
+  - 11.5 expects "with the embedding model broken as in 11.4, the `semantic_cache_skipped` line", but does not say which question or `useCache` value to use. With the rephrased question it is again an exact hit and no event.
+
+  The executing agent would have to redesign the steps on its own. Correction to 11.4 and 11.5:
+  1. Before running 11.4, choose and record three anchored questions whose normalized keys are absent from the 11.1 snapshot, from 11.3 and from each other (for example, other rephrasings of the price question).
+  2. Use the first for the `LLM_EMBED_MODEL` empty run (expected: live answer, no event).
+  3. Use the second for the `LLM_EMBED_MODEL=qwen2.5-coder` run (expected: live answer whose events start with `semantic_cache_skipped` `embedding-unavailable`).
+  4. Keep `Explícame el cálculo del precio final` for the evaluation run only. It has no entry at that point, so it gives `UNKNOWN (llm-required)`, and the exact price question is served from the cache.
+  5. In 11.5, send the broken-embedding request with `"useCache": false` (which always requests the embedding; semantic-cache, "Turning the cache off embeds only for the save", second case), or with the third recorded question.
+  6. In 11.7, delete the entries these runs create, which the "created after the 11.1 `max(created_at)`" rule already covers.
+
+## 6. Contradictions inside the change
+
+- **Blocking (B7).** The MODIFIED "Precedence and UNKNOWN answers" requirement and the unchanged scenarios it carries disagree on what "a call" to the model is.
+  - The requirement text now separates completions from embedding requests: "The model SHALL receive no completion up to step 7 … The model SHALL receive at most one embedding request per call, at step 3, in live mode only, and none for an invalid request, `no-anchor`, an exact cache hit or evaluation mode."
+  - So in live mode an `over-budget` answer, a failing prior-claims read and an unindexed project each **receive one embedding request**. With the default scripted model (task 6.1, design S9) that request is made and fails with `not-configured`.
+  - Yet the delta keeps these scenarios word for word:
+    - "A pack where nothing fits is unknown over budget": "the prior-claims read and the model received 0 calls";
+    - "A failing prior-claims read stops before the model": "the model received 0 calls";
+    - "An unknown project or an unindexed one fails without calling the model": "the model received 0 calls".
+  - The same clash affects the MODIFIED "Query log" requirement: "every counter and cost 0 when no call was made" for a live `over-budget`.
+  - The existing tests only pass because they count `d.model.requests`, which records completions only (`tests/unit/explain/explain.spec.ts:326,343,410`; `tests/support/scripted-llm.ts:74,120-143`).
+  - After `/opsx:archive`, the main spec would state both things. `/verify-against-spec` (14.4) would have to decide which one holds.
+
+  Correction (one sentence, no scenario rewrite): add to "Precedence and UNKNOWN answers", right after the sentence on embedding requests:
+  > "In the scenarios of `explain`, the calls or requests a model 'received' are its completions (`answer` and `verify`); embedding requests are counted only where a scenario names them as embedding requests."
+
+  Also extend the "Query log" phrase "every counter and cost 0 when no call was made" to "when no completion was made". In 7.3, note that these three scenarios keep their tests because they count completions.
+
+Everything else in the proposal, design and deltas is consistent:
+- the order anchor → exact → similarity → evaluation → live;
+- S1/S2 and "Degradation without embeddings";
+- S4 and the "Answer cache" Lookup/Save text;
+- S8 and "Query log";
+- S10 and the boundary scenarios;
+- S11 and 11.2.
+
+## 7. Contradictions with the project
+
+Clean.
+- `docs/backend-standards.md` §5: the quote is now correct (S7). The edit is task 9.5, and the Expand → Contract exception is stated in S6 and confirmed in 3.2.
+- The budget rule ("before every completion and every embedding") matches S8 and "A spent daily budget skips the lookup and the answer call still fails".
+- `openspec/specs/explain/spec.md` "Query log" is now MODIFIED consistently. Only the "call" wording conflicts, and that is B7, inside the delta.
+- `answer-cache` is unchanged, which is consistent with S12.
+- The ADR (task 9.4) meets the `docs/adr/README.md` criterion.
+- The `http-ask` `dimension-mismatch` mapping is still valid.
+
+## 8. Contrast with the real code
+
+Clean.
+- The insertion point lies between `findCacheEntry` (`packages/core/src/explain/explain.ts:322`) and `if (llm.mode === 'evaluation')` (`:331`).
+- `saveCache` is at `:249-256`, and the row on error is guarded by `meter.resolvedCalls() > 0` (`:193`).
+- `packages/core/src/cache/response-cache.ts:3-7` already imports leaf modules of `explain/` (never `explain.ts`). S4's type-only import from `explain-event.ts` follows that existing pattern and creates no cycle with `explain.ts`.
+- The seeded keys cited in 11.1 exist at `seeds/cache/acme-shop.json:17,152,295`.
+- The tests named in 6.8 and 6.9 exist: `tests/unit/explain/explain-sanitization.spec.ts:363`, `tests/integration/explain/explain.spec.ts:354`.
+
+## 9. Task size
+
+Clean. The largest tasks are:
+- 9.1, several `readme.md` edits in one file;
+- 5.3, two new Postgres scenarios and two extended tests, one at a time;
+- 6.6, four scenarios, one at a time;
+- 4.5, a bounded set of doubles.
+
+Each fits in one agent turn.
+
+## 10. Mandatory steps
+
+- Step 0 is the branch: 0.1 (`feature/dis-67-semantic-cache`), verified in 0.2. ✓
+- Groups 7, 9 and 10 are labelled `(MANDATORY)`, 11 is `(MANDATORY - AGENT MUST EXECUTE)`, 12 is `(MANDATORY if applicable - AGENT MUST EXECUTE)` and 14 is Pre-merge. ✓
+- Report paths are given in 10.7 and 11.8. ✓
+- Group 9 is placed before group 10 on purpose, with the reason stated (I2 of run 1). ✓
+- State restoration: 10.6 and 11.7 cover the counts, the seeded rows that were replaced, `hit_count`/`last_hit_at`, and the stopped servers. ✓
+- **Blocking: B8.** Steps 11.4 and 11.5 of the mandatory manual step cannot produce their stated outcomes (point 5).
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| semantic-cache · Similarity threshold and embedded text | The threshold is 0.85 and inclusive | 1.1, 1.2 |
+| | Only one finite non-zero vector of the schema's dimension is usable | 1.3 |
+| semantic-cache · Similarity lookup in explain | A rephrased question is answered from the similar entry | 6.2, 6.3 |
+| | A question on another topic is answered live and saved with its embedding | 6.4 |
+| | The threshold is inclusive at the boundary | 6.4 |
+| | An exact hit requests no embedding | 6.4 |
+| | The most similar entry of the project wins | 6.5 |
+| | Equal similarities go to the most recent entry | 6.5 |
+| | A rejected similar entry is a miss without trying the next | 6.5 |
+| | Evaluation mode requests no embedding | 6.4 |
+| | Turning the cache off embeds only for the save (both cases) | 6.4 |
+| | A question without anchor requests no embedding | 6.4 |
+| | A failing similarity lookup or hit record stops before the model | 6.5 |
+| semantic-cache · Degradation without embeddings | Without an embedding model the call is answered as today | 6.6 |
+| | An unavailable endpoint or an unusable vector degrades with an event | 6.6 |
+| | A spent daily budget skips the lookup and the answer call still fails | 6.6 |
+| | Another embedding error propagates before the model | 6.6 |
+| | The skip event carries nothing of the question or the error | 6.7 |
+| | The embedding request is not counted in the usage or the row | 6.7 |
+| | (`skipCode` classification, no scenario of its own) | 1.4 |
+| semantic-cache · Embedding of a saved answer | A live answer is saved with its embedding and found by a rephrasing | 6.7 |
+| | (model-change rule, operator duty) | 9.3, 9.4, 9.5 |
+| explain · Precedence and UNKNOWN answers | A live miss requests one embedding before the pack (new) | 6.8 |
+| | 15 unchanged scenarios | existing tests (7.3) |
+| explain · Answer cache | A similarity hit over the database counts in its entry and its row (new) | 6.9 |
+| | 15 unchanged scenarios | existing tests (7.3) |
+| explain · Explain events and logging | The skip event comes before the sanitisation events (new) | 6.8 |
+| | 7 unchanged scenarios | existing tests (7.3) |
+| explain · Query log | 15 unchanged scenarios; new no-row cases pinned by semantic-cache scenarios | 7.3 (6.5, 6.6) |
+| graph-store · Answer cache entries | A saved embedding is found by similarity within its project | 5.1, 5.2 |
+| | The most similar entry wins and ties go to the most recent | 5.3 |
+| | The similarity search is exact whatever the other projects hold | 5.3 |
+| | The in-memory double searches by similarity like the database | 4.1, 4.3 |
+| | Invalid cache arguments are rejected before querying (modified) | 5.3 |
+| | Cache calls on an unknown project fail without writing (modified) | 5.3 |
+| | 10 unchanged scenarios | 5.4 |
+| graph-schema · Roll back the latest migration | Roll back only the latest migration (modified) | 3.1, 3.2 |
+| | Roll back the query log verification migration (new) | 3.1 |
+| | Roll back the L1 graph / both / every migration (unchanged) | 3.4 |
+| graph-schema · L1 column contract | Migrated schema matches the column contract | 3.1 |
+| | Defaults apply on a minimal insert | 3.4 |
+| | An embedding of another dimension is rejected by the column | 3.3 |
+| graph-schema · History, claim, usage and cache column contract | Migrated schema matches the history, claim, usage and cache column contract | 3.1 |
+| | Defaults apply on a minimal claim, query log and cache entry | 3.4 |
+| llm-adapter · The client waits as long as the configured timeout | Without an injected fetch the request does not use the global fetch | 2.3 |
+| | Timeouts, refusals and redirects keep their mapping; A response after 300 s is accepted | unchanged (7.3) |
+| llm-adapter · Completion request and response | A null usage reports zero tokens; A usage field of the wrong type is an invalid response | 2.3 |
+| | other scenarios | unchanged (7.3) |
+| llm-adapter · Embedding request, order and dimension | Embeddings are returned in input order; Missing or duplicated indexes; A vector of another dimension is rejected | 2.3 |
+| | Embeddings without usage report zero tokens; Embeddings for no texts send nothing | 2.3, 2.4 |
+| | The schema dimension is 768 | 2.1, 2.2 |
+
+There are no holes in the table.
+
+---
+
+## Corrections to apply
+
+### `openspec/changes/semantic-cache/specs/explain/spec.md`
+1. **B7.** In "Precedence and UNKNOWN answers", after the sentence "The model SHALL receive at most one embedding request per call, … or evaluation mode.", add:
+   > "In the scenarios of `explain`, the calls or requests a model 'received' are its completions (`answer` and `verify`); embedding requests are counted only where a scenario names them as embedding requests."
+2. **B7.** In "Query log", third bullet, replace "every counter and cost 0 when no call was made" with "every counter and cost 0 when no completion was made".
+
+### `openspec/changes/semantic-cache/specs/semantic-cache/spec.md`
+1. **I1.** "The threshold is inclusive at the boundary", GIVEN: replace "and a live model whose embedding of the rephrased key is …" with "and a live scripted model that answers one statement citing the anchor span and accepts every verification, whose embedding of the rephrased key is …".
+2. **I2.** "The most similar entry of the project wins", GIVEN: add "; none of A, B, C or D is stored under the rephrased question's key".
+
+### `openspec/changes/semantic-cache/tasks.md`
+1. **B8.** Rewrite 11.4:
+   > "Degradation: before running it, choose and record two anchored questions whose normalized keys are absent from the 11.1 snapshot, from 11.3 and from each other (D₁, D₂). Ask D₁ with `LLM_EMBED_MODEL` empty (live, no event, answered live). Ask D₂ with `LLM_EMBED_MODEL=qwen2.5-coder` (the embedding request fails with `http-status`, `invalid-response` or `dimension-mismatch`; stderr shows the `semantic_cache_skipped` `embedding-unavailable` event and the answer still arrives). Then, in evaluation mode (no `LLM_*`), ask the exact price question (served from the cache) and `Explícame el cálculo del precio final`, which has no entry because 11.3 served it by similarity (`UNKNOWN (llm-required)`, no call to Ollama)."
+2. **B8.** In 11.5, change "with the embedding model broken as in 11.4, the `semantic_cache_skipped` line at `info`" to:
+   > "and, with the embedding model broken as in 11.4, a request with `"useCache": false` (which always requests the embedding) whose request log shows the `semantic_cache_skipped` line at `info`".
+3. **B7.** In 7.3, add: "'A pack where nothing fits is unknown over budget', 'A failing prior-claims read stops before the model' and 'An unknown project or an unindexed one fails without calling the model' keep their tests unchanged: they count completions (`model.requests`), as the clarified 'Precedence' text says."
+
+### Linear (Spanish; the `[original]` block is not touched)
+- **DIS-67, new comment:**
+  > *Texto del agente (auditoría de spec, segunda ejecución, 2026-11-03).* Veredicto CHANGES REQUIRED con 2 bloqueantes nuevos; los 6 de la primera ejecución están resueltos. Se corrigen en el propio cambio `semantic-cache`:
+  > - B7: en «Precedence and UNKNOWN answers» y «Query log», aclarar que las «llamadas» que recibe el modelo en los escenarios son completions; las peticiones de embedding solo cuentan donde un escenario las nombra (hoy tres escenarios sin cambios dicen «0 calls» aunque en vivo se pide un embedding).
+  > - B8: la prueba manual 11.4/11.5 no puede dar lo que espera: la primera respuesta en vivo de la pregunta reformulada la guarda bajo su clave y las siguientes son aciertos exactos (sin evento y sin `llm-required`). Se usan preguntas nuevas registradas para cada caso degradado y `useCache: false` en la API.
