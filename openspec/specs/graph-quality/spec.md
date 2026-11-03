@@ -274,7 +274,7 @@ is below the PHP one, the text below the table SHALL contain a paragraph startin
 `**Por qué TypeScript no supera a PHP.**` that explains it, and the figures SHALL NOT be adjusted
 (parent DIS-53). The first paragraph after `#### Mediciones que se publicarán` SHALL NOT start with
 `*(pendiente`, SHALL contain `npm run measure:graph` and SHALL NOT contain `Las dos tablas se rellenan`;
-the pending state of Table 1 SHALL be stated in that paragraph only through a sentence naming `DIS-81`.
+it SHALL name `DIS-81`, the ticket that fills Table 1 (`context-measurement` → "Published Table 1").
 
 #### Scenario: The README table agrees with the measurement
 
