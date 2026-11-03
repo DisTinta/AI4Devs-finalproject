@@ -277,3 +277,17 @@ run 3, taken by the agent during the apply step.*
 | AP4 | The freeze tests of task 1.3 were written together with the freeze step, so they have no separate RED run; the step 7 report records it. | D — accepted |
 | AP5 | The byte-for-byte PowerShell check of D10 uses the SHA-256 of the JSON while the file is untracked; `git diff --exit-code` is applicable after the commit. | D — accepted |
 | AP6 | The seven acme-shop misses (`php-14`, `php-18`, `php-35`, `php-38`, `php-39`, `php-41`, `php-47`) are listed in the report; fixing the analyzer is a future improvement. | D — accepted |
+
+*Agent's text, review step (2026-11-03): the findings of `reports/2026-11-03-show-spec-working.md`,
+`reports/2026-11-03-verify-against-spec.md` and `reports/2026-11-03-adversarial-review.md` (verdict PASS),
+decided by the agent as lead engineer.*
+
+| Id | Decision | Destination |
+|---|---|---|
+| RV-F1 | A seed table named like an `Object.prototype` member (`constructor`, `__proto__`) crashed `readSeed` instead of being ignored: the table test is now `Object.hasOwn(SEED_COLUMNS, table)` (`scripts/measure-graph.mjs`), with the new test "A table named like an Object member is skipped as any other table" in `tests/unit/scripts/measure-graph.spec.ts` (a file new in this change) written first and seen failing. The figures do not change. | A — fixed |
+| RV-F2 | The report's *Independencia* bullet repeated the fixed sentence; the repetition is removed. | A — fixed |
+| RV-F3 | "The frozen sources still match their hashes" asserts only `checkFreeze`; the unmodified freeze test and the empty diff of the frozen paths are proved by the suite and by the `git diff` of task 5.6 and of the show-spec-working report. | D — accepted |
+| RV-F4 | The freeze check trusts the report's list; the list itself is guarded by `tests/unit/docs/annotation-freeze.spec.ts` (exactly the nine frozen files). | D — accepted |
+| RV-F5 | The spec edit of the apply commit (JSON projects start with `fixture`, `language`) is R3-I4 of spec-audit run 3, additive and tested. | D — accepted |
+| RV-F6 | The README sentence «se espera que TypeScript salga claramente mejor…» stays: the table above it confirms it, and restating the figures in prose would go stale without a test. | D — accepted |
+| RV-F7 | `--root` followed by a value starting with `--` is a usage error: "any other argument" of the spec. | D — accepted |

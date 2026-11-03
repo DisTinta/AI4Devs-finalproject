@@ -228,6 +228,23 @@ describe('The graph is read from the seed', () => {
     expect(seed.projects[0]?.name).toBe("a\\b éA it's");
   });
 
+  it('A table named like an Object member is skipped as any other table', () => {
+    // Arrange: tables that are not project, file, symbol or edge, named after Object.prototype members
+    const sql = [
+      projectLine('p1', "'one'"),
+      "INSERT INTO constructor (id) VALUES ('x');",
+      "INSERT INTO toString (id) VALUES ('y');",
+      "INSERT INTO __proto__ (id) VALUES ('z');",
+    ].join('\n');
+
+    // Act
+    const seed = readSeed(sql);
+
+    // Assert
+    expect(seed.projects.map((project) => project.name)).toEqual(['one']);
+    expect(seed.edges).toEqual([]);
+  });
+
   it('An edge row naming no project is a malformed line', () => {
     // Arrange
     const sql = [

@@ -18,8 +18,7 @@ secciones de este informe que se pueden leer con una máquina coinciden con él.
 - **Congelación.** Antes de leer nada más, el script compara el SHA-256 de los nueve ficheros de la sección
   `## Hashes SHA-256` de [`annotation-agreement.md`](annotation-agreement.md) con los registrados allí. Si uno
   difiere sale con código 1 y no escribe nada. Esta medición no modifica ninguna fuente congelada.
-- **Independencia.** La medición la ejecutó un agente que no anotó ningún sitio. La frase fija que lo declara es la
-  siguiente: La medición la ejecutó un agente que no anotó ningún sitio.
+- **Independencia.** La medición la ejecutó un agente que no anotó ningún sitio.
 - **Reproducción.** `npm run measure:graph` da los mismos bytes en Bash, `pwsh` y `powershell.exe`.
 
 ### Definiciones

@@ -210,7 +210,7 @@ export function readSeed(sql) {
     const header = /^-- analyzer-fingerprint: (.+)$/.exec(line);
     if (header !== null) seed.analyzerFingerprint = header[1] ?? null;
     const table = /^INSERT INTO ([a-z_]+)/.exec(line)?.[1];
-    if (table === undefined || !(table in SEED_COLUMNS)) return;
+    if (table === undefined || !Object.hasOwn(SEED_COLUMNS, table)) return;
     const row = readRow(line);
     const reason = typeof row === 'string' ? row : (SEED_COLUMNS[table] ?? []).find((column) => !row.has(column));
     if (typeof row === 'string') throw new Error(`${SEED}:${index + 1}: ${reason}`);
