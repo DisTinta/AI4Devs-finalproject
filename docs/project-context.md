@@ -1681,6 +1681,21 @@ services that must be started first, quirks of the local environment.
   `docs/measurements/graph-quality.json` (exit 0; exit 2 for a usage error). Gotcha: regenerating the
   seed (`npm run seed:build`) makes `tests/unit/docs/graph-quality.spec.ts` fail until you re-run
   `npm run measure:graph` and refresh Table 2 of `readme.md` §2.6 and `docs/measurements/graph-quality.md`.
+- **`npm run measure:context` measures Table 1** (DIS-81): `node scripts/measure-context.mjs [--root <dir>]`
+  checks the SHA-256 of `docs/measurements/context/questions.json` against
+  `docs/measurements/context-savings.md` first (exit 1, nothing written, on any mismatch), then the
+  question set and the sample files against `seeds/graph-dump.sql`, then the live environment: the API
+  at `PORT`, Ollama at `LLM_BASE_URL` and `LLM_MODEL` in it (`LLM_BASE_URL`, `LLM_MODEL` and
+  `LLM_MODEL_VERIFY` go on the command line, `.env` is not edited). It asks the 40 frozen questions with
+  `useCache: false`, counts the 89 non-redacted seed files with Ollama's `/api/generate` (`raw: true`),
+  keeps every response and count under `docs/measurements/context/raw/` the moment it arrives (a new
+  run resumes; a raw file of another model, a stale question or a changed fixture exits 1) and, when
+  nothing is missing, writes `context-savings.csv`, `context-savings.json` and the blind `answers/` files
+  (exit 0; exit 2 for a usage error). One answer takes minutes on a CPU: run it detached with
+  `LLM_TIMEOUT_MS=1200000` and serve Ollama with `OLLAMA_CONTEXT_LENGTH=16384` (Gotcha DIS-72). Gotcha:
+  changing the seed, a fixture file or the raw data makes `tests/unit/docs/context-savings.spec.ts` fail
+  until you re-run `npm run measure:context` (it re-aggregates the committed raw data without a model) and
+  refresh Table 1 of `readme.md` §2.6 and `docs/measurements/context-savings.md`.
 - **Calls inside method bodies are `exact` only when the receiver type is declared** (DIS-52). The
   PHP analyzer emits `calls` (`exact`, `php-treesitter-laravel`) from a method `Type::m` for
   `$this->p->m()` (property `p` of the same type, promoted or declared, with a single named type — not

@@ -404,3 +404,11 @@ taken by the agent as lead engineer on the findings of audit run 4 (it asked no 
   baseline 3000 / input 3001; two counts for the same `file` are a raw-data failure (5.4b); the
   scenarios "UNKNOWN rows are counted apart" and "The outputs are deterministic" now pin
   `expectedUnknown` and `run.firstReceivedAt` / `run.lastReceivedAt` (tasks 6.1, 6.3). **A**.
+
+*(Agent's text, apply of DIS-81, autonomous run, 2026-11-03.)* Decisions taken by the agent as lead engineer while applying the change (it asked no question of the author):
+
+- **P38 (apply)** — Ollama for the live run: the auto mode classifier denied stopping the machine's tray app and `ollama.exe` (task 7.3, D12), so the agent started its own `ollama serve` on `127.0.0.1:11435` with `OLLAMA_CONTEXT_LENGTH=16384` and pointed the API and the script at it, leaving the user's Ollama untouched. The context length, the model and the clean log are the ones D12 requires; only the port differs. The report's `## Entorno` says so. **A**.
+- **P39 (apply)** — the figures are negative («Ahorro» -34,4 % and -62,5 %), so the explanation paragraph and the §0.3 rewrite of P28/P30 apply, and no figure is adjusted. **A**.
+- **P40 (apply)** — the script was written before its test file in one pass; the RED run was obtained afterwards by moving the module away (module missing), and is declared in the step 9 report. The tests were not weakened. **A**.
+- **P41 (apply)** — `readSample` names a sample project with no `project` row before `readSeed` reports the rows left dangling by it, so the scenario "The seed has no row of a sample project" gets the fixture name in stderr (found by the test, not by the spec). **A**.
+- **P42 (apply)** — the verifier conclusion on `MAX_VERIFY_CALLS_PER_ANSWER`: the largest number of calls of one answer was 9 and 15 against 20, so the constant is kept; the median latency (162,5 s and 93,6 s) does not meet the README criterion of 10 s on this hardware, declared in the report. No follow-up ticket: the criterion belongs to a hosted-model setup (P14). **D** (accepted).

@@ -26,7 +26,7 @@ Proyecto Final del Máster AI4Devs · Cristina Rodríguez Núñez
 > | Alinear el contrato OpenAPI con la decisión de indexar solo por CLI | Aplicado tras la revisión | [4](#4-especificación-de-la-api): `/index` sale del contrato |
 > | Decidir qué pasa con los embeddings | Aplicado tras la revisión: se documenta el estado | Nota de [2.2](#22-descripción-de-componentes-principales); la decisión del puerto la tomará DIS-46 |
 > | Mostrar la IA en las fases de Pruebas, Despliegue y Mantenimiento | Aplicado tras la revisión | [8.3](#83-ia-en-las-seis-fases-del-ciclo) |
-> | Medir el verificador | Previsto | DIS-81 (Tabla 1 de [2.6](#26-tests)); la Tabla 2 la midió DIS-79 |
+> | Medir el verificador | Aplicado (DIS-81) | Tabla 1 de [2.6](#26-tests) e [informe de la medición](docs/measurements/context-savings.md); la Tabla 2 la midió DIS-79 |
 > | Aristas con un extremo polimórfico sin clave foránea | Ya resuelto antes de la revisión | Dos FK por extremo y `CHECK` (ADR `20260928-edge-endpoints-as-fk-pairs`) |
 > | Confinamiento de rutas con `startsWith` | Ya resuelto antes de la revisión | `path.relative` en `path-policy.ts` ([2.5](#25-seguridad)) |
 > | Acceso a Git detrás de un puerto | Ya resuelto antes de la revisión | `GitPort` (DIS-35) |
@@ -66,7 +66,7 @@ CODEMIND
 
 CODEMIND indexa un repositorio de código —PHP/Laravel o TypeScript— y construye un grafo de conocimiento a partir de cuatro fuentes que normalmente nadie mantiene relacionadas: el código, el historial de Git, los tests y la documentación. Sobre ese grafo responde dos preguntas: **cómo funciona una parte del proyecto** y **qué se rompería al cambiarla**.
 
-Se diferencia de un asistente de código convencional en tres comportamientos verificables: **verifica que cada cita sustenta realmente lo que afirma** en lugar de limitarse a adjuntarla; **distingue explícitamente lo observado de lo inferido**; y **responde que no lo sabe** cuando no hay evidencia suficiente, en lugar de generar una explicación plausible. Además envía al modelo solo los fragmentos necesarios en lugar del repositorio completo, lo que reduce coste y latencia de forma medida.
+Se diferencia de un asistente de código convencional en tres comportamientos verificables: **verifica que cada cita sustenta realmente lo que afirma** en lugar de limitarse a adjuntarla; **distingue explícitamente lo observado de lo inferido**; y **responde que no lo sabe** cuando no hay evidencia suficiente, en lugar de generar una explicación plausible. Además envía al modelo solo los fragmentos necesarios en lugar del repositorio completo; lo que eso supone en tokens frente al contexto bruto se mide en la [Tabla 1](#26-tests), y en los dos repositorios de muestra, muy pequeños, CODEMIND envía más tokens que el contexto bruto.
 
 ### **0.4. URL del proyecto:**
 
@@ -679,7 +679,7 @@ AI4Devs-finalproject/
 │   └── e2e/                        #   specs de Playwright (npm run test:e2e)
 │
 ├── .github/workflows/              # ci.yml · frontend.yml · claude-auto-review.yml · claude-interactive.yml
-├── scripts/                        # npm run up · demo:ask · demo:excerpt · measure:graph y la carga de .env (solo módulos de Node)
+├── scripts/                        # npm run up · demo:ask · demo:excerpt · measure:graph · measure:context y la carga de .env (solo módulos de Node)
 ├── docker-compose.yml              # solo PostgreSQL 16 + pgvector (no hay Dockerfile)
 ├── Makefile                        # atajos de npm run up / npm run down para Git Bash o WSL
 ├── stryker.config.json             # pruebas de mutación, umbral 80
@@ -873,14 +873,20 @@ Los tests forman parte de la **definición de hecho de cada ticket**, no de una 
 
 #### Mediciones que se publicarán
 
-La Tabla 2 está medida: la rellena `npm run measure:graph` (DIS-79) a partir de la semilla `seeds/graph-dump.sql` y de las anotaciones congeladas, y `tests/unit/docs/graph-quality.spec.ts` falla si sus cifras dejan de coincidir con la medición. La Tabla 1 sigue pendiente de `measure-context` (DIS-81).
+Las dos tablas están medidas. La Tabla 2 la rellena `npm run measure:graph` (DIS-79) a partir de la semilla `seeds/graph-dump.sql` y de las anotaciones congeladas, y `tests/unit/docs/graph-quality.spec.ts` falla si sus cifras dejan de coincidir con la medición. La Tabla 1 la rellena `npm run measure:context` (DIS-81) con 20 preguntas congeladas por repositorio, hechas a la API con un modelo local, y `tests/unit/docs/context-savings.spec.ts` falla si sus cifras dejan de ser la agregación de los datos en bruto versionados.
 
-**Tabla 1 — Ahorro de contexto** (~20 preguntas por repositorio, revisión manual)
+**Tabla 1 — Ahorro de contexto** (20 preguntas por repositorio)
 
 | Repositorio | Contexto bruto | CODEMIND | Ahorro | Correctas (de 20) |
 |---|---|---|---|---|
-| `acme-shop` (PHP/Laravel) | *(pendiente)* | *(pendiente)* | *(pendiente)* | *(pendiente)* |
-| `task-api` (TypeScript) | *(pendiente)* | *(pendiente)* | *(pendiente)* | *(pendiente)* |
+| `acme-shop` (PHP/Laravel) | 86 355 | 116 025 | -34,4 % | pendiente de DIS-82 |
+| `task-api` (TypeScript) | 52 420 | 85 200 | -62,5 % | pendiente de DIS-82 |
+
+- `acme-shop`: 17 respondidas y 3 UNKNOWN (invalid-model-output 1, no-anchor 2); verificación 28,1 % de los tokens y 18,2 % del tiempo; coste de verificación n/a (0 USD con Ollama local); latencia mediana 162,5 s (verificación 24,7 s)
+- `task-api`: 16 respondidas y 4 UNKNOWN (invalid-model-output 2, no-anchor 2); verificación 36,3 % de los tokens y 24,1 % del tiempo; coste de verificación n/a (0 USD con Ollama local); latencia mediana 93,6 s (verificación 11,5 s)
+- Desviación de `baselineTokens` (chars/4) frente al tokenizador de `qwen2.5-coder:latest` en 89 ficheros: +2,4 % en total (mínimo -31,2 %, máximo +43,3 % por fichero)
+
+**Por qué CODEMIND envía más tokens que el contexto bruto.** *(Texto del agente, DIS-81.)* En estos dos repositorios de muestra, creados a propósito y pequeños (sus ficheros tienen entre decenas y unos pocos cientos de tokens), el contexto bruto de una respuesta son los pocos ficheros que cita, y CODEMIND envía además el prompt de sistema, los fragmentos con sus metadatos y una o varias llamadas de verificación (el 28,1 % y el 36,3 % de los tokens enviados). Con ficheros así de cortos eso pesa más que lo que se ahorra al no mandar el resto del repositorio. El ahorro es una medición, no una promesa: no se ha ajustado ninguna cifra, y con repositorios grandes (donde el contexto bruto crece con el tamaño y el paquete no) el signo puede cambiar, algo que esta medición no comprueba. El método, el entorno y las limitaciones están en [`docs/measurements/context-savings.md`](docs/measurements/context-savings.md); los datos en bruto, el CSV y el JSON, en `docs/measurements/context/`.
 
 **Tabla 2 — Calidad del grafo por analizador** (50 sitios de llamada por lenguaje anotados por dos agentes independientes; [método, concordancia y hashes](docs/measurements/annotation-agreement.md))
 
@@ -898,7 +904,7 @@ Método, definiciones, desglose por construcción, sitios fallados y limitacione
 
 La Tabla 2 es la medición más interesante del proyecto: se espera que TypeScript salga claramente mejor porque el compilador resuelve referencias, mientras PHP depende de heurísticas sobre las convenciones de Laravel. **Medir el límite del propio sistema y explicar por qué existe es mejor material que ocultarlo**, y da contenido concreto al primer sacrificio de [2.1](#21-diagrama-de-arquitectura).
 
-**Limitaciones a declarar junto a las tablas:** una sola ejecución, sin repeticiones; preguntas de la Tabla 1 realizadas por la autora; anotación de los sitios de llamada de la Tabla 2 realizada por dos agentes anotadores independientes de modelos distintos; repositorios de muestra pequeños y creados a propósito. No son resultados de investigación, son mediciones de producto.
+**Limitaciones a declarar junto a las tablas:** una sola ejecución, sin repeticiones; preguntas de la Tabla 1 escritas por un agente y congeladas antes de la ejecución (el hash está en el informe), con un modelo local de 7,6B parámetros; `baselineTokens` es una estimación local (chars/4, PH-16) cuya desviación medida se da bajo la tabla; la relación de verificación se mide por tokens y latencia (PH-27) y una verificación respondida desde la caché en memoria de la API no cuesta ningún token; anotación de los sitios de llamada de la Tabla 2 realizada por dos agentes anotadores independientes de modelos distintos; repositorios de muestra pequeños y creados a propósito. No son resultados de investigación, son mediciones de producto.
 
 ---
 
@@ -1135,7 +1141,7 @@ Cita concreta con span exacto y `excerpt` congelado, para poder detectar despué
 
 #### QUERY_LOG
 
-Sostiene la funcionalidad F5 y la Tabla 1 de [2.6](#26-tests). `baseline_tokens` es lo que hace posible mostrar el ahorro en la propia interfaz: se calcula qué habría costado enviar los ficheros completos en lugar de los spans seleccionados, y el dato viaja con la respuesta en lugar de recalcularse en el cliente. Es una estimación local, no el conteo del proveedor: `ceil(caracteres / 4)` sobre el contenido ya redactado, y cada paquete de contexto la declara como `estimator: 'chars-div-4'` (DIS-28, PH-16). La desviación frente al conteo real se mide en la Tabla 1 (CM-HU-22.2).
+Sostiene la funcionalidad F5 y la Tabla 1 de [2.6](#26-tests). `baseline_tokens` es lo que hace posible mostrar el ahorro en la propia interfaz: se calcula qué habría costado enviar los ficheros completos en lugar de los spans seleccionados, y el dato viaja con la respuesta en lugar de recalcularse en el cliente. Es una estimación local, no el conteo del proveedor: `ceil(caracteres / 4)` sobre el contenido ya redactado, y cada paquete de contexto la declara como `estimator: 'chars-div-4'` (DIS-28, PH-16). La desviación frente al conteo real se midió en la Tabla 1 (DIS-81) sobre 89 ficheros de los dos repositorios de muestra con el tokenizador de `qwen2.5-coder:latest` (Ollama 0.40.13): +2,4 % en total, de -31,2 % a +43,3 % por fichero.
 
 Desde DIS-74 `explain` escribe **una fila por llamada**: en toda respuesta, también en las `UNKNOWN` (con los contadores a 0 si no hubo llamada al modelo y `baseline_tokens` vacío si no se construyó paquete), y en todo rechazo posterior a una llamada al modelo resuelta, con el gasto hasta el error. No hay fila cuando falla antes de cualquier llamada (petición inválida, proyecto inexistente, presupuesto agotado en la llamada `answer`). Los totales (`input_tokens`, `output_tokens`, `cost_usd`) incluyen la verificación, y las columnas `verify_*` la desglosan: tokens y coste del verificador (PH-27), `verify_calls` (llamadas resueltas; un par servido desde la caché no cuenta) y `verify_latency_ms` (el tiempo de pared del chequeo semántico, que la revisión de la Entrega 1 pidió medir por consulta). Así el techo diario ve todo el gasto. La pregunta se guarda **tal cual** (decisión D3: la base de datos es local y la Tabla 1 tiene que casar cada fila con su pregunta), nunca se escribe en un log ni en un evento. Si la fila no se puede escribir, la respuesta se devuelve igualmente con un evento `query_not_logged`. Cada `db:seed` / `make up` borra en cascada las filas de los proyectos de ejemplo y, con ellas, el gasto registrado de ese día para ellos.
 
