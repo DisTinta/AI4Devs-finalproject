@@ -74,7 +74,7 @@
 
 ## 11. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 11.1 Open the pull request against `final-project-CRN` (title and body in Spanish via `/pr-describe`, the Why marked as the agent's text, the Table 2 figures quoted); commit by explicit paths only (nothing under `.claude/` or `.cursor/`), English messages ending with the co-author line; one `git` command per call; set DIS-79 to In Review with a Spanish comment linking the PR
+- [x] 11.1 Open the pull request against `final-project-CRN` (title and body in Spanish via `/pr-describe`, the Why marked as the agent's text, the Table 2 figures quoted); commit by explicit paths only (nothing under `.claude/` or `.cursor/`), English messages ending with the co-author line; one `git` command per call; set DIS-79 to In Review with a Spanish comment linking the PR
 - [ ] 11.2 Wait for CI in the foreground with repeated bounded calls: `gh pr checks <n> --watch --interval 60` in Bash with the 10-minute tool timeout, re-run until no check is pending, queued or in progress (the `mutation` job takes 30-60 min); never `Monitor` or a background run. Confirm every check green and record the run link
 - [ ] 11.3 Run `/show-spec-working`: may reuse the step 8 evidence and the CI run. Report `openspec/changes/graph-quality-measurement/reports/YYYY-MM-DD-show-spec-working.md`
 - [ ] 11.4 Run `/verify-against-spec` (inline mode); report `openspec/changes/graph-quality-measurement/reports/YYYY-MM-DD-verify-against-spec.md`
