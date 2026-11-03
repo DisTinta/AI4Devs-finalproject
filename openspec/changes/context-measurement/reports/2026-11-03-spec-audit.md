@@ -1363,3 +1363,257 @@ All fixed (P37, **A**).
 
 - DIS-81: a Spanish comment summarises the decisions of this round, marked as the agent's text.
 - DIS-53: no edit, as the audit asked.
+
+---
+
+## Run 5 (2026-11-03)
+
+APPROVED
+
+**Questions for the author:** none. Every disagreement between the sub-issue and the parent that earlier runs raised has an answer marked as the agent's text (P22–P25, P30). Those answers do not contradict DIS-81, DIS-53 or the project, so this run accepts them. One wording mismatch on Linear is left as an improvable note (point 2).
+
+**What this run judged.** The change as it stands after correction round 4:
+- `proposal.md`;
+- `design.md` (D1–D14, P1–P37);
+- `specs/context-measurement/spec.md` (11 requirements, 42 scenarios);
+- `specs/graph-quality/spec.md` (MODIFIED "Published Table 2");
+- `tasks.md`.
+
+**Tickets.** Both loaded from Linear:
+- DIS-81: the `[original]`, `[reality-map]` and `[enhanced]` parts, and its 8 comments.
+- Parent DIS-53: its description and its comment of 2026-10-28.
+
+**Project.** `docs/base-standards.md`, `docs/openspec-tasks-mandatory-steps.md`, `docs/project-context.md` (Gotcha DIS-72 at lines 1124–1133, the `measure:graph` bullet at 1677), and `openspec/specs/graph-quality/spec.md:261-294`.
+
+**Code checked:**
+- `packages/api/src/schemas/ask.ts:36-129`
+- `scripts/demo-ask.mjs:33-168`
+- `scripts/annotation-agreement.mjs:274-278, 439-474`
+- `scripts/measure-graph.mjs:173-259, 369-370, 564`
+- `packages/core/src/explain/limits.ts:37`
+- `packages/adapters/llm/src/config.ts:80-102`
+- `tests/unit/scripts/wiring.spec.ts:150-168`
+- `readme.md:29, 69, 874-901, 1528`
+
+### 1. Scope against the ticket
+
+Clean. Each part of the change traces to one of these sources:
+- DIS-81 `[enhanced]` D1–D8 and the audit decisions recorded there or in its comments: CSV columns `verifyCacheHits` / `verifyCostUsd`, the README tree line, the `roundRatio` export, raw data kept for resume.
+- The Entrega 1 review note "Medir el verificador", moved onto DIS-81 (D13).
+- The conditional §0.3 rewrite (P30), which is bounded and recorded in a DIS-81 comment.
+
+Nothing widens the change to Table 2, to DIS-82 or to the parent's whole story. No invented scope to cut.
+
+### 2. Inherited acceptance criteria
+
+Clean. DIS-81 criteria:
+
+| Criterion | Requirement(s) | Scenario(s) |
+|---|---|---|
+| AC 1 | "Asking each question", "Measurement outputs" | "Every question is sent without the cache", "The outputs are deterministic" |
+| AC 2 | "Aggregation rules" | "Savings of two answered rows", "UNKNOWN rows are counted apart" |
+| AC 3 | "Tokenizer deviation sample" | "The tokenizer deviation of a sample", "Every non-redacted file is counted once" |
+| AC 4 | "Freeze check before measuring" | "A frozen question file was modified" |
+| AC 5 | "Live environment check", "Asking each question", "Measurement CLI" | The API, health, evaluation-mode, cache and usage scenarios |
+| «Además» (README test) and DoD | "Published Table 1", "Committed measurement matches the raw data" | Their scenarios |
+
+Parent DIS-53:
+- AC 2 maps to "Measurement outputs".
+- AC 3's limitations (one run, the annotation, small repositories, PH-16, PH-27) map to "Published Table 1" → "The README limitations and verifier row are current".
+
+*Improvable (Linear wording only):* the DIS-53 comment of 2026-10-28 ends with «(las preguntas de la Tabla 1 siguen siendo de la autora)». DIS-81 `[enhanced]` D1 decides that an agent writes the questions (no-author-work rule), and the change follows D1. The parenthetical is the agent's description of the state at that time, not an author decision, so the sub-issue governs. A Spanish comment on DIS-53 saying D1 of DIS-81 supersedes that parenthetical would stop the two tickets from appearing to disagree (see Corrections).
+
+### 3. Missing scenarios
+
+Every MUST clause with observable behaviour has a scenario, or is a case of one that a task tests. One improvable note:
+- **"Resumed run" scenario and the clock.** "A resumed run skips the answered questions" needs outputs byte-equal to a full run's, including `run.firstReceivedAt` / `run.lastReceivedAt`. A counting clock would make this impossible, because the resumed run calls `now()` fewer times. Write "the same constant injected clock" in the GIVEN and in task 5.4.
+
+### 4. Ambiguity
+
+None of fast, easy, secure, efficient, appropriate or robust appears. "many" appears twice, both in "how many", which refers to an exact count:
+- `spec.md` line 3 (Purpose): "how many tokens CODEMIND sends". Improvable: "the number of tokens CODEMIND sends".
+- `design.md` line 77 (D1): "so the report can say how many expected `UNKNOWN` really were". Improvable: "so the report can give the number of expected `UNKNOWN` that were answered `UNKNOWN` (`expectedUnknown.answeredUnknown`)".
+
+### 5. Open decisions
+
+No blocking open decision. Improvable items, each with a fix:
+
+- **Path order.** D8 ("missing counts in path order"), D7 (`tokenizer.json` "sorted by file"), "Aggregation rules" ("ties by path order"), `tokenizer.excluded` (no order stated), and the scenario "A malformed generate answer stops the count" ("the third sample file") all depend on an order the spec never names. The project convention fixes it in practice: `scripts/measure-graph.mjs:369-370`, `byText`, "Orders two strings by code unit, the same on every machine". A locale-aware sort could give different bytes on CI and break "Committed measurement matches the raw data". Pin it in D7 / D10 and in "Tokenizer deviation sample": "path order is the UTF-16 code-unit order of the repository-relative path `fixtures/<fixture>/<path>`, as `byText` of `scripts/measure-graph.mjs`; `tokenizer.excluded` is in that order".
+- **Raw body on resume.** The raw-data check (spec "Asking each question", second paragraph; D7) requires a raw response to have a `body`, but not that the body passes the checks a live body passes. The writer guarantees those checks, but a hand-edited or old raw file reaches `build` unchecked, both in the CLI and in the CI documentation test. The same gap applies to `status: 200` of the D7 layout, which is not validated. Add to the validation list: "a raw response whose `status` is not 200 or whose `body` fails the checks of a live body (an `UNKNOWN` `llm-required`, `usage.cacheHit` `true`, a missing or non-integer usage field)".
+- **Wrong-typed usage field.** "Asking each question" says an answered body "SHALL have a `usage` with integer token counts", but the exit list names only "lacks a usage field". Write "lacks a usage field or holds one of the wrong type (a non-integer token count, call count or latency, a non-number cost, a non-boolean `cacheHit`)".
+- **Seed `file` row without `content_hash` or `redacted`.** `readSeed` does not check these columns, and `readRow` (`scripts/measure-graph.mjs:173-190`) returns a `Map` or a reason string; it does not throw. The script's own message for a `file` row lacking either column, or holding a `redacted` that is not a boolean, is not stated. Write in "Tokenizer deviation sample": "a `file` row of a sample project without `content_hash` or `redacted`, or whose `redacted` is not a boolean, SHALL exit with code 1 with the line `seeds/graph-dump.sql:<line>: the file row has no <column>` (or `…: redacted is not a boolean`)".
+- **stderr text of two live checks.** The text for a `GET /health` that answers but is not `200 {"status":"ok"}`, and for a failing (non-200) `GET /api/tags`, is not given. The scenarios only check the exit code and "names `LLM_MODEL`". Write, for example: `measure:context: GET /health answered <status>, not {"status":"ok"}` and `measure:context: GET /api/tags answered <status>`. Neither line may hold the origin (no `LLM_BASE_URL` value).
+- **Recorded model name.** `/api/tags` may list `LLM_MODEL` or `LLM_MODEL:latest`, but the spec does not say which name `run.json` records and compares. Write "`model` is `LLM_MODEL` trimmed, as given; `modelDigest` is the `digest` of the matching `/api/tags` entry".
+- **`formatSigned` near zero.** D11 gives `0,0 %` but not what a small non-zero deviation that rounds to 0 prints. Mirroring `roundRatio` (`scaled === 0 ? 0`) gives `0,0 %`. State "the sign is taken from the rounded value; a value that rounds to 0 is `0,0 %`, never `+0,0 %` or `-0,0 %`", and add `formatSigned(-1, 10_000)` → `0,0 %` to task 6.3.
+
+### 6. Contradictions inside the change
+
+Improvable only:
+- **Non-2xx vs not 200.** `proposal.md` line 26 says "a non-2xx status … stop the run". The spec ("Asking each question") says "the status is not `200`". Under the proposal a `201` continues; under the spec it stops. Align the proposal: "a status other than 200".
+- **Missing-seed message in task 3.2.** Task 3.2 says "a missing `seeds/graph-dump.sql` and a malformed `file` row each exit 1 with the `readSeed` line". The spec ("Tokenizer deviation sample") and D8 say the missing seed gives `seeds/graph-dump.sql: the file cannot be read`, written by the command, not by `readSeed`. Fix task 3.2.
+- **Fixture-change gotcha.** Task 12.1's gotcha says "changing the seed, a fixture file or the raw data makes `tests/unit/docs/context-savings.spec.ts` fail". The spec's documentation test ("The committed outputs are the current aggregation") compares rebuilt outputs only. A fixture edit that keeps the code-point count, and so the estimate, would pass it even though its count's `sha256` is stale. Either have that scenario also run the raw-data validation (THEN: "and the raw-data check of 'Asking each question' reports no problem"), or narrow the gotcha's wording.
+
+Otherwise the proposal, D1–D14 and the spec agree on:
+- the check order (arguments → `.env` → `PORT` → freeze → questions → seed and hashes → `LLM_*` → health → Ollama → `run.json` → raw validation → asks → counts → build);
+- the cache rules;
+- the `savingsTenths` unit;
+- the null and boundary rules;
+- the rounding;
+- the blind answer files;
+- the conditional §0.3 rewrite.
+
+Counts are consistent: 11 requirements and 42 scenarios in the spec, and 42 / eleven in tasks 8.2 and 13.8.
+
+### 7. Contradictions with the project
+
+Clean.
+- **graph-quality delta.** It restates the whole "Published Table 2" requirement of `openspec/specs/graph-quality/spec.md:261-277` and replaces only its last sentence. `tests/unit/docs/graph-quality.spec.ts` checks `npm run measure:graph`, `DIS-81` and the two negatives, so it stays valid unchanged (D14).
+- **Ollama setup.** It follows `docs/project-context.md:1124-1133` (Gotcha DIS-72: `OLLAMA_CONTEXT_LENGTH=16384`, stop the tray app and every `ollama.exe` / `llama-server`, `LLM_TIMEOUT_MS=1200000`).
+- **Branch and base.** Task 0.1 follows the conventions, and the Follow-ups use destinations A, B and D only.
+- **Merge by the agent.** 13.9 departs from `docs/openspec-tasks-mandatory-steps.md` §3.5 ("The agent never merges"). Earlier runs accepted this under the autonomous-run ADR and its merge gate, and nothing in the change has altered that.
+- **README anchors.** `readme.md:874` (`#### Mediciones que se publicarán`), `:878` (the caption with `~` and `revisión manual`), `:901` (limitations), `:29` and `:69` exist as the change says.
+
+### 8. Contrast with the real code
+
+Clean. Checked:
+- **`sendWithHttp`** (`scripts/demo-ask.mjs:33-57`) computes `Buffer.byteLength(body)`, so D9's `body: ''` for GET requests is needed. It has no time limit, and a failed connection rejects, which maps to the pinned unreachable-API line (`:155`).
+- **`apiPort`** (`:66-71`) returns 3000 for a blank value and `undefined` for an invalid one, as the CLI requirement expects.
+- **`roundRatio`** (`scripts/annotation-agreement.mjs:274-278`) rounds half away from zero and returns `0`, never `-0`. **`checkFreeze`** (`:452-474`) returns path-prefixed problems for listed files and an unprefixed "records no SHA-256 hash", so the report-path prefix is the script's job (D8).
+- **Seed helpers.** `readSeed` (`scripts/measure-graph.mjs:205-259`) throws `seeds/graph-dump.sql:<line>: …`. `readRow` (`:173`) is unexported. Both scripts have a main-module guard (`:564`, `annotation-agreement.mjs:646`), so importing them has no side effect.
+- **`/ask` schemas.** `askAnsweredSchema` (`packages/api/src/schemas/ask.ts:86-107`) has `statements[].{text,type,verification,evidenceIds}` and `evidence[].{id,file,startLine,endLine,excerpt}`, with no `events` key. `askUnknownSchema` has no usage. This matches D2 and D10.
+- **`MAX_VERIFY_CALLS_PER_ANSWER`** is 20 (`packages/core/src/explain/limits.ts:37`).
+- **`wiring.spec.ts:150-168`** scans every `scripts/*.mjs`, so the new script is covered unchanged (task 8.1).
+- The API's `/ask` route does not use embeddings, so the live run needs no `LLM_EMBED_MODEL`.
+- No abstraction is duplicated: `roundRatio`, `sendWithHttp`, `apiPort` and `readRow` are reused by export (D9).
+
+### 9. Task size
+
+Clean.
+- 7.4a–7.4c split the hours-long live run into bounded, checkable steps by design.
+- 2.1 is at the limit but acceptable, as earlier runs found.
+- No other task exceeds one agent turn.
+
+*Improvable (TDD order):* task 7.2 is labelled RED → GREEN, but its two tests run on files that 7.1 has already committed, so it can never be seen red. Write the 7.2 tests first against an absent file (RED: the file is missing), or record in 7.2 that the RED evidence is the test run before 7.1's commit.
+
+### 10. Mandatory steps
+
+Clean.
+- Step 0 is the branch and comes first.
+- Steps 8–13 are present and labelled `(MANDATORY)`. Steps 10, 11 and 13 say `AGENT MUST EXECUTE`, and E2E is justified as not applicable.
+- The data baseline is captured in 7.3 before the API starts.
+- State is restored in 7.9, in 9.6 (`npm run db:seed`, then `npm run verify`) and in 10.3, including the recorded Ollama state. Every step that started services ends with `node scripts/dev-processes.mjs stop`.
+- The PowerShell checks run with `-NoProfile` and without `$env:` assignments.
+- The test step names its report path and pattern (9.7).
+- The pre-merge order matches §3, with the archive before the merge.
+
+### 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| Freeze check before measuring | A frozen question file was modified | 2.1, 2.3 |
+| Freeze check before measuring | The savings report records no hash | 2.3 |
+| The question set | A project has 19 questions | 3.1 |
+| The question set | The committed question set is complete | 7.1, 7.2 |
+| Live environment check | The API does not answer | 4.1 |
+| Live environment check | The health check is not ok | 4.1 |
+| Live environment check | The model variable is not set | 4.1 |
+| Live environment check | The Ollama version check fails | 4.1 |
+| Live environment check | The model is not in Ollama | 4.1 |
+| Live environment check | A raw run of another model is not mixed | 4.2 |
+| Live environment check | No variable value is written | 4.1b |
+| Asking each question | Every question is sent without the cache | 5.1 |
+| Asking each question | An evaluation-mode API stops the run | 5.2 |
+| Asking each question | A cached answer stops the run | 5.2 |
+| Asking each question | A verification answered from the API cache | 5.2b |
+| Asking each question | A non-200 status stops the run | 5.2 |
+| Asking each question | A body that is not JSON stops the run | 5.2 |
+| Asking each question | An answered body without a usage field stops the run | 5.2 |
+| Asking each question | A stale raw response stops the run | 5.4 |
+| Asking each question | Unusable raw data stops the run before any question | 5.4b |
+| Asking each question | A resumed run skips the answered questions | 5.4 |
+| Tokenizer deviation sample | The local estimate equals the product's | 3.2 |
+| Tokenizer deviation sample | A sample file differs from the seed | 3.2 |
+| Tokenizer deviation sample | The seed has no row of a sample project | 3.2 |
+| Tokenizer deviation sample | A malformed generate answer stops the count | 5.3 |
+| Tokenizer deviation sample | Every non-redacted file is counted once | 5.3 |
+| Aggregation rules | Savings of two answered rows | 6.1 |
+| Aggregation rules | UNKNOWN rows are counted apart | 6.1 |
+| Aggregation rules | The savings equal the product's formula | 6.1 |
+| Aggregation rules | Verifier latency and calls of three answered rows | 6.1b |
+| Aggregation rules | A project with no answered row | 6.1b |
+| Aggregation rules | The tokenizer deviation of a sample | 6.1 |
+| Measurement outputs | The outputs are deterministic | 6.3 |
+| Measurement outputs | The answer files are blind | 6.2 |
+| Measurement outputs | A CSV field with a comma, a quote and a line break | 6.2 |
+| Measurement CLI | An unknown argument is a usage error | 2.1, 2.2 |
+| Committed measurement matches the raw data | The committed outputs are the current aggregation | 7.4a–7.4c, 7.5 |
+| Committed measurement matches the raw data | The frozen questions still match their hash | 7.2 |
+| Published Table 1 | The README Table 1 agrees with the measurement | 7.6a |
+| Published Table 1 | A negative savings is explained | 7.6a |
+| Published Table 1 | The README limitations and verifier row are current | 7.6b |
+| Measurement report | The report agrees with the measurement | 7.7, 7.8 |
+| graph-quality → Published Table 2 (MODIFIED) | The README table agrees with the measurement | 7.6b (shared intro, D14), 8.2 |
+| graph-quality → Published Table 2 (MODIFIED) | A TypeScript figure below PHP is explained | 8.2 (unchanged test) |
+
+No empty row. Every one of the 42 `context-measurement` scenarios and the two `graph-quality` scenarios maps to a task.
+
+---
+
+### Corrections to apply
+
+None of these is blocking. The change may go to apply as it is. They are listed so the main session can apply them in one pass if it chooses.
+
+#### `specs/context-measurement/spec.md`
+
+- **Purpose, line 3.** Replace "how many tokens CODEMIND sends" with "the number of tokens CODEMIND sends".
+- **"Live environment check."** After "…lists `LLM_MODEL` (or `LLM_MODEL:latest`) in `GET /api/tags`", add:
+  > A `GET /health` that answers but not `200` with `{ "status": "ok" }` SHALL give the line `measure:context: GET /health answered <status>, not {"status":"ok"}`, and a `GET /api/tags` that does not answer `200` the line `measure:context: GET /api/tags answered <status>`. The recorded `model` SHALL be `LLM_MODEL` trimmed, as given, and `modelDigest` the `digest` of the matching `/api/tags` entry.
+- **"Asking each question", first paragraph.** Replace "or an answered body has `usage.cacheHit` `true` or lacks a usage field" with:
+  > or an answered body has `usage.cacheHit` `true`, lacks a usage field or holds one of the wrong type (a non-integer token count, call count or latency, a non-number cost, a non-boolean `cacheHit`)
+- **"Asking each question", validation list.** After "a raw response without `formatVersion` 1, … or a `body`;", add:
+  > a raw response whose `status` is not 200 or whose `body` fails the checks of a live body above (an `UNKNOWN` with reason `llm-required`, `usage.cacheHit` `true`, a missing or wrongly typed usage field);
+- **Scenario "A resumed run skips the answered questions".** Replace "made with the same injected clock" with "made with the same constant injected clock".
+- **"Tokenizer deviation sample".** Add:
+  > Path order SHALL be the UTF-16 code-unit order of the repository-relative path `fixtures/<fixture>/<path>`, as `byText` of `scripts/measure-graph.mjs`; it orders the counts, `raw/tokenizer.json`, `tokenizer.excluded` and the ties of the minimum and maximum. A `file` row of a sample project without `content_hash` or `redacted`, or whose `redacted` is not a boolean, SHALL make the command exit with code 1 with a `seeds/graph-dump.sql:<line>: <reason>` line naming the column, before any request.
+- **Scenario "The committed outputs are the current aggregation"** (optional, with the task 12.1 note below). Add to THEN:
+  > and the raw-data check of "Asking each question" reports no problem
+
+#### `design.md`
+
+- **D1, line 77.** Replace "so the report can say how many expected `UNKNOWN` really were" with "so the report can give the number of expected `UNKNOWN` that were answered `UNKNOWN` (`expectedUnknown.answeredUnknown`)".
+- **D7.** After "sorted by file", add "(UTF-16 code-unit order of the path, as `byText` of `scripts/measure-graph.mjs`)". In the raw-data integrity list, add "a raw response whose `status` is not 200 or whose `body` fails the live-body checks (D3)".
+- **D8.** After "missing counts in path order", add "(code-unit order, D7)". State the two stderr lines for a not-ok `/health` and a non-200 `/api/tags`, and that `model` is `LLM_MODEL` trimmed with the digest of the matching tag.
+- **D10.** State that `tokenizer.excluded` is in code-unit path order.
+- **D11.** After "`formatSigned(n, d)` for deviations", add: "the sign comes from the rounded value; a value that rounds to 0 is `0,0 %`, never `+0,0 %` or `-0,0 %`".
+- **Follow-ups.** Add P38 (audit run 5, improvable, **A**), listing: code-unit path order; raw body and status validated on resume; wrong-typed usage fields; seed `file` rows without `content_hash` / `redacted`; the not-ok `/health` and non-200 `/api/tags` lines; the recorded model name; the sign of a near-zero `formatSigned`; the constant clock of the resume scenario; the "how many" wording; the proposal's status wording; task 3.2's message; the 12.1 gotcha; the 7.2 RED order.
+
+#### `proposal.md`
+
+- **Line 26.** Replace "a non-2xx status" with "a status other than 200".
+
+#### `tasks.md`
+
+- **3.2.** Replace "a missing `seeds/graph-dump.sql` and a malformed `file` row each exit 1 with the `readSeed` line on stderr" with "a missing `seeds/graph-dump.sql` exits 1 with `seeds/graph-dump.sql: the file cannot be read`, and a malformed `file` row (or one without `content_hash` or `redacted`) exits 1 with a `seeds/graph-dump.sql:<line>: <reason>` line, each with no request".
+- **4.1.** Add "a `GET /health` answering `200` with another body, and a `GET /api/tags` answering `500`, each exit 1 with the pinned line".
+- **5.2.** Add "an answered body whose `usage.inputTokens` is a string exits 1".
+- **5.4.** Replace "with the same injected clock" with "with the same constant injected clock".
+- **5.4b.** Add the cases "a raw response with `status` 500" and "a raw response whose body is an `UNKNOWN` `llm-required`", each exit 1 naming the file.
+- **5.3 / 6.1.** Assert that the counts, `tokenizer.excluded` and the min/max ties follow code-unit path order, for example with a test pair `fixtures/x/B.ts` before `fixtures/x/a.ts`.
+- **6.3.** Add `formatSigned(-1, 10_000)` → `0,0 %`.
+- **7.2.** Write the two tests first, on a copy without `questions.json` (RED: the file is missing), then turn them green on the 7.1 files; or record that RED evidence explicitly.
+- **12.1.** Either keep the gotcha and add the raw-data check to the documentation test (spec correction above), or narrow it to "changing the seed, the raw data or a fixture file in a way that changes its estimate".
+- **12.3.** Cite P16–P38.
+
+#### Linear DIS-81 (a Spanish comment; never the `[original]` block)
+
+> *(Texto del agente, auditoría de spec de `context-measurement`, ronda 5, 2026-11-03.)*
+> La auditoría 5 aprueba el cambio sin hallazgos bloqueantes ni preguntas para la autora. Mejoras anotadas en `design.md` → Follow-ups P38 (destino A):
+> - el orden por ruta es el orden por unidades de código UTF-16 de `fixtures/<proyecto>/<ruta>`, como `byText` de `scripts/measure-graph.mjs`;
+> - al reanudar se valida también el `status` y el cuerpo de cada respuesta bruta, con las mismas reglas que una respuesta en vivo;
+> - un campo de `usage` con un tipo incorrecto detiene la ejecución, igual que uno ausente;
+> - se fijan los mensajes de `/health` no correcto y de `/api/tags` fallido, y el nombre de modelo que se registra;
+> - una desviación que redondea a cero se escribe `0,0 %`.
+
+#### Linear DIS-53 (a Spanish comment; the description is not edited)
+
+> *(Texto del agente, auditoría de spec de `context-measurement` (DIS-81), 2026-11-03.)* El paréntesis del comentario del 2026-10-28 («las preguntas de la Tabla 1 siguen siendo de la autora») queda sustituido por la decisión D1 de DIS-81: por la regla de no trabajo de la autora, las preguntas de la Tabla 1 las escribe un agente y se congelan con SHA-256 antes de ver ninguna respuesta.
