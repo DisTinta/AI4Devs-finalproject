@@ -471,3 +471,214 @@ cases extend existing scenarios), so tasks 6.2 and 11.8 are unchanged.*
 | Improvable: `reexport` row without ids | Fixed: D8 says it prints a row of zeros. | design D8 (R2-I10) |
 | Improvable: README link added before the report exists | Fixed: the link is added in 5.5, together with the report, so `tests/unit/docs/guides.spec.ts` never goes red; the link assertion of 5.3 stays red until then. | tasks 5.3, 5.5 (R2-I11) |
 | Linear `[enhanced]` and comment | Done: the run-2 decisions are appended to the `[enhanced]` part of DIS-79 (never `[original]`) and a Spanish comment summarises the round. No new issue. | Linear DIS-79 |
+
+---
+
+## Run 3 (2026-11-03)
+
+APPROVED
+
+**Questions for the author:** none. Q1 and Q2 from run 1 (coverage is `tp / positives`, precision is `tp / (tp + false-positive edges)`, and the parent's ratio is published as `resolutionAgreement`) were decided by the agent. The decision follows sub-issue M4, which governs over the parent. It is recorded in design → Follow-ups (Q1, Q2, destination D) and in the `[enhanced]` part of DIS-79. The decision is acceptable.
+
+## Run 3 (2026-11-03)
+
+**Audit inputs (run 3):**
+- The change `openspec/changes/graph-quality-measurement` on branch `feature/dis-79-measure-graph` at `1e76ae3`: `proposal.md`, `design.md`, `specs/graph-quality/spec.md`, `tasks.md`, and `reports/2026-11-03-spec-audit.md` (runs 1 and 2 with their resolutions).
+- Linear:
+  - DIS-79: `[original]`, `[reality-map]`, and `[enhanced]` including the run-1 and run-2 decision blocks.
+  - Its parent DIS-53.
+- Repository files:
+  - `docs/base-standards.md` §7.1
+  - `readme.md` lines 29 and 872-894
+  - `packages/cli/src/seed/parse-seed.ts` lines 1-90
+  - `seeds/graph-dump.sql` (the `project` and `edge` rows)
+  - `fixtures/annotations/*.callsites.json` (header keys)
+  - `docs/measurements/annotation/agreement.json`
+
+### 1. Scope against the ticket
+
+Everything follows from DIS-79:
+- the original text;
+- M1–M10;
+- the run-1 and run-2 decisions, which are now written into `[enhanced]`.
+
+The change does not widen to Table 1, `measure-context` or the verifier's latency. The M9 hand-off to DIS-81 is a comment, not new scope.
+
+DIS-53 → Technical context mentions "the paragraph of sacrifice 1 if needed" (`readme.md:892`, "se espera que TypeScript salga claramente mejor"). The sub-issue does not require it, and the change rightly does not edit it. The clause "Por qué TypeScript no supera a PHP" covers the case where the figures contradict it.
+
+**Clean.**
+
+### 2. Inherited acceptance criteria
+
+The run-2 table still holds; nothing has regressed:
+- Parent AC 1: Measures; Annotation files are complete.
+- Parent AC 3: Published Table 2, now with a testable intro predicate.
+- Parent AC 4: the deterministic scenario.
+- Parent AC 5: "A TypeScript figure below PHP is explained".
+- Sub-issue AC 1–5: each has a requirement and a scenario.
+
+The parent's "anotación por la autora / anotación humana" was superseded by DIS-80. The report forbids «anotación humana» and «a mano».
+
+**Clean.**
+
+### 3. Missing scenarios
+
+Every MUST clause added in run 2 is now covered by an extended scenario:
+- the report-prefix case in "The agreement report is missing";
+- the unreadable seed in "A malformed seed line is an error";
+- `--root a --root b` in "An unknown argument is a usage error";
+- `formatVersion: 2`, a repeated id and the CLI in "An annotation file has 49 sites".
+
+Two gaps remain, both improvable:
+- The clause "an annotation file that cannot be parsed as JSON" is tested in task 2.1 but is not in the scenario text.
+- The clause "a `file`, `symbol` or `edge` row naming no `project` or `file` row" is tested in task 2.3 but is not in a scenario.
+
+Both are exercised by tasks with RED steps, so this is not blocking. Optional fix: append them to the THEN of the nearest scenario. The count stays at 26.
+
+### 4. Ambiguity
+
+I searched proposal, design, spec and tasks for "fast", "easy", "secure", "efficient", "many", "appropriate" and "robust". There is one hit: spec line 109, "however many sites attribute it". It is a quantifier, not a vague quality.
+
+**Clean.**
+
+### 5. Open decisions
+
+No blocking open decision. The formats, texts, exit codes, ordering, rounding, tie-breaks and error cases are all fixed. Improvable points:
+
+- **I1. Signatures of the exports.**
+  - What is fixed: the export names that tests will pin (`runMeasureGraph`, `checkAnnotations`, `readSeed`, `measure`, `serialize`, `formatRatio`, `formatAgreement`), in D5, D7, D9 and tasks 1–3.
+  - What is not fixed: the shape of `measure(inputs)`, `readSeed`'s return value and `checkAnnotations`' parameters (data plus path?).
+  - The same apply writes the tests first, so the RED step pins the shapes consistently.
+  - Optional fix: list the `.d.mts` signatures in D9.
+- **I2. Edge pointing to a symbol that does not exist.** An `edge` whose `source_symbol_id` or `target_symbol_id` names no `symbol` row is not mentioned.
+  - The D3 definitions already settle it: such an edge is in no scope, is never a hit and is never attributed. It is still counted in `callsEdges`.
+  - `parse-seed.ts` does not reject it either.
+  - Optional fix: state this in D2 so the behaviour is explicit.
+
+### 6. Contradictions inside the change
+
+- **I3 (improvable). D2 and the spec disagree on row order.**
+  - D2 says a child row is malformed when it names no `project` or `file` row "read before it".
+  - The spec ("The graph is read from the seed") says "names no `project` or `file` row of the seed". That reading does not depend on order.
+  - `seedProjects` is also order-independent: it reads in several passes (`packages/cli/src/seed/parse-seed.ts:59-89`). D2's claim that "the same condition makes `seedProjects` throw" is therefore only true for a seed in generator order.
+  - The real seed and the test in task 2.3 (an edge row of an unknown project) behave the same under both readings.
+  - Fix: delete "read before it" from D2, or add it to the spec.
+- **I4 (improvable). JSON keys `fixture` and `language`.** D6 places `fixture` and `language` at the head of each project entry. Their source is the annotation file header (`"fixture"`, `"language"` at lines 2-3 of each `*.callsites.json`). The spec's JSON clause ("Measurement output and CLI") lists only "the measures … plus `sites`".
+  - Fix: add "its `fixture` and `language`" to the spec sentence.
+
+Nothing else is inconsistent. The proposal, D3–D8 and the spec agree on:
+- scope, hit and the attributed edge (both M3 clauses);
+- false positive and the hit choice;
+- the measures, rounding, texts and exit codes.
+
+`formatAgreement(language)` in D7 takes an entry of `agreement.json` → `languages[]`. That matches the object used in task 3.4.
+
+### 7. Contradictions with the project
+
+- `openspec/specs/graph-annotations/spec.md` → "Frozen annotations and agreement report": consistent, and no delta is needed (P7).
+- `readme.md:894` ("de modelos distintos") and the report limitation ("two different models of one family") agree.
+- Base branch `final-project-CRN` (tasks 0.1, 5.6, 11.1) and the autonomous merge in 11.9 (`docs/adr/20261020-kit-autonomous-mode.md`) are consistent, as in runs 1–2.
+- `scripts/*.mjs` imports only `node:` built-ins and sibling `.mjs` files, typed through `.d.mts`, outside Stryker. Consistent with `docs/project-context.md` and `tests/unit/scripts/wiring.spec.ts`.
+
+**Clean.**
+
+### 8. Contrast with the real code
+
+- The seed's `project.name` values are `acme-shop` and `task-api` (`seeds/graph-dump.sql:6`). They match the annotation files' `"fixture"`, as the spec requires.
+- Edge rows carry `project_id`, `source_symbol_id | source_file_id`, `target_symbol_id | target_file_id`, `kind`, `resolution` and `extractor` (`seeds/graph-dump.sql:184`). This matches D2 and D6.
+- `seedProjects(...).edgeCount` counts `INSERT INTO edge` rows (`parse-seed.ts:80-81`), so the parity test compares like with like.
+- `agreement.json` → `languages[]` holds `fixture`, `n`, `agreed`, `percent` and `kappa`. These are the inputs of `formatAgreement`.
+- `readme.md:876` still holds the stale intro, and `readme.md:887-890` holds the Table 2 headers with backticks. Both match what tasks 5.3 and 10.1 will change and assert.
+- I3 above is the only deviation from `parse-seed.ts`.
+
+No abstraction is duplicated: `roundRatio` and `parseArguments` are reimplemented because they are not exported, and that file's exports are a stated non-goal.
+
+**Clean** apart from I3.
+
+### 9. Task size
+
+Every task fits in one agent turn. The split of 5.3 / 5.4 / 5.5 keeps each RED step separate, and the link ordering from R2-I11 keeps `tests/unit/docs/guides.spec.ts` green.
+
+**Clean.**
+
+### 10. Mandatory steps
+
+- Step 0 comes first: branch `feature/dis-79-measure-graph` from `final-project-CRN`, a Linear status comment, a branch and status check, and the baseline.
+- Steps 6–11 are present, in order and labelled `(MANDATORY)`. Steps 8, 9 and 11 say `AGENT MUST EXECUTE`. Step 7 names its report and the template.
+- Tasks that change state restore it:
+  - 5.2 restores its changed copy;
+  - 7.6 and 8.3 check the hashes and run `node scripts/dev-processes.mjs stop`;
+  - 8.2 deletes its scratchpad copies.
+- The PowerShell check is done by the agent (8.1, `-NoProfile`, no `$env:`).
+- Tasks 6.2 and 11.8 say 26 scenarios and ten requirements. The spec has 2 + 3 + 1 + 11 + 2 + 2 + 1 + 2 + 1 + 1 = 26.
+
+**Clean.**
+
+### 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| Freeze check before measuring | A frozen annotation file was modified | 1.3 |
+| | The agreement report is missing | 1.3 |
+| The graph is read from the seed | The seed reader agrees with the CLI's seed parser | 2.2 |
+| | A project of the annotations is not in the seed | 2.3 |
+| | A malformed seed line is an error | 2.4 |
+| Annotation files are complete | An annotation file has 49 sites | 2.1 |
+| Site matching and attribution | An edge from the enclosing symbol to the annotated target is a hit | 3.1 |
+| | An edge from the site's file is in scope | 3.1 |
+| | A positive site without a matching edge is a miss | 3.1 |
+| | An edge with the called name to another target is a false positive | 3.2 |
+| | A none site with an attributed edge is a false positive | 3.2 |
+| | A none site without an attributed edge is a true negative | 3.2 |
+| | The called name of a route action, an array callable and a snake_case read | 3.2 |
+| | Two sites in one symbol do not count each other's hit as a false positive | 3.3 |
+| | An edge of another kind or another project does not count | 3.3 |
+| | A source symbol whose range ends before the site is out of scope | 3.3 |
+| | Of two hits the one with the expected resolution is recorded | 3.3 |
+| Measures per project | Measures of a synthetic project | 3.4 |
+| | Undefined measures are null | 3.4 |
+| Measurement output and CLI | The measurement is deterministic | 3.5 |
+| | An unknown argument is a usage error | 1.1, 1.2 |
+| Committed measurement matches the repository | The committed JSON is the current measurement | 5.1, 5.2 |
+| Published Table 2 | The README table agrees with the measurement | 5.3, 5.5 (link) |
+| | A TypeScript figure below PHP is explained | 5.3 |
+| Measurement report | The report agrees with the measurement | 5.4, 5.5 |
+| The frozen sources are not modified | The frozen sources still match their hashes | 5.2, 5.6 |
+
+No empty row. These documentation-only tasks have no requirement, which is acceptable:
+- 10.1: the README review-table row and tree line;
+- 10.2: `docs/project-context.md`;
+- 10.3: `/update-docs` and `prompts.md`;
+- 10.4: Linear.
+
+**Clean.**
+
+---
+
+## Corrections to apply
+
+All are improvable and optional. The verdict does not depend on them.
+
+### `design.md`
+- **D2 (I3).** Replace "names no `project` or `file` row read before it" with "names no `project` or `file` row of the seed". The check is independent of order, as `seedProjects` (`packages/cli/src/seed/parse-seed.ts:59-89`).
+- **D2 (I2).** Append: "An `edge` whose `source_symbol_id` or `target_symbol_id` names no `symbol` row is not an error (as `seedProjects`). It is in no scope, is never a hit or attributed, and is counted in `callsEdges`."
+- **D9 (I1).** List the `.d.mts` signatures of `runMeasureGraph`, `checkAnnotations`, `readSeed`, `measure`, `serialize`, `formatRatio` and `formatAgreement`.
+- **Follow-ups.** Add a table "spec audit run 3" with I1–I4 (destination A, or D if not taken).
+
+### `specs/graph-quality/spec.md`
+- **"Measurement output and CLI" (I4).** Change "and per project, in that order, the measures of …" to "and per project, in that order, its `fixture` and `language` (from the annotation file), the measures of …".
+- **Scenarios (point 3, optional).**
+  - Append to the THEN of "An annotation file has 49 sites": "and a text that is not valid JSON gives one problem naming the file".
+  - Append to the THEN of "A malformed seed line is an error": "and an `edge` row whose `project_id` names no `project` row is a malformed line naming its line number".
+  - The scenario count stays at 26.
+
+### `tasks.md`
+- No change is required. If I4 is taken, task 3.5 already asserts the D6 layout.
+
+### Linear
+- **DIS-79.** Only if the corrections are applied: append to the `[enhanced]` part, never inside `[original]`, in Spanish and marked as the agent's text:
+  - *(Texto del agente, corrección 3, ejecución autónoma, 2026-11-03.)*
+  - Una fila hija que nombra un proyecto o fichero inexistente es una línea mal formada, sin importar el orden de la semilla (como `seedProjects`).
+  - Una arista cuyo símbolo de origen o destino no existe no es un error: no entra en ningún ámbito y sí cuenta en `callsEdges`.
+  - Cada proyecto del JSON lleva `fixture` y `language`.
+- **DIS-79.** A short Spanish comment, marked as the agent's text: spec audit run 3 → APPROVED, with no blocking findings.
