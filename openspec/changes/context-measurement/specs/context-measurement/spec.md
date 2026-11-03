@@ -82,7 +82,10 @@ digest and the verification model (`LLM_MODEL_VERIFY`, or `LLM_MODEL` when it is
 injected clock; when that file already exists with another Ollama version, model, digest or
 verification model, the command SHALL exit with code 1 without asking anything. Raw responses or a
 `raw/tokenizer.json` present without `raw/run.json` SHALL make the command exit with code 1 with a
-stderr line naming `docs/measurements/context/raw/run.json`, without asking anything. No stdout or
+stderr line naming `docs/measurements/context/raw/run.json`, without asking anything. A `raw/run.json`
+that cannot be read or parsed as JSON, or that lacks `formatVersion` 1, `startedAt`, `ollamaVersion`,
+`model`, `modelDigest` or `verifyModel`, SHALL make the command exit with code 1 with a stderr line
+naming `docs/measurements/context/raw/run.json`, without asking anything; it is never rewritten. No stdout or
 stderr line and no written file SHALL contain the value of `LLM_BASE_URL`, `LLM_API_KEY` or any
 variable other than the model names and `PORT`.
 
@@ -123,10 +126,11 @@ variable other than the model names and `PORT`.
 
 - **GIVEN** a copy whose `raw/run.json` records another model digest than the fake Ollama reports; then
   a copy whose `raw/run.json` records another verification model; then a copy holding
-  `raw/acme-shop/Q01.json` but no `raw/run.json`
+  `raw/acme-shop/Q01.json` but no `raw/run.json`; then a copy whose `raw/run.json` is not valid JSON;
+  then a copy whose `raw/run.json` lacks `modelDigest`
 - **WHEN** the command runs on each
 - **THEN** each exits with code 1, stderr names `docs/measurements/context/raw/run.json`, and no question
-  was sent; and on a first run with no raw data the command writes `raw/run.json` with the injected
+  was sent and `raw/run.json` is unchanged; and on a first run with no raw data the command writes `raw/run.json` with the injected
   clock's time as `startedAt`
 
 #### Scenario: No variable value is written
@@ -163,7 +167,8 @@ exit with code 1 with one stderr line naming the file (its path from the root, f
 of "Measurement outputs": a raw response or `raw/tokenizer.json` that cannot be read or parsed as JSON;
 a raw response without `formatVersion` 1, a `fixture` and `questionId` equal to its path, a `question`,
 a `receivedAt` or a `body`; a `raw/tokenizer.json` without `formatVersion` 1 or with a count lacking a
-`file`, a `sha256` or a positive integer `providerTokens`; a file under `raw/` other than `run.json`,
+`file`, a `sha256` or a positive integer `providerTokens`; two counts of `raw/tokenizer.json` for the
+same `file`; a file under `raw/` other than `run.json`,
 `tokenizer.json` and `<fixture>/<id>.json` of a question of the question file (for example
 `raw/acme-shop/Q21.json`); a count for a file that is not in the sample of "Tokenizer deviation sample";
 a count whose `sha256` differs from the current SHA-256 of its file (the count is not redone, so a
@@ -259,7 +264,9 @@ malformed row SHALL make it exit with code 1 with the stderr line
 `seeds/graph-dump.sql:<line>: <reason>` message of `readSeed`, both before any request. For each file without a recorded count, the command SHALL ask Ollama
 `POST /api/generate` with the model, the file text as `prompt`, `raw` `true`, `stream` `false` and
 `num_predict` 1, print one stdout line starting `tokenizer <fixture>/<path>: `, and record its
-`prompt_eval_count` in `docs/measurements/context/raw/tokenizer.json` at once. The estimate of a file
+`prompt_eval_count` in `docs/measurements/context/raw/tokenizer.json` at once. A count's `file`, and
+every `file` of the JSON's `tokenizer` part, SHALL be the repository-relative path
+`fixtures/<fixture>/<path>` with `/` separators. The estimate of a file
 SHALL be the local one, its Unicode code points divided by 4 rounded up, equal to the product's
 `estimateTokens`. A failed Ollama answer, or one without a positive integer `prompt_eval_count` (0
 included), SHALL make the command exit with code 1 naming the file, keeping the counts already written.
@@ -307,7 +314,9 @@ Per project, over its answered rows only: «Contexto bruto» SHALL be the sum of
 «Ahorro» the integer number of tenths `Math.round((Contexto bruto − CODEMIND) · 1000 / Contexto bruto)`,
 which is negative when CODEMIND exceeds the raw context and rounds a half toward +∞, as the product's
 `savingsPct` does (equal to it, times 10, when «Contexto bruto» is above 0), and `null` (published
-`no definido`) when «Contexto bruto» is 0. `UNKNOWN` rows SHALL be left out of every token figure and counted by
+`no definido`) when «Contexto bruto» is 0. In the JSON, «Ahorro» SHALL be written under the key
+`savingsTenths` as that integer number of tenths (883 for 88,3 %) or `null`; a `-0` is written `0`, as
+the product's `savingsPct` normalises it. `UNKNOWN` rows SHALL be left out of every token figure and counted by
 reason. The verification share of tokens SHALL be
 `(Σ verification input + Σ verification output) / (Σ input + Σ output)`, of latency
 `Σ verification latency / Σ latency`, and of cost `Σ verification cost / Σ cost`, or `null` (published
@@ -335,15 +344,17 @@ and denominator, as `roundRatio` does; «Ahorro» is written from its tenths, wi
   which 1 000 and 500 are verification input, and `outputTokens` 300 and 200, of which 100 and 50 are
   verification output
 - **WHEN** they are aggregated
-- **THEN** «Contexto bruto» is 60 000, «CODEMIND» is 7 000, «Ahorro» is 88,3 %, the verification token
+- **THEN** «Contexto bruto» is 60 000, «CODEMIND» is 7 000, «Ahorro» is 88,3 % (the JSON's
+  `savingsTenths` is 883), the verification token
   share is 0.22, and the cost share is `null` at a total cost of 0
 
 #### Scenario: UNKNOWN rows are counted apart
 
-- **GIVEN** 18 answered rows and two `UNKNOWN` rows with reasons `no-anchor` and `no-evidence`
+- **GIVEN** 18 answered rows and two `UNKNOWN` rows with reasons `no-anchor` and `no-evidence`, the
+  questions Q19 and Q20 declaring `expected: "unknown"`, Q19 answered and Q20 `UNKNOWN`
 - **WHEN** they are aggregated
-- **THEN** the token figures use the 18 answered rows only and the `UNKNOWN` count is
-  `{ "no-anchor": 1, "no-evidence": 1 }`
+- **THEN** the token figures use the 18 answered rows only, the `UNKNOWN` count is
+  `{ "no-anchor": 1, "no-evidence": 1 }`, and `expectedUnknown` is `{ declared: 2, answeredUnknown: 1 }`
 
 #### Scenario: The savings equal the product's formula
 
@@ -351,8 +362,9 @@ and denominator, as `roundRatio` does; «Ahorro» is written from its tenths, wi
   tenth and one with input above the baseline whose savings end in a half tenth (baseline 400, input
   401)
 - **WHEN** the script's savings and the product's `savingsPct` are computed
-- **THEN** they are equal for every pair (the script's tenths divided by 10), and the second gives −2
-  tenths, written `-0,2 %`
+- **THEN** they are equal for every pair (the script's tenths divided by 10), the second gives −2
+  tenths, written `-0,2 %`, and the pair baseline 3000, input 3001 gives `savingsTenths` `0`, not `-0`
+  (`Object.is` with `0`)
 
 #### Scenario: Verifier latency and calls of three answered rows
 
@@ -367,7 +379,8 @@ and denominator, as `roundRatio` does; «Ahorro» is written from its tenths, wi
 - **GIVEN** a project whose 20 rows are all `UNKNOWN`
 - **WHEN** it is aggregated
 - **THEN** «Contexto bruto» and «CODEMIND» are 0, «Ahorro», `medianMs`, `verifyMedianMs`,
-  `maxCallsPerAnswer` and every share are `null`, `under10s` is 0, and the README formatter writes
+  `maxCallsPerAnswer` and every share are `null` (the JSON's `savingsTenths` is `null`), `under10s` is
+  0, and the README formatter writes
   «Ahorro» as `no definido`
 
 #### Scenario: The tokenizer deviation of a sample
@@ -399,7 +412,9 @@ written or changed.
 - **WHEN** the command runs twice with a fake API and Ollama
 - **THEN** both runs exit with code 0, send no request after the checks, write byte-identical CSV,
   JSON and answer files that hold no path of the copy, and print one stdout line per project matching
-  `<fixture>: contexto bruto <n> · CODEMIND <n> · ahorro <percent> · <answered> respondidas, <unknown> UNKNOWN`
+  `<fixture>: contexto bruto <n> · CODEMIND <n> · ahorro <percent> · <answered> respondidas, <unknown> UNKNOWN`;
+  and the JSON's `run.firstReceivedAt` and `run.lastReceivedAt` are the earliest and latest injected
+  `receivedAt` of the raw responses
 
 #### Scenario: The answer files are blind
 

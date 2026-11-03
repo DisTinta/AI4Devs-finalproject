@@ -28,8 +28,9 @@ moved here from DIS-79. Without it the README cannot back its savings claim, nor
   `docs/measurements/context/raw/`, so a run on a CPU (5–10 minutes per question on this machine, 598 s measured in DIS-42) can resume.
   The API's per-process verification cache, which `useCache: false` does not bypass, is recorded per
   answer (`verifyCacheHits`) and declared as a limitation. Unusable or stale raw data (unparsable,
-  incomplete, unknown question or file, a count whose file hash changed) stops the run before any
-  question. Ollama is served by the agent with `OLLAMA_CONTEXT_LENGTH=16384` (gotcha DIS-72), its log is
+  incomplete, unknown question or file, a duplicate count, a count whose file hash changed), and an
+  unreadable or incomplete `raw/run.json`, stop the run before any question; `raw/run.json` is never
+  rewritten. Ollama is served by the agent with `OLLAMA_CONTEXT_LENGTH=16384` (gotcha DIS-72), its log is
   checked for `truncating input prompt`, and both are recorded in the report.
 - **Tokenizer deviation (PH-16).** For every non-redacted file of the two projects listed in
   `seeds/graph-dump.sql` (89 of 91; its bytes checked against the seed's `content_hash`), the local
@@ -38,7 +39,7 @@ moved here from DIS-79. Without it the README cannot back its savings claim, nor
 - **Outputs.** Written only when the 40 responses and the 89 counts are all present, all from the raw
   data and deterministic: `docs/measurements/context/context-savings.csv` (one row per question),
   `docs/measurements/context/context-savings.json` (per-project aggregates: raw context, tokens sent,
-  savings, `UNKNOWN` by reason, verification share of tokens and latency, cost ratio `n/a` at 0 USD,
+  savings (integer tenths, key `savingsTenths`), `UNKNOWN` by reason, verification share of tokens and latency, cost ratio `n/a` at 0 USD,
   median latency against the 10 s criterion, verifier calls and verification cache hits per answer;
   and the deviation; `null`, published `no definido`, for a savings or median with no answered row) and
   `docs/measurements/context/answers/<project>.json` for DIS-82, with no model, token, cost, latency,

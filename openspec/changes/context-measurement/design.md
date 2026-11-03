@@ -117,14 +117,17 @@ overcounts), per file the same, ties by path.
 once at the first run; a later run with another Ollama version, model, digest or `verifyModel` exits 1,
 so a published run never mixes models, and raw responses or `tokenizer.json` present without `run.json`
 exit 1 naming `docs/measurements/context/raw/run.json` instead of rewriting it, spec audit run 2,
-agent's decision: a rewrite would let a deleted `run.json` hide a change of model); `<fixture>/<id>.json` `{ formatVersion: 1, fixture, questionId, question,
+agent's decision: a rewrite would let a deleted `run.json` hide a change of model; and so does a
+`run.json` that cannot be read or parsed as JSON or lacks one of its fields, spec audit run 4, B2,
+agent's decision; it is never rewritten); `<fixture>/<id>.json` `{ formatVersion: 1, fixture, questionId, question,
 receivedAt, status: 200, body }`; `tokenizer.json` `{ formatVersion: 1, counts: [ { file, sha256,
-providerTokens } ] }` (rewritten whole after each count, sorted by file). Writes use `writeFileSync` of
+providerTokens } ] }` (rewritten whole after each count, sorted by file; `file` is the
+repository-relative path `fixtures/<fixture>/<path>` with `/` separators, spec audit run 4). Writes use `writeFileSync` of
 the full text. *Raw-data integrity (spec audit run 3, B1, agent's decision):* right after `run.json`
 and before the first request, every file under `raw/` is read and validated: JSON that parses, the
 required fields above (a raw response's `fixture` and `questionId` equal to its path; each count with
-`file`, `sha256` and a positive integer `providerTokens`), a known question id or sample file, no other
-file, each count's `sha256` equal to its file's current hash, and each raw response's `question` equal
+`file`, `sha256` and a positive integer `providerTokens`), a known question id or sample file, at most
+one count per `file` (spec audit run 4), no other file, each count's `sha256` equal to its file's current hash, and each raw response's `question` equal
 to the question file (stale raw). Any failure exits 1 naming the file, before any ask or generate
 request. A count with another `sha256` is not redone: a silent recount would hide that the seed or a
 fixture changed after the count. *Alternative:* validate lazily when a file is reached — rejected: a
@@ -168,28 +171,32 @@ GET requests (`/health`, `/api/version`, `/api/tags`) pass `body: ''` and `heade
 `sendWithHttp` computes `Buffer.byteLength(body)` (`scripts/demo-ask.mjs:37`) and `Send` requires a
 string body (`scripts/demo-ask.d.mts:7`); without it an API that is up would read as unreachable (spec
 audit run 2). `send` is injected as in `runDemoAsk`:
-`runMeasureContext(args, { root, env, dotenvPath, send, now, stdout, stderr })`, where `now` gives the
-`receivedAt` / `startedAt` timestamps for the tests.
+`runMeasureContext(args, { root, env, dotenvPath, send, now, stdout, stderr })`, where `now(): Date`
+gives the `receivedAt` / `startedAt` timestamps for the tests, written as `now().toISOString()`; the
+earliest and latest `receivedAt` are compared as those ISO strings (spec audit run 4).
 
 **D10 — Output layouts.** CSV: the header of the spec (with `verifyCacheHits` after `verifyCalls`),
 values as `String(n)`, booleans `true` / `false`, empty cells for an `UNKNOWN`'s usage, a field quoted
 when it holds `,`, `"`, CR or LF (inner `"` doubled), LF line ends and a final LF. JSON:
 `{ formatVersion: 1, run: <run.json without formatVersion, plus questionsSha256, firstReceivedAt and
 lastReceivedAt (the earliest and latest receivedAt of the raw responses)>, projects: [ { fixture, questions, answered, unknown: { <reason>: n } (reasons sorted),
-baselineTokens, inputTokens, outputTokens, savingsPct, latencyMs, generation: { inputTokens,
+baselineTokens, inputTokens, outputTokens, savingsTenths, latencyMs, generation: { inputTokens,
 outputTokens }, verification: { calls, cacheHits, inputTokens, outputTokens, costUsd, latencyMs,
 maxCallsPerAnswer }, costUsd, shares: { tokens, latency, cost }, latency: { medianMs, verifyMedianMs,
 under10s }, expectedUnknown: { declared, answeredUnknown } } ], tokenizer: { model, files, excluded:
 [paths], estimated, provider, deviation, min: { file, estimated, provider, deviation }, max: { file,
 estimated, provider, deviation } } }`, where `latencyMs` is Σ `latencyMs` of the answered rows,
+`savingsTenths` the integer tenths of «Ahorro» (883 for 88,3 %; the key is not `savingsPct`, which in
+the product and in the CSV is a percentage, spec audit run 4, B1), each `file` of `tokenizer` the
+repository-relative `fixtures/<fixture>/<path>`,
 `expectedUnknown.declared` the number of questions with `expected: "unknown"` and
 `expectedUnknown.answeredUnknown` the number of those whose response is `UNKNOWN` (spec audit run 3).
 Every ratio is computed from integers except the cost share, a quotient of the summed `costUsd`
 numbers (`null` at a total cost of 0, which is always the case with Ollama). Ratios
 are numbers rounded to four decimals half away from zero from the integer numerator and denominator,
 with the `roundRatio` exported from `scripts/annotation-agreement.mjs` (D9), `null` on a zero
-denominator. Boundary rules (spec audit B4, agent's decision): `savingsPct` is `null` when
-`baselineTokens` is 0 (the product's `savingsPct` returns 0 there, but a project with no answered row
+denominator. Boundary rules (spec audit B4, agent's decision): `savingsTenths` (integer tenths, `-0`
+normalised to `0` as the product's `savingsPct` does) is `null` when `baselineTokens` is 0 (the product's `savingsPct` returns 0 there, but a project with no answered row
 has no savings; published `no definido`); `medianMs`, `verifyMedianMs` and `maxCallsPerAnswer` are
 `null` with no answered row; `under10s` counts `latencyMs` < 10 000 (strict, since the README criterion
 is «menos de 10 segundos»); `verifyMedianMs` is the `⌈n/2⌉`-th smallest `verification.latencyMs`.
@@ -206,7 +213,8 @@ before `%`, from the integers: `88,3 %`), `formatSigned(n, d)` for deviations (`
 `0,0 %`) and `formatSeconds(ms)` (`412,3 s`). The lines below Table 1:
 `` - `<fixture>`: <answered> respondidas y <unknown> UNKNOWN (<reason> <n>, …); verificación <tokens> de los tokens y <latency> del tiempo; coste de verificación <cost | n/a (0 USD con Ollama local)>; latencia mediana <s> (verificación <s>) ``
 and `` - Desviación de `baselineTokens` (chars/4) frente al tokenizador de `<model>` en <files> ficheros: <signed> en total (mínimo <signed>, máximo <signed> por fichero) ``.
-*Spec audit run 2, agent's decisions:* «Ahorro» has its own `formatSavings(tenths)` (`883` → `88,3 %`,
+*Spec audit run 2, agent's decisions:* «Ahorro» has its own `formatSavings(tenths)`, which takes the
+JSON's `savingsTenths` (spec audit run 4) (`883` → `88,3 %`,
 `-952` → `-95,2 %`, `-2` → `-0,2 %`, `0` → `0,0 %`, `null` → `no definido`), used for every «Ahorro» of
 the README, the report and the stdout summary; it does no rounding, since the tenths come from the
 `savingsPct` formula (D4), and a negative value starts with hyphen-minus `-`, a non-negative one has no
@@ -376,3 +384,23 @@ taken by the agent as lead engineer on the findings of audit run 3 (it asked no 
   the cost share is the one ratio not from integers; `expectedUnknown` and `run.firstReceivedAt` /
   `run.lastReceivedAt` defined (D10); the resumed-run scenario holds `raw/run.json` and the same clock.
   **A**.
+
+*(Agent's text, correction round 4 of the spec audit of DIS-81, autonomous run, 2026-11-03.)* Decisions
+taken by the agent as lead engineer on the findings of audit run 4 (it asked no question of the author):
+
+- **P35 (audit run 4, B1)** — the per-project «Ahorro» of `context-savings.json` is written under the
+  key `savingsTenths` as integer tenths (883 for 88,3 %) or `null`, with `-0` written `0`; the key
+  `savingsPct` is kept for the CSV column only, where it is the product's percentage per row. The README
+  and report format «Ahorro» from `savingsTenths` with `formatSavings` (spec "Aggregation rules", D10,
+  D11; tasks 6.1, 6.1b, 7.6a). **A**.
+- **P36 (audit run 4, B2)** — a `raw/run.json` that cannot be read or parsed as JSON, or that lacks
+  `formatVersion` 1, `startedAt`, `ollamaVersion`, `model`, `modelDigest` or `verifyModel`, exits 1
+  naming `docs/measurements/context/raw/run.json`, asking nothing, and is never rewritten, so a broken
+  file cannot hide a change of model (spec "Live environment check", D7; task 4.2). **A**.
+- **P37 (audit run 4, improvable)** — every `file` of `raw/tokenizer.json` and of the JSON's
+  `tokenizer` part is the repository-relative `fixtures/<fixture>/<path>` with `/` separators (the
+  stdout line keeps `tokenizer <fixture>/<path>`); `now(): Date`, timestamps written with
+  `toISOString()` and compared as ISO strings (D9); `-0` tenths normalised to `0` with the pair
+  baseline 3000 / input 3001; two counts for the same `file` are a raw-data failure (5.4b); the
+  scenarios "UNKNOWN rows are counted apart" and "The outputs are deterministic" now pin
+  `expectedUnknown` and `run.firstReceivedAt` / `run.lastReceivedAt` (tasks 6.1, 6.3). **A**.

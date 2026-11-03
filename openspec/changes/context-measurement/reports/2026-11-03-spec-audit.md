@@ -1312,3 +1312,54 @@ No empty row. Every one of the 42 scenarios and the two `graph-quality` scenario
 #### Linear DIS-53
 
 No edit.
+
+---
+
+## Resolution of run 4
+
+*(Agent's text, correction round 4, autonomous run, 2026-11-03.)* Run 4 asked no question of the author.
+The agent settled both blocking findings as lead engineer. The decisions are in `design.md` → Follow-ups
+P35–P37, with their destinations; none is C. `openspec validate context-measurement --strict` passes
+after the edits. The spec still has 11 requirements and 42 scenarios (no scenario added; clauses added
+to existing ones).
+
+### Blocking findings
+
+- **B1 (unit of the JSON's `savingsPct`)** — fixed (P35, **A**). The JSON key is now `savingsTenths`, an
+  integer number of tenths (883 for 88,3 %) or `null`, with `-0` written `0`.
+  - "Aggregation rules" states it; "Savings of two answered rows" asserts `savingsTenths` 883 and "A
+    project with no answered row" asserts `null`.
+  - D10 layout and boundary rules use `savingsTenths` and say why the name differs from the CSV's
+    `savingsPct` (a per-row percentage, as the product's). D11's `formatSavings` takes `savingsTenths`.
+  - Proposal "Outputs" and tasks 6.1, 6.1b and 7.6a updated.
+- **B2 (unreadable or incomplete `raw/run.json`)** — fixed (P36, **A**). "Live environment check": a
+  `raw/run.json` that cannot be read or parsed, or lacks `formatVersion` 1, `startedAt`, `ollamaVersion`,
+  `model`, `modelDigest` or `verifyModel`, exits 1 naming `docs/measurements/context/raw/run.json`,
+  asking nothing; it is never rewritten.
+  - The scenario "A raw run of another model is not mixed" adds a non-JSON copy and a copy without
+    `modelDigest`, and requires `raw/run.json` unchanged.
+  - D7, the proposal and task 4.2 updated.
+
+### Improvable findings
+
+All fixed (P37, **A**).
+
+- **`file` path format** — `fixtures/<fixture>/<path>` with `/` separators for `raw/tokenizer.json`
+  counts and every `file` of the JSON's `tokenizer` part, in "Tokenizer deviation sample", D7 and D10.
+  The stdout line keeps `tokenizer <fixture>/<path>`, as the spec already states.
+- **Type of `now`** — `now(): Date`, written with `toISOString()`, the bounds compared as ISO strings
+  (D9; task 6.3).
+- **`-0` savings** — normalised to `0` in "Aggregation rules" and D10; the pair baseline 3000 / input
+  3001 is added to "The savings equal the product's formula" and to task 6.1, asserted with `Object.is`.
+- **Duplicate counts** — two counts for the same `file` are added to the raw-data validation list of
+  "Asking each question", to D7, to the proposal and to task 5.4b.
+- **Missing scenario clauses** — "UNKNOWN rows are counted apart" now pins `expectedUnknown`
+  `{ declared: 2, answeredUnknown: 1 }`; "The outputs are deterministic" pins `run.firstReceivedAt` and
+  `run.lastReceivedAt` (tasks 6.1, 6.3).
+- **Unparsable `raw/run.json` scenario** — covered by B2's clauses in the existing scenario.
+- **Task 12.3** — cites P16–P37.
+
+### Linear
+
+- DIS-81: a Spanish comment summarises the decisions of this round, marked as the agent's text.
+- DIS-53: no edit, as the audit asked.
