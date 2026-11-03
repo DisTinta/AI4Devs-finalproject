@@ -9,8 +9,8 @@ its report from versioned raw data that anyone can re-aggregate.
 
 ### Requirement: Freeze check before measuring
 
-`npm run measure:context` (`node scripts/measure-context.mjs`) SHALL, after parsing the arguments and
-loading `.env`, and before reading any other input and before any network call, compare every file
+`npm run measure:context` (`node scripts/measure-context.mjs`) SHALL, after parsing the arguments,
+loading `.env` and reading `PORT`, and before reading any other input and before any network call, compare every file
 listed in the `## Hashes SHA-256` table of `docs/measurements/context-savings.md` with the SHA-256
 recorded there, with the same freeze check as `graph-annotations` → "Frozen annotations and agreement
 report". The table SHALL list `docs/measurements/context/questions.json`. When the report cannot be
@@ -73,11 +73,14 @@ an unreachable API giving the line
 Ollama server at `LLM_BASE_URL` without a trailing `/` and `/v1` answers `GET /api/version` with `200`
 and a `version` string, with a line naming `/api/version`; and it lists `LLM_MODEL` (or
 `LLM_MODEL:latest`) in `GET /api/tags`. The run SHALL record the Ollama version, the model name and
-digest and the verification model (`LLM_MODEL_VERIFY`, or `LLM_MODEL` when unset) in
-`docs/measurements/context/raw/run.json`, written once on the first run with the start time; when that
-file already exists with another version, model or digest, the command SHALL exit with code 1 without
-asking anything. No stdout or stderr line and no written file SHALL contain the value of
-`LLM_BASE_URL`, `LLM_API_KEY` or any variable other than the model names.
+digest and the verification model (`LLM_MODEL_VERIFY`, or `LLM_MODEL` when it is unset or blank) in
+`docs/measurements/context/raw/run.json`, written once on the first run with the start time from the
+injected clock; when that file already exists with another Ollama version, model, digest or
+verification model, the command SHALL exit with code 1 without asking anything. Raw responses or a
+`raw/tokenizer.json` present without `raw/run.json` SHALL make the command exit with code 1 with a
+stderr line naming `docs/measurements/context/raw/run.json`, without asking anything. No stdout or
+stderr line and no written file SHALL contain the value of `LLM_BASE_URL`, `LLM_API_KEY` or any
+variable other than the model names and `PORT`.
 
 #### Scenario: The API does not answer
 
@@ -114,10 +117,13 @@ asking anything. No stdout or stderr line and no written file SHALL contain the 
 
 #### Scenario: A raw run of another model is not mixed
 
-- **GIVEN** a copy whose `raw/run.json` records another model digest than the fake Ollama reports
-- **WHEN** the command runs
-- **THEN** it exits with code 1, stderr names `docs/measurements/context/raw/run.json`, and no question
-  was sent
+- **GIVEN** a copy whose `raw/run.json` records another model digest than the fake Ollama reports; then
+  a copy whose `raw/run.json` records another verification model; then a copy holding
+  `raw/acme-shop/Q01.json` but no `raw/run.json`
+- **WHEN** the command runs on each
+- **THEN** each exits with code 1, stderr names `docs/measurements/context/raw/run.json`, and no question
+  was sent; and on a first run with no raw data the command writes `raw/run.json` with the injected
+  clock's time as `startedAt`
 
 #### Scenario: No variable value is written
 
@@ -218,9 +224,9 @@ The sample SHALL be every `file` row of the two sample projects in `seeds/graph-
 row's `content_hash`, or that cannot be read, SHALL make the command exit with code 1 naming it, before
 any request. A sample project with no `project` row in the seed SHALL make it exit with code 1 with a
 stderr line naming the fixture and `seeds/graph-dump.sql`, and a seed that cannot be read or holds a
-malformed row SHALL make it exit with code 1 with the stderr line of `readSeed`
-(`seeds/graph-dump.sql: the file cannot be read` or `seeds/graph-dump.sql:<line>: <reason>`), both
-before any request. For each file without a recorded count, the command SHALL ask Ollama
+malformed row SHALL make it exit with code 1 with the stderr line
+`seeds/graph-dump.sql: the file cannot be read` (written by the command) or the
+`seeds/graph-dump.sql:<line>: <reason>` message of `readSeed`, both before any request. For each file without a recorded count, the command SHALL ask Ollama
 `POST /api/generate` with the model, the file text as `prompt`, `raw` `true`, `stream` `false` and
 `num_predict` 1, print one stdout line starting `tokenizer <fixture>/<path>: `, and record its
 `prompt_eval_count` in `docs/measurements/context/raw/tokenizer.json` at once. The estimate of a file
@@ -266,9 +272,10 @@ command exit with code 1 naming the file, keeping the counts already written.
 
 Per project, over its answered rows only: «Contexto bruto» SHALL be the sum of `baselineTokens`;
 «CODEMIND» the sum of `inputTokens` (generation plus verification, the definition of `savingsPct`);
-«Ahorro» `100 × (1 − CODEMIND / Contexto bruto)` in tenths of a percent rounded half up from the
-integers, equal to the product's `savingsPct` when «Contexto bruto» is above 0, and `null` (published
-`no definido`) when it is 0. `UNKNOWN` rows SHALL be left out of every token figure and counted by
+«Ahorro» the integer number of tenths `Math.round((Contexto bruto − CODEMIND) · 1000 / Contexto bruto)`,
+which is negative when CODEMIND exceeds the raw context and rounds a half toward +∞, as the product's
+`savingsPct` does (equal to it, times 10, when «Contexto bruto» is above 0), and `null` (published
+`no definido`) when «Contexto bruto» is 0. `UNKNOWN` rows SHALL be left out of every token figure and counted by
 reason. The verification share of tokens SHALL be
 `(Σ verification input + Σ verification output) / (Σ input + Σ output)`, of latency
 `Σ verification latency / Σ latency`, and of cost `Σ verification cost / Σ cost`, or `null` (published
@@ -283,7 +290,9 @@ by path order). Every ratio SHALL be computed from integers, and a ratio with a 
 integer numerator and denominator (as `graph-quality` → "Measures per project"); the JSON SHALL hold,
 per project, Σ `latencyMs` and Σ `verification.latencyMs`, and for `tokenizer.min` and `tokenizer.max`
 the file's `estimated` and `provider` counts; every figure of the README and the report SHALL be
-formatted from those integers, never from a rounded ratio.
+formatted from those integers, never from a rounded ratio. A published one-decimal percentage or
+number of seconds other than «Ahorro» SHALL be rounded half away from zero from its integer numerator
+and denominator, as `roundRatio` does; «Ahorro» is written from its tenths, with no second rounding.
 
 #### Scenario: Savings of two answered rows
 
@@ -304,9 +313,11 @@ formatted from those integers, never from a rounded ratio.
 #### Scenario: The savings equal the product's formula
 
 - **GIVEN** pairs of input and baseline totals above 0, among them one whose exact savings end in a half
-  tenth
+  tenth and one with input above the baseline whose savings end in a half tenth (baseline 400, input
+  401)
 - **WHEN** the script's savings and the product's `savingsPct` are computed
-- **THEN** they are equal for every pair
+- **THEN** they are equal for every pair (the script's tenths divided by 10), and the second gives −2
+  tenths, written `-0,2 %`
 
 #### Scenario: Verifier latency and calls of three answered rows
 
@@ -373,7 +384,8 @@ written or changed.
 `--root <dir>` SHALL be the only option; an unknown argument, `--root` without a value or given twice
 SHALL exit with code 2 and the stderr line `Usage: node scripts/measure-context.mjs [--root <dir>]`,
 before any other step; a `PORT` that is not a port number (read as `demo:ask` reads it) SHALL exit with
-code 2 and the stderr line `measure:context: PORT must be a port number`, before any request. During the
+code 2 and the stderr line `measure:context: PORT must be a port number`, checked right after loading
+`.env` and before the freeze check, so it is reported before any other input problem and any request. During the
 run the command SHALL print one stdout line per question sent (`<fixture> <id>: respondida` or
 `<fixture> <id>: UNKNOWN <reason>`) and per file counted (`tokenizer <fixture>/<path>: <n> tokens`), and
 at the end one line per project:
@@ -409,8 +421,14 @@ the committed CSV, JSON and answer files SHALL equal, byte for byte, what the bu
 
 `readme.md` §2.6, Table 1 "Ahorro de contexto", SHALL have one row per sample project whose «Contexto
 bruto» and «CODEMIND» cells are the JSON's integers (digits grouped by three with a space from 10 000
-up), whose «Ahorro» is the percentage with one decimal and a decimal comma (`88,3 %`, or `no definido`
-for a `null`), and whose «Correctas (de 20)» cell is `pendiente de DIS-82`. Its caption SHALL NOT say
+up), whose «Ahorro» is written from its tenths with one decimal and a decimal comma, a negative value
+starting with `-` (hyphen-minus) and a non-negative one without sign (`88,3 %`, `-95,2 %`, or
+`no definido` for a `null`), and whose «Correctas (de 20)» cell is `pendiente de DIS-82`. When the
+«Ahorro» of a project is below 0, the text below Table 1 SHALL contain a paragraph starting
+`**Por qué CODEMIND envía más tokens que el contexto bruto.**` that explains it, the figures SHALL NOT
+be adjusted, and the §0.3 sentence of `readme.md` SHALL NOT contain
+`reduce coste y latencia de forma medida` and SHALL link Table 1; when no «Ahorro» is below 0, that
+paragraph SHALL be absent and the §0.3 sentence is left as it is. Its caption SHALL NOT say
 `revisión manual`. Below the table, one line per project SHALL give its answered and `UNKNOWN` counts,
 the verification share of tokens and latency, the cost share and the median latency, and one line SHALL
 give the tokenizer deviation, all formatted from the JSON's integers, with a link to
@@ -428,6 +446,14 @@ agents of different models (DIS-80). The review table row «Medir el verificador
 - **WHEN** Table 1 and the lines below it are parsed
 - **THEN** every cell and line equals the value formatted from the JSON, «Correctas (de 20)» reads
   `pendiente de DIS-82`, and the text links `docs/measurements/context-savings.md`
+
+#### Scenario: A negative savings is explained
+
+- **GIVEN** the committed `context-savings.json`
+- **WHEN** the «Ahorro» of each project is read
+- **THEN** if either is below 0, the README text below Table 1 holds the paragraph starting
+  `**Por qué CODEMIND envía más tokens que el contexto bruto.**` and the §0.3 sentence does not contain
+  `reduce coste y latencia de forma medida` and links Table 1; otherwise the paragraph is absent
 
 #### Scenario: The README limitations and verifier row are current
 

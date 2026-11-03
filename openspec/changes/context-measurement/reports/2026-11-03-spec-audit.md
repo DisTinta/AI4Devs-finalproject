@@ -689,3 +689,54 @@ The 40 current scenarios and the two `graph-quality` scenarios all map to tasks.
 ### Linear DIS-53
 
 No edit by the agent. If Q1 is decided, record the decision as a Spanish comment on DIS-53 without touching its description.
+
+---
+
+## Resolution of run 2
+
+*(Agent's text, correction round 2, autonomous run, 2026-11-03.)* Nothing is left for the author
+(docs/AUTONOMOUS-RUN.md §6): the agent decided the question as lead engineer. Decisions are in
+`design.md` → Follow-ups P28–P31 with their destinations; none is C. `openspec validate
+context-measurement --strict` passes after the edits. The spec now has 11 requirements and 41 scenarios.
+
+### Questions for the author
+
+- **Q1** — decided by the agent (P30, **A**; the latency wording **D**). Table 1 gets the same
+  explain-don't-adjust rule as Table 2: a negative «Ahorro» is published as measured with a paragraph
+  starting `**Por qué CODEMIND envía más tokens que el contexto bruto.**`. The §0.3 sentence is in scope
+  only when the measurement contradicts it: if any «Ahorro» is below 0, it is rewritten without
+  `reduce coste y latencia de forma medida` and links Table 1; otherwise it is kept. Pinned in
+  "Published Table 1" and its new scenario; proposal and task 7.6a updated. Recorded in a Spanish
+  comment on DIS-81; DIS-53 is not edited (the comment on DIS-53 the audit suggested was optional, and
+  the write to that ticket was refused by the run's permission check).
+
+### Blocking findings
+
+- **B1** — fixed. "Aggregation rules" defines «Ahorro» as integer tenths with the `savingsPct` formula
+  (negative allowed, half toward +∞); "The savings equal the product's formula" adds baseline 400 /
+  input 401 → −2 tenths (`-0,2 %`); "Published Table 1" fixes the sign format (hyphen-minus, no `+`)
+  and the explanation paragraph; new scenario "A negative savings is explained"; D11 adds
+  `formatSavings(tenths)`; Risks adds the negative-savings note; P28; tasks 6.1, 6.3 and 7.6a.
+- **B2** — fixed. D11 and "Aggregation rules": the other one-decimal formatters round half away from
+  zero from the integers, as `roundRatio`; the line reads `… y 0 UNKNOWN` with no parentheses when there
+  is none; reasons in the JSON's sorted order. Exact-half examples added to task 6.3
+  (`formatSigned(-1, 16)` → `-6,3 %`, `formatSeconds(412_350)` → `412,4 s`). P29.
+
+### Improvable findings
+
+- First-run write of `raw/run.json` — fixed: a THEN clause in "A raw run of another model is not mixed".
+- Unreadable sample file — no change, as run 1 accepted and run 2 judged acceptable.
+- "some hundreds of kB" — fixed: "expected under 1 MB", measured size recorded in the step 9 report.
+- `verifyModel` not compared — fixed: spec, D7 and task 4.2 (P31).
+- "unset" → "unset or blank" — fixed in the spec and D8 (P31).
+- Raw responses without `raw/run.json` — fixed, decided by the agent: exit 1 naming the file rather than
+  rewriting it, so a deleted `run.json` cannot hide a model change; spec, D7, scenario and task 4.2.
+- Place of the `PORT` check — fixed: right after `.env`, before the freeze check (CLI requirement,
+  freeze requirement wording, D8).
+- No-variable-value exception — fixed: "other than the model names and `PORT`".
+- `readSeed` attribution — fixed: the unreadable-file line is written by the command, the
+  `<line>: <reason>` message comes from `readSeed`.
+- P15 against the ticket's D6 — fixed: P15 says it replaces that sentence, and task 12.3 records it in
+  the enhanced part of DIS-81.
+- GET requests with no body — fixed: D9 states `body: ''` and `headers: {}`; task 4.1 asserts them.
+- Scenario counts in 8.2 and 13.8 — fixed: 41.

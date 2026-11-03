@@ -114,8 +114,10 @@ overcounts), per file the same, ties by path.
 
 **D7 — Raw data and resume.** Under `docs/measurements/context/raw/`:
 `run.json` `{ formatVersion: 1, startedAt, ollamaVersion, model, modelDigest, verifyModel }` (written
-once at the first run; a later run with another version, model or digest exits 1, so a published run
-never mixes models); `<fixture>/<id>.json` `{ formatVersion: 1, fixture, questionId, question,
+once at the first run; a later run with another Ollama version, model, digest or `verifyModel` exits 1,
+so a published run never mixes models, and raw responses or `tokenizer.json` present without `run.json`
+exit 1 naming `docs/measurements/context/raw/run.json` instead of rewriting it, spec audit run 2,
+agent's decision: a rewrite would let a deleted `run.json` hide a change of model); `<fixture>/<id>.json` `{ formatVersion: 1, fixture, questionId, question,
 receivedAt, status: 200, body }`; `tokenizer.json` `{ formatVersion: 1, counts: [ { file, sha256,
 providerTokens } ] }` (rewritten whole after each count, sorted by file). Writes use `writeFileSync` of
 the full text. A raw response whose `question` differs from the question file exits 1 (stale raw).
@@ -124,7 +126,8 @@ The final outputs are written only when nothing is missing, after building all t
 dropped connection or a stopped process would lose everything, and the apply agent's tool calls are
 bounded to 10 minutes.
 
-**D8 — Order of the run.** Arguments (exit 2) → `.env` (`loadEnvFile`, as `demo:ask`) →
+**D8 — Order of the run.** Arguments (exit 2) → `.env` (`loadEnvFile`, as `demo:ask`) → `PORT` read
+with `apiPort` (invalid: exit 2, as `scripts/demo-ask.mjs:140-144`; spec audit run 2) →
 `checkFreeze` on `docs/measurements/context-savings.md` (problems about the report prefixed with its
 path) → question file shape (no golden-text check: see the next paragraph) → seed (`readSeed` for
 project ids, its own `seeds/graph-dump.sql: …` errors written to stderr with exit 1; a sample fixture
@@ -135,8 +138,9 @@ http://127.0.0.1:<port> (start it with npm run up)`, as `scripts/demo-ask.mjs:15
 Ollama `GET /api/version` and `GET /api/tags` → `raw/run.json` → missing questions in file order →
 missing counts in path order → `build` → write the outputs → summary. The Ollama origin is
 `LLM_BASE_URL` trimmed, without a trailing `/`, then without a trailing `/v1`. The API origin is
-`http://127.0.0.1:<PORT>` with `PORT` read by `apiPort` of `demo-ask.mjs` (exported, D9); an invalid
-`PORT` is a usage error (exit 2), as in `demo:ask`. The project
+`http://127.0.0.1:<PORT>` with `PORT` read by `apiPort` of `demo-ask.mjs` (exported, D9) at the step
+above. The verification model is `LLM_MODEL_VERIFY` trimmed, or `LLM_MODEL` when it is unset or blank,
+as `packages/adapters/llm/src/config.ts:90`. The project
 id is the seed's `project.id` for the fixture name (the same deterministic ids as `SAMPLE_PROJECTS`).
 *Golden texts (spec audit B2, agent's decision):* the command does not check that each project holds
 its golden question texts, because the source of those texts is `GOLDEN_PROJECTS` in
@@ -151,7 +155,11 @@ TypeScript test already does with the canonical list.
 `.d.mts` the declarations); `scripts/measure-graph.mjs` exports `readRow` (and its `.d.mts`);
 `scripts/annotation-agreement.mjs` exports `roundRatio` (and its `.d.mts`), so this script imports it
 instead of a third copy (spec audit, pattern duplication; the copy in `measure-graph.mjs` is left as it
-is, out of scope). No behaviour of any of the three scripts changes and no existing test changes. `send` is injected as in `runDemoAsk`:
+is, out of scope). No behaviour of any of the three scripts changes and no existing test changes.
+GET requests (`/health`, `/api/version`, `/api/tags`) pass `body: ''` and `headers: {}`, since
+`sendWithHttp` computes `Buffer.byteLength(body)` (`scripts/demo-ask.mjs:37`) and `Send` requires a
+string body (`scripts/demo-ask.d.mts:7`); without it an API that is up would read as unreachable (spec
+audit run 2). `send` is injected as in `runDemoAsk`:
 `runMeasureContext(args, { root, env, dotenvPath, send, now, stdout, stderr })`, where `now` gives the
 `receivedAt` / `startedAt` timestamps for the tests.
 
@@ -186,7 +194,15 @@ before `%`, from the integers: `88,3 %`), `formatSigned(n, d)` for deviations (`
 `0,0 %`) and `formatSeconds(ms)` (`412,3 s`). The lines below Table 1:
 `` - `<fixture>`: <answered> respondidas y <unknown> UNKNOWN (<reason> <n>, …); verificación <tokens> de los tokens y <latency> del tiempo; coste de verificación <cost | n/a (0 USD con Ollama local)>; latencia mediana <s> (verificación <s>) ``
 and `` - Desviación de `baselineTokens` (chars/4) frente al tokenizador de `<model>` en <files> ficheros: <signed> en total (mínimo <signed>, máximo <signed> por fichero) ``.
-The documentation test uses the same formatters. Every formatter takes integers (a numerator and a
+*Spec audit run 2, agent's decisions:* «Ahorro» has its own `formatSavings(tenths)` (`883` → `88,3 %`,
+`-952` → `-95,2 %`, `-2` → `-0,2 %`, `0` → `0,0 %`, `null` → `no definido`), used for every «Ahorro» of
+the README, the report and the stdout summary; it does no rounding, since the tenths come from the
+`savingsPct` formula (D4), and a negative value starts with hyphen-minus `-`, a non-negative one has no
+sign. `formatPercent`, `formatSigned` and `formatSeconds` round to one decimal half away from zero from
+the integers, as `roundRatio` does (`formatSigned(-1, 8)` → `-12,5 %`, exact; `formatSigned(-1, 16)` →
+`-6,3 %`; `formatSeconds(412_350)` → `412,4 s`). A project with no `UNKNOWN` gives
+`<answered> respondidas y 0 UNKNOWN` with no parentheses; otherwise the reasons appear in the JSON's
+sorted order. The documentation test uses the same formatters. Every formatter takes integers (a numerator and a
 denominator, or a count), never a rounded ratio of the JSON, so no figure is rounded twice; a `null`
 measure is written `no definido`.
 
@@ -216,8 +232,12 @@ sentence of "Published Table 2" that called Table 1 pending.
 - **The script cannot see the API's configuration.** It records the model of its own environment and
   detects evaluation mode only by `llm-required`; declared.
 - **Spend of `UNKNOWN` answers outside Table 1** (D2); declared, with the count by reason.
-- **Raw data size.** 40 responses with evidence excerpts and 89 counts: some hundreds of kB of JSON,
-  acceptable in the repository.
+- **Raw data size.** 40 responses with evidence excerpts and 89 counts: expected under 1 MB of JSON,
+  acceptable in the repository; the step 9 report records the measured size.
+- **Negative savings.** The six golden answers of `seeds/cache/*.json` all have a negative `savingsPct`
+  (−1,3 % to −97,8 %): on the small sample files the prompt and the verification can exceed the raw
+  context. Mitigation: published as measured, with the explanation paragraph of "Published Table 1"
+  and the §0.3 sentence qualified (P30), never adjusted.
 
 ## Follow-ups
 
@@ -249,7 +269,9 @@ with its destination (`docs/project-context.md` → Tracking deferred findings):
 - **P14** — the review note's "measure also with a hosted model": not done; paid or hosted providers
   are a non-goal of the ticket and the parent, and no ticket of the roadmap owns it. **D**.
 - **P15** — Ollama prefix reuse: the probe shows `prompt_eval_count` is the whole prompt in Ollama
-  0.40.13, so it is not a limitation; the report records the version it was checked on. **A**.
+  0.40.13, so it is not a limitation; the report records the version it was checked on. **A**. It
+  replaces the sentence of the ticket's enhanced D6 that said prefix reuse «se declara como
+  limitación»; task 12.3 records the replacement in the enhanced part of DIS-81.
 
 *(Agent's text, correction round 1 of the spec audit of DIS-81, autonomous run, 2026-11-03.)* Decisions
 taken by the agent as lead engineer on the questions and blocking findings of the audit:
@@ -285,3 +307,27 @@ taken by the agent as lead engineer on the questions and blocking findings of th
   the DIS-82 reviewers are not anchored (D10). **A**.
 - **P27 (audit, scope notes)** — the `scripts/` line of the README tree and the extra CSV columns
   `verifyCostUsd` and `verifyCacheHits` are recorded in the enhanced part of DIS-81. **A**.
+
+*(Agent's text, correction round 2 of the spec audit of DIS-81, autonomous run, 2026-11-03.)* Decisions
+taken by the agent as lead engineer on the question and findings of audit run 2:
+
+- **P28 (audit run 2, B1)** — a negative «Ahorro» is the likely outcome (the six golden answers are all
+  negative). It is computed as integer tenths with the `savingsPct` formula (half toward +∞), written
+  by `formatSavings` with a hyphen-minus, and explained below Table 1 in a paragraph starting
+  `**Por qué CODEMIND envía más tokens que el contexto bruto.**`; the figures are never adjusted, the
+  same explain-don't-adjust rule the parent DIS-53 gives Table 2. **A**.
+- **P29 (audit run 2, B2)** — the other one-decimal formatters round half away from zero from the
+  integers, as `roundRatio`; the D11 line reads `… y 0 UNKNOWN` with no parentheses when there is none,
+  and lists reasons in the JSON's sorted order. **A**.
+- **P30 (audit run 2, Q1)** — the §0.3 sentence «lo que reduce coste y latencia de forma medida» is in
+  scope only when the measurement contradicts it: if any project's «Ahorro» is below 0, this change
+  rewrites it (agent's text) without that claim and with a link to Table 1; otherwise it is kept. Out
+  of scope would leave the README contradicting its own Table 1; rewriting it unconditionally would
+  widen the change. The sentence's latency claim has no raw-context latency to compare with in this
+  measurement; that is accepted as it stands when the savings are non-negative. **A** (the latency
+  wording: **D**, accepted). Recorded in a Spanish comment on DIS-81; DIS-53's description is not
+  edited.
+- **P31 (audit run 2, improvable)** — `run.json` compares `verifyModel` too; raw data without
+  `run.json` exits 1 rather than rewriting it; `LLM_MODEL_VERIFY` unset or blank falls back to
+  `LLM_MODEL`; `PORT` is checked right after `.env`; GET requests send `body: ''`; the "no variable
+  value" rule excepts `PORT`; the seed's unreadable-file line is attributed to the command. **A**.

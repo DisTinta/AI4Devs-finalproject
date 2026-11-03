@@ -39,7 +39,8 @@ moved here from DIS-79. Without it the README cannot back its savings claim, nor
   median latency against the 10 s criterion, verifier calls and verification cache hits per answer;
   and the deviation; `null`, published `no definido`, for a savings or median with no answered row) and
   `docs/measurements/context/answers/<project>.json` for DIS-82, with no model, token, cost, latency,
-  confidence or verifier verdict.
+  confidence or verifier verdict. A negative «Ahorro» (CODEMIND sends more than the raw context, as the
+  six golden answers of `seeds/cache/*.json` already do) is published as measured, never adjusted.
 - **Report and README.** New `docs/measurements/context-savings.md` (agent's text: hashes, method,
   versions, results, deviation, verifier, the revision of `MAX_VERIFY_CALLS_PER_ANSWER` asked by PH-27,
   limitations). `readme.md`: Table 1 filled except «Correctas (de 20)» («pendiente de DIS-82»), its
@@ -47,7 +48,10 @@ moved here from DIS-79. Without it the README cannot back its savings claim, nor
   local 7.6B model; measured deviation, PH-16; verification ratio, PH-27; verification cache; and,
   kept, the small sample repositories and the two-agent annotation of Table 2), the review-table row «Medir
   el verificador» to applied, the §3.2 `baseline_tokens` paragraph with the measured deviation, the
-  `scripts/` line of the tree.
+  `scripts/` line of the tree. When a project's «Ahorro» is negative, a paragraph
+  «Por qué CODEMIND envía más tokens que el contexto bruto.» below Table 1 explains it, and the §0.3
+  sentence «lo que reduce coste y latencia de forma medida» is rewritten without that claim, linking
+  Table 1 (design P28, P30); otherwise §0.3 is left as it is.
 - **Tests, without network.** `tests/unit/scripts/measure-context.spec.ts` (pure rules and the CLI on
   temporary copies with a fake `send`) and `tests/unit/docs/context-savings.spec.ts` (the committed
   outputs equal a fresh aggregation of the committed raw data; README and report agree with the JSON).
@@ -85,7 +89,7 @@ paid or hosted providers, repetitions or confidence intervals; changing the loca
 - Edited: `scripts/demo-ask.mjs` and `scripts/demo-ask.d.mts` (two exports), `scripts/measure-graph.mjs`
   and `scripts/measure-graph.d.mts` (one export), `scripts/annotation-agreement.mjs` and
   `scripts/annotation-agreement.d.mts` (one export), `package.json` (`scripts.measure:context`),
-  `readme.md` (§0 review table, §2.6, §3.2, tree), `docs/project-context.md` (the command and its
+  `readme.md` (§0 review table, §0.3 only on a negative «Ahorro», §2.6, §3.2, tree), `docs/project-context.md` (the command and its
   gotchas). No existing test file is edited.
 - No product code (`packages/**`), no migration, no dependency, no API or UI change. `scripts/` is
   outside Stryker's `mutate`, so the mutation gate is not affected.
