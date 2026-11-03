@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-// Spec: openspec/changes/informative-coverage/specs/test-quality-gates/spec.md → "The testing guide
+// Spec: openspec/changes/archive/2026-11-02-informative-coverage/specs/test-quality-gates/spec.md → "The testing guide
 // states the pyramid and the policy" (design D5, D6). `docs/TESTING.md` is read as text.
 
 const LEVELS = ['Unitario', 'Integración', 'Hooks del kit', 'Accesibilidad', 'Extremo a extremo'] as const;
