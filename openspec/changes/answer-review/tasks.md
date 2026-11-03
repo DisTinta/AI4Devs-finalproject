@@ -78,33 +78,33 @@ This group is done by independent agents launched by the workflow, outside the a
 
 ## 7. Review and Update Existing Tests (MANDATORY)
 
-- [ ] 7.1 The only existing test changed is `tests/unit/docs/context-savings.spec.ts` → "The README Table 1 agrees with the measurement" (task 6.1, design P8), without weakening its other assertions. Review that `tests/unit/docs/context-savings.spec.ts` (its other tests, including the raw-aggregation checks of `docs/measurements/context/`), `tests/unit/docs/graph-quality.spec.ts`, `tests/unit/docs/annotation-freeze.spec.ts`, `tests/unit/scripts/annotation-agreement.spec.ts` and `tests/unit/docs/guides.spec.ts` pass unchanged after the README and report edits; if one fails, fix the doc, not the test
-- [ ] 7.2 Every `#### Scenario:` of both deltas maps to a test of the same name: 19 in `tests/unit/scripts/answer-review.spec.ts` (1.1, 1.3, 1.5), 6 in `tests/unit/docs/answer-review.spec.ts` (6.1), and the four existing scenarios of "Published Table 1" (three) and "Measurement report" (one) in `tests/unit/docs/context-savings.spec.ts`; 29 in total
+- [x] 7.1 The only existing test changed is `tests/unit/docs/context-savings.spec.ts` → "The README Table 1 agrees with the measurement" (task 6.1, design P8), without weakening its other assertions. Review that `tests/unit/docs/context-savings.spec.ts` (its other tests, including the raw-aggregation checks of `docs/measurements/context/`), `tests/unit/docs/graph-quality.spec.ts`, `tests/unit/docs/annotation-freeze.spec.ts`, `tests/unit/scripts/annotation-agreement.spec.ts` and `tests/unit/docs/guides.spec.ts` pass unchanged after the README and report edits; if one fails, fix the doc, not the test
+- [x] 7.2 Every `#### Scenario:` of both deltas maps to a test of the same name: 19 in `tests/unit/scripts/answer-review.spec.ts` (1.1, 1.3, 1.5), 6 in `tests/unit/docs/answer-review.spec.ts` (6.1), and the four existing scenarios of "Published Table 1" (three) and "Measurement report" (one) in `tests/unit/docs/context-savings.spec.ts`; 29 in total
 
 ## 8. Run Tests and Verify Data State (MANDATORY)
 
-- [ ] 8.1 Targeted: `npx vitest run tests/unit/scripts/answer-review.spec.ts tests/unit/docs`
-- [ ] 8.2 Broader: `npx vitest run --project dom --project seed-build --project node`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`
-- [ ] 8.3 Data state: `git diff --stat final-project-CRN -- packages fixtures docs/measurements/context scripts/annotation-agreement.mjs scripts/measure-context.mjs` is empty; `git ls-files --eol docs/measurements/answer-review` shows `i/lf w/lf` for every file and none starts with a BOM; `node scripts/answer-review.mjs hashes` equals the report's table; commit order (design P9): `git log --format='%h %ad %s' --date=iso -- <path>` for `criterion.md`, both reviewer outputs, `agreement.json`, `resolution.json`, `verdicts.csv` and `readme.md`, recorded in the report, showing criterion → reviewer outputs → agreement → resolution → verdicts → README conclusions
-- [ ] 8.4 No dependency is added, so no `npm install` and no `npm audit` run; `/privacy-ethics-check` over the diff (synthetic fixtures, no personal data, no network, no model call from code)
-- [ ] 8.5 `node scripts/dev-processes.mjs stop`; report `openspec/changes/answer-review/reports/YYYY-MM-DD-8-test-and-state-verification.md` (template of `docs/openspec-tasks-mandatory-steps.md` §6)
+- [x] 8.1 Targeted: `npx vitest run tests/unit/scripts/answer-review.spec.ts tests/unit/docs`
+- [x] 8.2 Broader: `npx vitest run --project dom --project seed-build --project node`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`
+- [x] 8.3 Data state: `git diff --stat final-project-CRN -- packages fixtures docs/measurements/context scripts/annotation-agreement.mjs scripts/measure-context.mjs` is empty; `git ls-files --eol docs/measurements/answer-review` shows `i/lf w/lf` for every file and none starts with a BOM; `node scripts/answer-review.mjs hashes` equals the report's table; commit order (design P9): `git log --format='%h %ad %s' --date=iso -- <path>` for `criterion.md`, both reviewer outputs, `agreement.json`, `resolution.json`, `verdicts.csv` and `readme.md`, recorded in the report, showing criterion → reviewer outputs → agreement → resolution → verdicts → README conclusions
+- [x] 8.4 No dependency is added, so no `npm install` and no `npm audit` run; `/privacy-ethics-check` over the diff (synthetic fixtures, no personal data, no network, no model call from code)
+- [x] 8.5 `node scripts/dev-processes.mjs stop`; report `openspec/changes/answer-review/reports/YYYY-MM-DD-8-test-and-state-verification.md` (template of `docs/openspec-tasks-mandatory-steps.md` §6)
 
 ## 9. Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 9.1 The interface is the CLI `node scripts/answer-review.mjs <agreement|merge|hashes>`. In Git Bash, on a copy of `docs/measurements/answer-review/`, `docs/measurements/context/answers/` and the two fixtures' application code in the scratchpad (passing that root with `--root`), never on the frozen files: run `agreement`, `merge` and `hashes` and verify exit code `0` and that their outputs equal the committed `agreement.json`, `verdicts.csv` and the report's hash table
-- [ ] 9.2 Error cases on the scratchpad copy: a reviewer output with one answer removed, one whose only citation in a reason is beyond the end of its file, one with `docs/measurements/context/context-savings.csv` in `sourcesRead`, a resolution missing a disagreement, `hashes` with one frozen file removed from the copy, and an unknown command; verify exit code `1` for the five validation, merge and hashes cases and exit code `2` with a usage line for the unknown command, the message naming the problem, and that no file was written
-- [ ] 9.3 Restore: delete the scratchpad copy; `git status --short docs/measurements fixtures` is empty; `node scripts/dev-processes.mjs stop`
-- [ ] 9.4 Report `openspec/changes/answer-review/reports/YYYY-MM-DD-9-manual-interface-testing.md` with the commands and outputs
+- [x] 9.1 The interface is the CLI `node scripts/answer-review.mjs <agreement|merge|hashes>`. In Git Bash, on a copy of `docs/measurements/answer-review/`, `docs/measurements/context/answers/` and the two fixtures' application code in the scratchpad (passing that root with `--root`), never on the frozen files: run `agreement`, `merge` and `hashes` and verify exit code `0` and that their outputs equal the committed `agreement.json`, `verdicts.csv` and the report's hash table
+- [x] 9.2 Error cases on the scratchpad copy: a reviewer output with one answer removed, one whose only citation in a reason is beyond the end of its file, one with `docs/measurements/context/context-savings.csv` in `sourcesRead`, a resolution missing a disagreement, `hashes` with one frozen file removed from the copy, and an unknown command; verify exit code `1` for the five validation, merge and hashes cases and exit code `2` with a usage line for the unknown command, the message naming the problem, and that no file was written
+- [x] 9.3 Restore: delete the scratchpad copy; `git status --short docs/measurements fixtures` is empty; `node scripts/dev-processes.mjs stop`
+- [x] 9.4 Report `openspec/changes/answer-review/reports/YYYY-MM-DD-9-manual-interface-testing.md` with the commands and outputs
 
 ## 10. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
-- [ ] 10.1 Not applicable: no user interface is involved; state it in the step 9 report
+- [x] 10.1 Not applicable: no user interface is involved; state it in the step 9 report
 
 ## 11. Update Technical Documentation (MANDATORY)
 
-- [ ] 11.1 `docs/project-context.md`: where the Table 1 verdicts live (`docs/measurements/answer-review/verdicts.csv`, frozen by `tests/unit/docs/answer-review.spec.ts` against the hashes of `docs/measurements/answer-review.md`; regenerate only with `node scripts/answer-review.mjs merge`, which changes the hashes and fails that test; the answers of `docs/measurements/context/answers/` are hashed too, so re-running the measurement invalidates the review)
-- [ ] 11.2 TSDoc on the new script; `npm run docs:coverage` green; ADR not warranted (design P10), recorded in the step 8 report
-- [ ] 11.3 `/update-docs`: the docs gate passes; `prompts.md` gains the DIS-82 prompts with its Índice entry in the same edit
+- [x] 11.1 `docs/project-context.md`: where the Table 1 verdicts live (`docs/measurements/answer-review/verdicts.csv`, frozen by `tests/unit/docs/answer-review.spec.ts` against the hashes of `docs/measurements/answer-review.md`; regenerate only with `node scripts/answer-review.mjs merge`, which changes the hashes and fails that test; the answers of `docs/measurements/context/answers/` are hashed too, so re-running the measurement invalidates the review)
+- [x] 11.2 TSDoc on the new script; `npm run docs:coverage` green; ADR not warranted (design P10), recorded in the step 8 report
+- [x] 11.3 `/update-docs`: the docs gate passes; `prompts.md` gains the DIS-82 prompts with its Índice entry in the same edit
 
 ## 12. Pull request preparation
 

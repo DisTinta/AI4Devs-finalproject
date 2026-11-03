@@ -234,7 +234,6 @@ describe('answer review (DIS-82)', () => {
     const limitations = section(read('docs/measurements/context-savings.md'), '## Limitaciones').join('\n');
     expect(limitations).toContain('answer-review.md');
     expect(limitations).not.toContain('es de DIS-82');
-    // A whole word: «independientes» contains the letters «pendiente» and is fine.
-    expect(limitations).not.toMatch(/\bpendiente\b/);
+    expect(limitations).not.toContain('pendiente');
   });
 });
