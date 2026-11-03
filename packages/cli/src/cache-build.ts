@@ -1,7 +1,6 @@
-import { execFileSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import type { ClientBase } from 'pg';
 import { createGitSourceTree } from '@codemind/adapter-git';
 import { createLlm as createAdapterLlm, llmConfigFromEnv } from '@codemind/adapter-llm';
@@ -27,6 +26,17 @@ import { currentSeedFingerprints, headerFingerprints, indexedCommitOf } from './
 import type { SeedFingerprints } from './cache/seed-header.js';
 import { longFetch } from './cache/long-fetch.js';
 import { writeAtomically } from './cache/write-atomically.js';
+import {
+  defaultBuildHistory,
+  gitHead,
+  isUnsafe,
+  MAX_ATTEMPTS,
+  missingConfig,
+  readBuildTimeout,
+  RETRIED_LLM_REASONS,
+  staleSeed,
+  unsafeSecrets,
+} from './cache/build-support.js';
 import { toFailure as toAskFailure } from './commands/ask.js';
 import { CliError, defaultOpenTransaction } from './compose-index.js';
 import type { Environment, OpenTransaction } from './compose-index.js';
@@ -44,26 +54,14 @@ export type { SeedFingerprints } from './cache/seed-header.js';
 /** Message of every `INTERNAL` failure of the cache build: the golden file is never partly written. */
 export const CACHE_BUILD_FAILED = 'cache build failed; nothing was written';
 
-/** The per-request limit of the build when `CACHE_BUILD_TIMEOUT_MS` is unset: 20 minutes (decision D6). */
-export const DEFAULT_CACHE_BUILD_TIMEOUT_MS = 1_200_000;
-
-/** The largest `CACHE_BUILD_TIMEOUT_MS`: one hour. */
-export const MAX_CACHE_BUILD_TIMEOUT_MS = 3_600_000;
-
-/** Attempts per golden question (decision D7). */
-export const MAX_ATTEMPTS = 3;
+// Moved to `cache/build-support.ts` and re-exported, so every import of `cache:build` keeps resolving.
+export { DEFAULT_CACHE_BUILD_TIMEOUT_MS, MAX_ATTEMPTS, MAX_CACHE_BUILD_TIMEOUT_MS } from './cache/build-support.js';
 
 /** The repository root, three levels above this module (`packages/cli/src` or `packages/cli/dist`). */
 const DEFAULT_REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 
 /** The `UNKNOWN` reasons a new attempt may fix: the model's output, not the question or the pack. */
 const RETRIED_UNKNOWN_REASONS: ReadonlySet<string> = new Set(['invalid-model-output', 'broken-evidence', 'no-evidence']);
-
-/** The model failures a new attempt may fix. */
-const RETRIED_LLM_REASONS: ReadonlySet<string> = new Set(['timeout', 'network']);
-
-/** The planted key pattern of the samples: a response holding it is never kept. */
-const AWS_KEY = /AKIA[A-Z0-9]{16}/;
 
 /** What `runCacheBuild` reads from and writes to, plus the test seams (DIS-26 design C5). */
 export interface CacheBuildDeps {
@@ -313,17 +311,6 @@ async function prepare(argv: string[], deps: CacheBuildDeps): Promise<Plan> {
   return { repoRoot, workspaceRoot, databaseUrl, config, seed, seedFingerprints: current, answerFingerprint: fingerprintNow, projects };
 }
 
-/** `CACHE_BUILD_TIMEOUT_MS`: blank means the default; otherwise decimal digits naming 1..3 600 000. */
-function readBuildTimeout(raw: string | undefined): number {
-  const value = raw?.trim() ?? '';
-  if (value === '') return DEFAULT_CACHE_BUILD_TIMEOUT_MS;
-  const timeoutMs = /^[0-9]+$/.test(value) ? Number(value) : Number.NaN;
-  if (!(timeoutMs >= 1 && timeoutMs <= MAX_CACHE_BUILD_TIMEOUT_MS)) {
-    throw new CliError('INVALID_CONFIG', 1, 'CACHE_BUILD_TIMEOUT_MS is invalid; see .env.example', { variable: 'CACHE_BUILD_TIMEOUT_MS' });
-  }
-  return timeoutMs;
-}
-
 /**
  * The entries of the existing golden file a partial regeneration keeps (decision D16): the file must
  * exist, be a valid golden file holding only golden questions, and match the current fingerprints and
@@ -407,46 +394,9 @@ async function attemptOne(question: string, plan: Plan, projectId: string, deps:
   if (answer.kind === 'unknown') return { retry: RETRIED_UNKNOWN_REASONS.has(answer.reason), reason: answer.reason };
   if (!isCacheable(answer)) return { retry: true, reason: 'not-cacheable' };
   const stored = toStoredResponse(answer);
-  if (isUnsafe(JSON.stringify(stored), plan)) return { retry: false, reason: 'unsafe-content' };
+  const secrets = unsafeSecrets([plan.repoRoot, plan.workspaceRoot], [plan.databaseUrl, plan.config.baseUrl, plan.config.apiKey ?? '']);
+  if (isUnsafe(JSON.stringify(stored), secrets)) return { retry: false, reason: 'unsafe-content' };
   return { kept: stored };
-}
-
-/**
- * Whether a response's JSON text holds what a versioned file must never hold (audit F10): the planted
- * key pattern, the absolute repository or workspace root, or the database or model URL or the API key,
- * each as written or as escaped inside a JSON string.
- */
-function isUnsafe(text: string, plan: Plan): boolean {
-  if (AWS_KEY.test(text)) return true;
-  const secrets = [plan.repoRoot, plan.workspaceRoot]
-    .flatMap((root) => [resolve(root), resolve(root).split('\\').join('/')])
-    .concat([plan.databaseUrl, plan.config.baseUrl, plan.config.apiKey ?? ''])
-    .filter((value) => value !== '');
-  return secrets.some((value) => text.includes(value) || text.includes(JSON.stringify(value).slice(1, -1)));
-}
-
-/** `git rev-parse HEAD` of `repository`. */
-function gitHead(repository: string): string {
-  return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repository, encoding: 'utf8' }).trim();
-}
-
-/** `buildOne(<project>, …)` of the repository's history rebuilder, without its summary line. */
-async function defaultBuildHistory(fixturesRoot: string, repoRoot: string, project: string): Promise<void> {
-  type BuildOne = (name: string, cfg: { dir: string; manifest: string }, options?: { log?: (line: string) => void }) => Promise<void>;
-  const { buildOne } = (await import(pathToFileURL(join(repoRoot, 'fixtures', 'build-history.mjs')).href)) as { buildOne: BuildOne };
-  await buildOne(
-    project,
-    { dir: join(fixturesRoot, project), manifest: join(repoRoot, 'fixtures', 'history', `${project}.commits.mjs`) },
-    { log: () => undefined },
-  );
-}
-
-function missingConfig(variable: string): CliError {
-  return new CliError('MISSING_CONFIG', 1, `${variable} is not set`, { variable });
-}
-
-function staleSeed(): CliError {
-  return new CliError('GOLDEN_STALE', 1, 'seed out of date: run npm run seed:build', { reason: 'seed' });
 }
 
 function notPartial(reason: 'missing' | 'invalid' | 'fingerprint' | 'model'): CliError {
