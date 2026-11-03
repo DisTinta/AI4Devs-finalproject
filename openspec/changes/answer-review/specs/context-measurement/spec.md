@@ -24,7 +24,8 @@ verdict counts and the reviewers' agreement, exactly
 `` - `<fixture>`: <C> correctas, <P> parciales, <I> incorrectas (de 20); concordancia entre revisores <percent> % (<agreed>/<n>), kappa <kappa> ``,
 with the counts from `verdicts.csv`, `percent` and `kappa` from
 `docs/measurements/answer-review/agreement.json` written with a decimal comma and no trailing `,0`
-(`95 %`, `92,5 %`, kappa `0,857`), and `no definido` for a `null` kappa; the text SHALL link
+(the shortest decimal form of the number: `1`, `0,85`, `-0,111`, `92,5`; so `95 %`, `92,5 %`, kappa
+`0,857`), and `no definido` for a `null` kappa; the text SHALL link
 `docs/measurements/answer-review.md` and SHALL hold a paragraph starting
 `**Qué dice la columna «Correctas».**` marked as the agent's text, written after `verdicts.csv` was
 committed. The limitations paragraph SHALL NOT say the questions were asked

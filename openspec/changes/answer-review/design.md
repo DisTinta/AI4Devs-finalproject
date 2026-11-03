@@ -47,7 +47,9 @@ sources per role, one file per entry, no directory or glob; the resolver never r
 `agreement.json`. D6 every reason holds at least one valid `fichero:línea` citation. D7 merge rules.
 D8 criterion in its own file, committed before the panel, hashed. D9 reviewer 1 Opus, reviewer 2
 Sonnet, resolver Opus in a fresh context, none of them the apply agent. D10 new script that imports
-the pure functions of `annotation-agreement.mjs` instead of generalising it. D11 no npm script. D12
+the pure functions of `annotation-agreement.mjs` instead of generalising it; that script is not
+modified, to keep DIS-80's merged code and tests untouched (it is not itself in DIS-80's hash table,
+only its data files are; correction of the spec audit, finding 8-I1). D11 no npm script. D12
 wording "dos agentes revisores independientes de modelos distintos", never "revisión humana".
 
 ### P1. Blindness search and scrub of the ticket description
@@ -108,7 +110,9 @@ LF row ends, final newline.
 `scripts/annotation-agreement.mjs`. `checkFreeze` reads the `## Hashes SHA-256` table of any report,
 so the freeze test calls it with `docs/measurements/answer-review.md`. The script also exports
 `formatReviewLine` (the README / report line of the spec "Published Table 1"), used by the docs test,
-with the decimal-comma rule of `formatAgreement` in `scripts/measure-graph.mjs`.
+with the decimal-comma rule of `formatAgreement` in `scripts/measure-graph.mjs`: every number is
+written in its shortest decimal form with a decimal comma (`String(value).replace('.', ',')`, so `1`,
+`0,85`, `-0,111`, `92,5`), stated in the "Published Table 1" delta.
 
 ### P8. Existing test that changes
 
@@ -132,6 +136,40 @@ names the commit of the criterion.
 values in English (`correct`, `partial`, `incorrect`). No ADR (local, reversible, follows DIS-80). No
 Stryker run: `scripts/**` is outside `stryker.config.json` → `mutate`. No PowerShell check: the
 change has no `docs/DEMO.md` capture and no PowerShell-specific command.
+
+### P11. Duplicated helpers accepted (spec audit run 1, 8-I1)
+
+*Agent's text (correction round 1, 2026-11-03).* The new script re-implements the non-exported
+helpers of `scripts/annotation-agreement.mjs` (`isObject`, `isDirectory`, `fixtureLines`,
+`sourceProblem`, `loadJson`, `fail`, `parseArguments`, about 120 lines) instead of exporting them.
+Exporting would edit a merged script of another ticket and widen this change; the duplication is
+accepted (destination D) and a shared `scripts/lib/` module is not created here.
+
+### P12. A rejected reviewer output stops the ticket (spec audit run 1, 5-I4)
+
+*Agent's text (correction round 1, 2026-11-03).* When `agreement` or `merge` rejects a reviewer
+output or the resolution, the ticket stops cleanly with the script's message (docs/AUTONOMOUS-RUN.md
+§6). The output is neither completed, corrected nor re-run inside this run: a re-run would let the
+panel be repeated until it passes. A later run that reopens the ticket starts the panel again from
+scratch, with fresh reviewers, and records why. Destination D.
+
+### P13. Claims about files outside the allowlist (spec audit run 1, 5-B2)
+
+*Agent's text (correction round 1, 2026-11-03).* 12 of the 134 `evidence` entries of the answers
+point to a fixture's `tests/`, `docs/` or `README` paths, which P2 forbids. The criterion fixes,
+before any judgement, that such a claim is judged only by the behaviour it states, against the
+application code, and that a claim stating only what such a file says counts as a claim without
+support in the code. The rule is in the Panel group, in the spec "Correctness criterion" and, by task
+3.1, in the rewritten DIS-82 description.
+
+### P14. Output and report formats fixed (spec audit run 1, 5-B1, 5-B3, 5-I2, 5-I3, 6-I1)
+
+*Agent's text (correction round 1, 2026-11-03).* `reviewer` is a JSON number; `date` is checked
+only for the form `YYYY-MM-DD`; the order of `answers` is not checked (agreement and merge follow the
+answer files). `hashes` exits `1` with `<path>: the file cannot be read` and no hash line when a
+frozen file cannot be read (as DIS-80). In the report, «Repositorio» is the fixture name in
+backticks, «Pregunta» the `questionId`, the verdict cells the English values in backticks, counts
+plain integers, and the `## Concordancia` lines are the README lines with their leading `- `.
 
 ## Risks / Trade-offs
 
@@ -187,3 +225,17 @@ their findings here. No line has destination C.
 | P8 | One existing test changes (named) | **A** — this change |
 | P9 | Commit order recorded in the step 8 report | **A** — this change |
 | P10 | Spanish documents; no ADR, no Stryker run, no PowerShell check | **D** — accepted |
+| P11 | Duplicated non-exported DIS-80 helpers in the new script (8-I1) | **D** — accepted |
+| P12 | Rejected output stops the ticket; no re-run within the run (5-I4) | **D** — accepted |
+| P13 | Criterion rule for claims about files outside the allowlist (5-B2) | **A** — this change (Panel group, spec, task 3.1) |
+| P14 | Output, `hashes` error and report cell formats fixed (5-B1, 5-B3, 5-I2, 5-I3, 6-I1) | **A** — this change |
+| Audit 2-B1 | Scenario "A failed merge writes no verdicts file" (merge exit `1`) | **A** — this change (tasks 1.5, 7.2) |
+| Audit 2-I1 | Comment on DIS-53: the sub-issue's decision on the review prevails | **A** — done in correction round 1 (Linear) |
+| Audit 3-I1 | Resolution with `reviewer` / `model` covered by a scenario | **A** — this change |
+| Audit 3-I2 | Report scenario checks the forbidden wording in the whole report | **A** — this change |
+| Audit 5-I1 | Shortest decimal form stated in "Published Table 1" | **A** — this change (P7) |
+| Audit 7-I1 | First paragraph of proposal "## Why" marked as agent's text | **A** — done in correction round 1 |
+| Audit 9-I1 | Task 1 split into three red-green pairs | **A** — this change (tasks 1.1–1.7) |
+
+*Agent's text (correction round 1, 2026-11-03): rows P11–P14 and "Audit" come from the first spec
+audit; the audit asked no question of the author.*

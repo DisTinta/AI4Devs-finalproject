@@ -1,6 +1,6 @@
 ## Why
 
-Table 1 of the README (§2.6, context savings) is measured, but its column «Correctas (de 20)» still
+*Agent's text (autonomous run, 2026-11-03).* Table 1 of the README (§2.6, context savings) is measured, but its column «Correctas (de 20)» still
 reads `pendiente de DIS-82`: a token saving means little without knowing whether the answers were
 right. On 2026-10-27 the author decided that this judgement is not human work: two independent
 reviewer agents of different models judge each answer, blind to each other, to the model that

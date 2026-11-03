@@ -168,3 +168,31 @@ The table has no hole for any existing scenario. Its only empty row is the CLI s
 ### Linear
 - **DIS-53, new comment in Spanish** (do not edit the description): "*(Comentario del agente, desde DIS-82, auditoría de spec, ejecución autónoma, 2026-11-03.)* Por decisión de la autora registrada en el bloque [original] de DIS-82 (2026-10-27), la revisión de la corrección de las 40 respuestas de la Tabla 1 la hacen dos agentes revisores independientes de modelos distintos, con un tercer agente que resuelve solo los desacuerdos y congelación por SHA-256; no es trabajo de la autora. Donde este ticket dice «la columna «correctas» la rellena la autora», «el CSV revisado por la autora» o «la revisión de 40 respuestas son trabajo humano de la autora», prevalece DIS-82. La descripción de este ticket no se ha editado." (2-I1)
 - **DIS-82:** no change to `[original]`. The rewrite of `[reality-map]` and `[enhanced]` in task 3.1 should also carry the new criterion bullet for files outside the allowlist (5-B2). The Panel group prevails anyway, but this keeps the description reviewers read consistent with it.
+
+## Resolution of run 1
+
+*Agent's text (correction round 1, autonomous run, 2026-11-03).* The run asked no question of the
+author, so no decision was needed on one. Every finding was applied; none was rejected. `openspec
+validate answer-review --strict` passes after the edits, and the blindness pattern of design P1 finds
+nothing in `tasks.md`.
+
+| Finding | Resolution |
+|---|---|
+| 2-B1 | Fixed. New scenario "A failed merge writes no verdicts file" in spec `answer-review` → "Answer review CLI"; named in task 1.5; totals updated in task 7.2 (19 script tests, 29 in total). |
+| 2-I1 | Fixed. Spanish comment posted on DIS-53 stating that DIS-82 prevails on who reviews the 40 answers; the DIS-53 description was not edited. |
+| 3-I1 | Fixed. "Review output validation" rejects a resolution holding `reviewer` or `model`; the scenario "An incomplete review output is rejected" covers it in its WHEN and THEN. |
+| 3-I2 | Fixed. The report scenario checks that the whole report, not only `## Método`, avoids `revisión humana` and `a mano`. |
+| 5-B1 | Fixed. "Answer review CLI" says `hashes` exits `1` with `<path>: the file cannot be read` and no hash line; new scenario "hashes fails on a missing frozen file" (task 1.5) and a manual case in task 9.2. |
+| 5-B2 | Fixed. Criterion bullet for claims about fixture files outside the allowlist added to the Panel group; the spec "Correctness criterion" requires it under `## Veredictos` and its scenario checks it; task 3.1 carries it into the rewritten DIS-82 description; design P13. |
+| 5-B3 | Fixed. "Frozen verdicts and review report" fixes the cell formats (fixture name in backticks, `questionId`, English verdict values in backticks, plain integer counts); the scenario checks them; design P14. |
+| 5-I1 | Fixed. "Published Table 1" states the shortest decimal form with a decimal comma (`1`, `0,85`, `-0,111`, `92,5`); design P7 extended. |
+| 5-I2 | Fixed. `reviewer` is a JSON number; `date` is validated for the form `YYYY-MM-DD` only (the calendar date is not checked); the rejection scenario includes the string `"1"` and a malformed date. |
+| 5-I3 | Fixed. "Review output validation" says the order of `answers` is not checked and agreement and merge use the order of the answer files. |
+| 5-I4 | Decided by the agent. Design P12: a rejected output stops the ticket with no re-run inside the run (a re-run would let the panel repeat until it passes); a later run restarts the panel from scratch. Destination D; task 4.3 cites P12. |
+| 6-I1 | Fixed. The `## Concordancia` lines are the README lines including their leading `- `. |
+| 7-I1 | Fixed. The first paragraph of proposal "## Why" is marked as the agent's text. |
+| 8-I1 | Decided by the agent. D10's reason corrected to "not modified, to keep DIS-80's merged code and tests untouched"; the re-implemented helpers are accepted as design P11, destination D (exporting them would edit another ticket's merged script). |
+| 9-I1 | Fixed. Task 1 is split into three red-green pairs (validation 1.1–1.2, agreement and merge 1.3–1.4, CLI and hashes 1.5–1.6) and a refactor 1.7. |
+
+Every decision has a row in design.md → Follow-ups (P11–P14 and the "Audit" rows); none has
+destination C.
