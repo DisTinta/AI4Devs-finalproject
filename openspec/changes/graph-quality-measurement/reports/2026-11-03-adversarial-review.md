@@ -55,3 +55,10 @@ PR; the rest have destination D in design → Follow-ups (none has destination C
 1. Wait for the CI of the fix commit to be green (addendum below).
 2. `/opsx:archive` creates `openspec/specs/graph-quality/spec.md` (task 11.8: ten requirements, 26 scenarios).
 3. Merge only through the gate (`gh pr merge 102 --merge`).
+
+## Addendum — CI of the fix commit
+
+Commit `ffeda2e` (RV-F1, RV-F2 and these reports): run 41608332388 (+ 41608332379 for `frontend`),
+every check `pass`: `e2e` 1m12s, `frontend` 4m13s, `mutation` 2m55s, `quality` 10m26s, `scope` 14s,
+`secrets` 8s, `verify` 40s. No re-review needed: the two fixes are local (one condition, one sentence)
+and leave the measurement byte-identical.
