@@ -236,6 +236,7 @@ their findings here. No line has destination C.
 | Audit 5-I1 | Shortest decimal form stated in "Published Table 1" | **A** — this change (P7) |
 | Audit 7-I1 | First paragraph of proposal "## Why" marked as agent's text | **A** — done in correction round 1 |
 | Audit 9-I1 | Task 1 split into three red-green pairs | **A** — this change (tasks 1.1–1.7) |
+| Audit run 2, 5-I1 | A valid citation stays "an existing `.php`, `.ts` or `.json` file of the fixture" as the approved spec says; restricting it to the reviewer allowlist was an improvement, not a blocker, and would change an approved requirement during the apply. The criterion already tells reviewers not to read those files and the report states that `sourcesRead` is self-declared (*agent's text, apply-prepare, 2026-11-03*) | **D** — accepted |
 
 *Agent's text (correction round 1, 2026-11-03): rows P11–P14 and "Audit" come from the first spec
 audit; the audit asked no question of the author.*
