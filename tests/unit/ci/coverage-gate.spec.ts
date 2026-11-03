@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { parse } from 'yaml';
 import root from '../../../vitest.config';
 
-// Spec: openspec/changes/informative-coverage/specs/test-quality-gates/spec.md → "Coverage informs and
+// Spec: openspec/changes/archive/2026-11-02-informative-coverage/specs/test-quality-gates/spec.md → "Coverage informs and
 // never blocks" and "Mutation score is the only hard gate" (design D2, D3, D5, D7). The workflows are
 // parsed as YAML, never matched as text (as `e2e-job.spec.ts`).
 

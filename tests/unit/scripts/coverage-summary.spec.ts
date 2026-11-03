@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { runCoverageSummary } from '../../../scripts/coverage-summary.mjs';
 
-// Spec: openspec/changes/informative-coverage/specs/test-quality-gates/spec.md → "Per-package coverage
+// Spec: openspec/changes/archive/2026-11-02-informative-coverage/specs/test-quality-gates/spec.md → "Per-package coverage
 // summary" (design D4, D5). The report is read through an in-memory `readFile` and written to a string
 // `stdout`: nothing touches the disk (pattern of `dev-processes.spec.ts`).
 
