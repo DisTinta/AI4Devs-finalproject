@@ -95,3 +95,14 @@ The CI `mutation` job is the check and its result is in the pull request.
 
 - Status: PASS
 - Blocking issues: none
+
+## Addendum: review step (2026-11-03)
+
+*(Agent's text.)* The review (`2026-11-03-verify-against-spec.md`, `2026-11-03-adversarial-review.md`) found four
+Minor defects in `scripts/measure-context.mjs`, fixed test-first (design P43-P46): four new tests in
+`tests/unit/scripts/measure-context.spec.ts`, each seen failing (`4 failed | 41 skipped`) before the fix. After
+the fixes: `npx vitest run tests/unit/scripts tests/unit/docs` → 18 files, 174 tests passed; `npm run lint`,
+`npm run typecheck` and `npm run docs:coverage` clean. The committed outputs, Table 1 and the report do not change
+(the published run is 0 USD and has no `UNKNOWN` without lists). The live demonstration of that step asked one
+question on a scratchpad copy; the database was restored with `npm run db:seed` and `npm run verify` exits 0
+(3/3 and 3/3).

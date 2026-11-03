@@ -412,3 +412,23 @@ taken by the agent as lead engineer on the findings of audit run 4 (it asked no 
 - **P40 (apply)** — the script was written before its test file in one pass; the RED run was obtained afterwards by moving the module away (module missing), and is declared in the step 9 report. The tests were not weakened. **A**.
 - **P41 (apply)** — `readSample` names a sample project with no `project` row before `readSeed` reports the rows left dangling by it, so the scenario "The seed has no row of a sample project" gets the fixture name in stderr (found by the test, not by the spec). **A**.
 - **P42 (apply)** — the verifier conclusion on `MAX_VERIFY_CALLS_PER_ANSWER`: the largest number of calls of one answer was 9 and 15 against 20, so the constant is kept; the median latency (162,5 s and 93,6 s) does not meet the README criterion of 10 s on this hardware, declared in the report. No follow-up ticket: the criterion belongs to a hosted-model setup (P14). **D** (accepted).
+
+*(Agent's text, review step of DIS-81, autonomous run, 2026-11-03.)* Decisions on the findings of
+`reports/2026-11-03-verify-against-spec.md` and `reports/2026-11-03-adversarial-review.md` (verdict PASS WITH GAPS,
+no Blocker or Major); each code fix was made test-first:
+
+- **P43 (review)** — the "the table lists `questions.json`" check reads only the rows of the `## Hashes SHA-256`
+  table (`hashTableLists`), not a mention of the path elsewhere in the report. **A** (fixed in this change).
+- **P44 (review)** — a `200` `UNKNOWN` body, live or raw, without `statements` / `evidence` lists or with a
+  non-object statement exits 1 with a line naming the question or the raw file, instead of crashing `build`.
+  **A** (fixed in this change).
+- **P45 (review)** — a failed `/api/generate` answer names the repository-relative `fixtures/<fixture>/<path>`, as
+  every other file problem; the stdout line keeps `tokenizer <fixture>/<path>`. **A** (fixed in this change).
+- **P46 (review)** — a priced cost share is formatted from the summed costs in micro-dollars, never from the
+  rounded ratio; the published run is 0 USD, so no figure changes. **A** (fixed in this change).
+- **P47 (review)** — the JSON's and the raw files' extra fields (`status`, `questionsSha256`, `generation`,
+  `excluded`, per-file `deviation`), the `name`-or-`model` tag match, the `/health` line and the stripping of
+  several trailing `/` are kept: design D7 and D10 already pin the formats and the rest is harmless. **A**.
+- **P48 (review)** — two questions with no action: running without `LLM_MODEL_VERIFY=` on the command line picks
+  `.env`'s verification model and exits 1 naming `raw/run.json` (intended, already in `docs/project-context.md`);
+  two concurrent runs on one root are out of scope for a single-operator CLI. **D** (accepted).
