@@ -1,0 +1,117 @@
+## 0. Setup: Create Feature Branch (MANDATORY - FIRST STEP)
+
+- [x] 0.1 Feature branch `feature/dis-71-drift-detection` (`BRANCH_PREFIX=feature/`), created from `final-project-CRN` before `/opsx:propose`; confirm `git merge-base --is-ancestor origin/final-project-CRN HEAD` and that `openspec/changes/add-drift-detection/` is on it. `git fetch`; if `origin/final-project-CRN` moved, merge it before any code change (never force-push a published branch). Every commit scope is `DIS-71`
+- [ ] 0.2 Confirm DIS-71 is In Progress in Linear, with a short Spanish comment naming the change `add-drift-detection` and the branch
+- [ ] 0.3 Verify the current branch and `git status`; nothing under `.claude/` or `.cursor/` is ever staged (explicit paths only, never `git add -A` nor `git commit -a`)
+- [ ] 0.4 Baseline: `npx vitest run tests/unit/explain tests/unit/verify tests/unit/context tests/integration/explain tests/unit/seed/golden-questions.spec.ts` green, totals recorded for the step 9 report; in the local database record `SELECT count(*) FROM claim`, `SELECT count(*) FROM evidence`, `SELECT count(*) FROM answer_cache` and `SELECT capability, count(*) FROM query_log GROUP BY capability`; record the `analyzer-fingerprint` and `contract-fingerprint` header lines of `seeds/graph-dump.sql`; then `node scripts/dev-processes.mjs stop`
+
+## 1. Core: request, unknown answers and the report types (TDD; spec drift-detection "Drift request", "Unknown drift answers"; design D1, D8, D17)
+
+- [ ] 1.1 Create `tests/support/drift-doubles.ts` (header comment: spec path, DIS-71, design D12): `createDriftLlm({ extract, confront, verify?, usage?, mode? })` recording every request, parsing the extraction prompt (`document` key) and the confrontation prompt (`claim` key) into views with the markers removed, the evidence as `{ id, path, startLine, endLine }`; `verify` requests answered by the verifier script (`{"entails":true}` by default); and `driftDeps(...)` building the in-memory store (`tests/support/in-memory-store.ts`) and source tree (`tests/support/in-memory-source-tree.ts`) from a list of files `{ path, content }` and symbols, a fixed commit `COMMIT`, workspace `/workspace`, a scripted clock and a fresh verification cache. Neither `in-memory-store.ts`, `in-memory-source-tree.ts` nor `scripted-llm.ts` is edited
+- [ ] 1.2 Create `tests/unit/drift/drift.spec.ts` (header comment: spec path and DIS-71). RED: test "An invalid drift request is rejected before the store". See it fail (no module)
+- [ ] 1.3 GREEN: `packages/core/src/drift/drift-request.ts` (`driftRequestSchema`, `DriftRequest`, `DRIFT_REQUEST_FIELDS`, `InvalidDriftRequest` code `INVALID_DRIFT_REQUEST`, `parseDriftRequest`), `packages/core/src/drift/drift-report.ts` (`DRIFT_UNKNOWN_REASONS`, `DriftReport` answered/unknown, `DriftDocument`, `Contradiction`, `DriftEvidence`, `DriftEvent` with the three event shapes of design D17, `DriftUsage`, `driftProvenanceSchema`, `UNSTORED_FILE_ID`), `packages/core/src/drift/drift.ts` (`DriftDependencies`, `drift` validating the request and the workspace root), `packages/core/src/drift/index.ts`, and `export * from './drift/index.js'` in `packages/core/src/index.ts`; JSDoc on every export
+- [ ] 1.4 RED → GREEN: test "A relative workspace root is rejected before the store"
+- [ ] 1.5 RED → GREEN: test "Evaluation mode answers llm-required without reading anything"
+- [ ] 1.6 RED → GREEN: test "A project without documents answers no-docs" (`readIndexState` once, via the double's `calls`)
+- [ ] 1.7 RED → GREEN: test "A docPath that is not a stored document answers no-docs"
+
+## 2. Core: quarantine helpers shared (refactor; design D16)
+
+- [ ] 2.1 With `tests/unit/explain/statement-schema.spec.ts` green before and after, unchanged: export `unfenceModelOutput` and `discardModelOutput` from `packages/core/src/explain/statement-schema.ts` (the bodies of today's private `unfenced` and `discard`, renamed, `parseModelOutput` calling them); JSDoc; no other change. `npx vitest run tests/unit/explain` green
+
+## 3. Core: documents and claim extraction (TDD; spec drift-detection "Documents checked by a call", "Claim extraction"; design D2, D3)
+
+- [ ] 3.1 Create `tests/unit/drift/doc-claims.spec.ts` (header comment: spec path and DIS-71). RED: test "The document is sent numbered and as untrusted data". See it fail
+- [ ] 3.2 GREEN: `packages/core/src/drift/drift-prompts.ts` (`DRIFT_EXTRACTION_SYSTEM_PROMPT`, `buildExtractionPrompt`: the whole-file `doc` span sanitised by `sanitizeForPrompt('', [span])`, lines numbered and neutralised, wrapped with `wrapUntrusted('D1', …)`, `promptHash` over the sent messages) and `packages/core/src/drift/doc-claims.ts` (`MAX_EXTRACTED_CLAIMS`, `MAX_DOC_CLAIMS`, `MAX_CLAIM_CHARS`, `claimsOutputSchema`, `parseClaimsOutput` through `unfenceModelOutput`/`discardModelOutput`, `extractClaims` returning the kept, dropped and omitted claims and the events); `drift.ts` reads the documents and calls it; JSDoc on every export
+- [ ] 3.3 RED → GREEN: test "An invalid extraction skips the document and the next one is checked"
+- [ ] 3.4 RED → GREEN: test "A claim outside the document is dropped"
+- [ ] 3.5 RED → GREEN: test "Claims beyond the per-document limit are omitted". Extra cases, not scenarios, in `doc-claims.spec.ts`: an output fenced in one ```` ```json ```` block is accepted; an output with an extra field, a claim of 501 code points, a `startLine` 0, an `endLine` below `startLine`, a text with U+0000 and 51 claims are each discarded with the subcode of the explain quarantine (`invalid_shape` or `limit_exceeded`); a document over `MAX_EVIDENCE_TEXT_CHARS` is sent cut with the truncation mark and an `untrusted_content_truncated` event, and a claim after its kept last line is dropped
+- [ ] 3.6 In `tests/unit/drift/drift.spec.ts`, RED → GREEN: test "Documents are checked in byte order and the rest is skipped by the limit" (`MAX_DRIFT_DOCS`; the batched read observed through the source double)
+- [ ] 3.7 RED → GREEN: test "A docPath checks only that document"
+- [ ] 3.8 RED → GREEN: test "An unknown or unindexed project fails without calling the model"
+
+## 4. Core: context and confrontation of a claim (TDD; spec drift-detection "Context of a claim", "Confrontation of a claim"; design D4, D5, D13, D15)
+
+- [ ] 4.1 Create `tests/unit/drift/contradiction.spec.ts` (header comment: spec path and DIS-71). RED: test "Document spans are left out of a claim's context". See it fail
+- [ ] 4.2 GREEN: `packages/core/src/drift/contradiction.ts` (`MAX_CONFIG_SPANS`, `MAX_CONFIG_LINES`, `claimContext`: the pack without `doc` spans plus the matching configuration spans with `fileId` `UNSTORED_FILE_ID`, `origin` `heuristic`, `distance` 1; the configuration files read once per call through a memo the caller owns) and the confrontation prompt in `drift-prompts.ts` (`DRIFT_CONFRONTATION_SYSTEM_PROMPT`, `buildConfrontationPrompt`); JSDoc on every export
+- [ ] 4.3 RED → GREEN: test "A configuration file that shares a term with the claim joins the context". Extra cases, not scenarios: a fourth matching configuration file is not added (`MAX_CONFIG_SPANS`); a configuration file that does not fit the budget left by the pack is skipped and the next one that fits is added; a configuration file of 250 lines is sent as lines 1–200; the configuration files are read in one batched read however many claims are confronted
+- [ ] 4.4 RED → GREEN: test "A claim with no context is checked without a model call"
+- [ ] 4.5 RED → GREEN: test "A consistent claim is checked and not reported" (`confrontationOutputSchema`, `parseConfrontationOutput`, `confrontClaim` in `contradiction.ts`)
+- [ ] 4.6 RED → GREEN: test "A contradicted verdict citing an unknown id skips the claim"
+- [ ] 4.7 RED → GREEN: test "A contradicted verdict without evidence or statement skips the claim". Extra cases, not scenarios: `unrelated` counts the claim as checked; a duplicate evidence id gives `duplicate_evidence_id`; an extra field gives `invalid_shape`; the claim's text and the document lines go wrapped and neutralised in the confrontation prompt, and a span matching an instruction pattern gives an `untrusted_content_flagged` event wrapped with the document path and the claim index
+
+## 5. Core: verification, report and failures (TDD; spec drift-detection "Verification of a contradiction", "Drift report", "Drift failures, logging and writes"; design D6, D13, D17, D18)
+
+- [ ] 5.1 In `tests/unit/drift/drift.spec.ts`, RED: test "The report of a contradiction carries both citations, its type and its provenance". See it fail
+- [ ] 5.2 GREEN: in `drift.ts` the verification of a `contradicted` claim (document citation by `verifyCitations` under `D1`, then `verifyAnswer` with one `INFERENCE` statement), the contradiction with `driftProvenanceSchema`-valid provenance, the events in the order of the spec, the meter and the clock reads (design D18)
+- [ ] 5.3 RED → GREEN: test "A contradiction whose only code citation is broken is not reported"
+- [ ] 5.4 RED → GREEN: test "A contradiction keeps only its valid code citations"
+- [ ] 5.5 RED → GREEN: test "An unavailable verifier leaves the evidence cited"
+- [ ] 5.6 RED → GREEN: test "A broken document citation drops the contradiction" (the source double answers the verification read of `docs/pricing.md` with other text, as `verificationContents` of the explain doubles)
+- [ ] 5.7 RED → GREEN: test "The usage adds every answer and verify call of the run"
+- [ ] 5.8 RED → GREEN: test "A failing answer call propagates unchanged". Extra cases, not scenarios: `LlmUnavailable` of the extraction call propagates; a failure of the batched document read other than `missing` propagates
+- [ ] 5.9 RED → GREEN: test "A drift run writes nothing" (the double's write counters at 0; `console.log`, `console.info`, `console.warn` and `console.error` spied and never called)
+- [ ] 5.10 Reword the comment "No component produces contrary evidence until DIS-71." in `packages/core/src/explain/explain.ts` (design D14) to say that `drift` (DIS-71) does not persist its contradictions, so `explain` has none to read; no code change; `npx vitest run tests/unit/explain` green
+- [ ] 5.11 REFACTOR with the suite green (`/tdd-refactor`) over `packages/core/src/drift/`; no behaviour change; `grep -rn "adapters\|store-postgres\|fastify\|console\." packages/core/src/drift` prints nothing
+
+## 6. Integration over the indexed acme-shop (TDD; spec drift-detection "Drift over the indexed acme-shop")
+
+- [ ] 6.1 Create `tests/integration/drift/acme-shop.spec.ts` (header comment: spec path and DIS-71), set up as `tests/integration/explain/explain.spec.ts`: `fixtures/acme-shop` copied without `.git`, history built with `buildOne`, indexed with `runIndexCommand` inside the harness transaction (savepoint), real Postgres store and git source tree, the drift double in `live` mode whose extraction script returns, for `docs/pricing.md`, the claims of lines 11–17, 21–27 and 31 and no claim for any other document, and whose confrontation script answers `contradicted` citing the evidence ids of `app/Services/PriceCalculator.php` (and `tests/Unit/PriceCalculatorTest.php` if present) for the 11–17 claim, `contradicted` citing the ids of `config/shop.php` and `app/Services/ShippingService.php` (whichever are present) for the line-31 claim, and `consistent` for the 21–27 claim. RED: test "The two planted contradictions of the pricing document are found". If a cited file is not in a claim's context, record the real context (paths per claim) in the step 9 report before changing the script or the design
+- [ ] 6.2 GREEN (no new production code expected; any fix found here follows TDD in the unit tests first)
+- [ ] 6.3 RED → GREEN: test "A claim the code confirms is not a contradiction"
+
+## 7. Documentation of the code
+
+- [ ] 7.1 JSDoc complete on every export of `packages/core/src/drift/` (the contract of the spec, the order of the steps, the `@throws` list of "Drift failures, logging and writes"); `npm run docs:coverage` passes
+
+## 8. Backend: Review and Update Existing Tests (MANDATORY)
+
+- [ ] 8.1 Existing test files that change: none planned. Each file below must stay green unchanged; if one must change, it is named here first, before it is edited, without weakening any assertion:
+  - `tests/unit/explain/statement-schema.spec.ts` (the helpers of task 2.1 are renamed and exported; behaviour unchanged)
+  - `tests/unit/explain/explain.spec.ts` and the other `tests/unit/explain/*.spec.ts` (the comment of task 5.10)
+  - `tests/integration/explain/explain.spec.ts`
+  - `tests/unit/seed/golden-questions.spec.ts` (reads the question column of the `fixtures/README.md` tables; task 11.2 edits only the expected column of Q5)
+  - `tests/support/in-memory-store.ts`, `tests/support/in-memory-source-tree.ts`, `tests/support/scripted-llm.ts`, `tests/support/explain-doubles.ts` are not edited (design D12)
+  Then `npm run typecheck` and `grep -rn "drift" tests --include=*.ts` to find any other test touching the new surface
+- [ ] 8.2 Every `#### Scenario:` of `specs/drift-detection/spec.md` (28) maps 1:1 to a test with exactly the same name (grep each title in `tests/`): 16 in `tests/unit/drift/drift.spec.ts` (request 2, unknown answers 3, documents 3, verification 4, report 2, failures 2: tasks 1.2, 1.4–1.7, 3.6–3.8, 5.1, 5.3–5.9), 4 in `tests/unit/drift/doc-claims.spec.ts` (extraction: 3.1, 3.3–3.5), 6 in `tests/unit/drift/contradiction.spec.ts` (context 3, confrontation 3: 4.1, 4.3–4.7), 2 in `tests/integration/drift/acme-shop.spec.ts` (6.1, 6.3); none without a test, none with two; the count per file recorded in the step 9 report
+
+## 9. Backend: Run Tests and Verify Data State (MANDATORY)
+
+- [ ] 9.1 Capture the pre-test baseline: the 0.4 indicators
+- [ ] 9.2 Run the targeted tests: `npx vitest run tests/unit/drift tests/integration/drift tests/unit/explain tests/unit/verify tests/integration/explain tests/unit/seed/golden-questions.spec.ts`
+- [ ] 9.3 Run the required broader suite and gates: `npx vitest run --project dom --project seed-build --project node`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`, `npm run verify` (no fingerprint input is edited, so it passes without `seed:build`)
+- [ ] 9.4 Mutation: `npx stryker run --mutate "packages/core/src/drift/**/*.ts,packages/core/src/explain/statement-schema.ts"` (score ≥ `MIN_MUTATION_SCORE=70`); kill the meaningful survivors with red-first tests; record accepted survivors in `design.md` → Follow-ups (destination D)
+- [ ] 9.5 Verify the post-test state: the 0.4 counts unchanged (drift writes nothing; the integration spec rolls back its index), the two fingerprint header lines unchanged and `git status --porcelain seeds packages/web fixtures` empty except `fixtures/README.md` (task 11.2); no `.stryker-tmp/` left. Restore and document if not; `node scripts/dev-processes.mjs stop`
+- [ ] 9.6 Create the report `openspec/changes/add-drift-detection/reports/YYYY-MM-DD-9-test-and-state-verification.md` from the template in `docs/openspec-tasks-mandatory-steps.md` §6, with the 0.4 baseline, the totals, the Stryker score, the 1:1 scenario map of 8.2, the `npm audit --audit-level=high` result if any install happened, and the privacy check of 11.4
+- [ ] 9.7 Mark complete only after the tests pass and the report exists
+
+## 10. Backend: Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
+
+- [ ] 10.1 The interface this change adds is the exported core function `drift` (no CLI or HTTP route: DIS-73). In Git Bash, with the local database up and acme-shop listed by `npm run cli -- projects` (`npm run db:seed` only if it is not, recording the 0.4 counts before and after, since `db:seed` writes), write a throwaway script in the session scratchpad (never in the repository) that imports `drift` from `@codemind/core` and calls it over the seeded acme-shop with the real Postgres store, the git source tree and the workspace root, and run it with `npx tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json <script>`; record a timestamp and the 0.4 counts first
+- [ ] 10.2 Success path with a scripted model in the script (the same scripts as 6.1): print the report as JSON; check `status`, the two contradictions of `docs/pricing.md`, their evidence paths and lines, `type`, provenance and usage against the spec; then with `docPath: 'docs/pricing.md'` (one document entry). If `.env` configures a live model (`LLM_MODE=live` and its endpoint reachable), also run once with the real model through `withDailyBudget` as the CLI composes it and record the contradictions it reports and the usage (observation only; the DoD is the scripted run); if not, record that the live run was not possible and why
+- [ ] 10.3 Unknown and error cases: evaluation-mode model (`llm-required`), `docPath: 'app/Services/PriceCalculator.php'` (`no-docs`), an unknown project id (`ProjectNotFound`), `tokenBudget: 10` (`InvalidDriftRequest` naming `tokenBudget`)
+- [ ] 10.4 Mutating effect: none expected; confirm the 0.4 counts are unchanged after 10.2–10.3 (a live run writes no `query_log` row in this change); delete the scratchpad script; `git status` without stray files; `node scripts/dev-processes.mjs stop`
+- [ ] 10.5 PowerShell: `docs/DEMO.md` has no step for `drift` in this change (the CLI is DIS-73), so there is no capture to take; the report says so
+- [ ] 10.6 Document every command and output in `openspec/changes/add-drift-detection/reports/YYYY-MM-DD-10-manual-interface-testing.md` (mask the OS user name in paths; no document text beyond the cited lines)
+- [ ] 10.7 End-to-End Testing: not applicable, the change reaches no user interface; the report says so
+
+## 11. Update Technical Documentation (MANDATORY)
+
+- [ ] 11.1 `docs/project-context.md`: the `core/drift` module (what it reads, the two prompts, the limits, no writes) and the new test files in the Testing list; no ADR (design D19)
+- [ ] 11.2 `fixtures/README.md`: the expected column of the Q5 row says the core `drift` (DIS-71) finds the two contradictions with a scripted model and that the CLI, the golden answer and the `query_log` row are DIS-73; the paragraph under the table about Q5 updated the same way; the question column is not edited
+- [ ] 11.3 `/update-docs`: the docs gate passes; `readme.md` is not changed (it describes `drift` as a planned CLI command, still true until DIS-73; design D10); `prompts.md` gains the DIS-71 prompts with its Índice entry in the same edit
+- [ ] 11.4 `/privacy-ethics-check` over the diff (document text and model output never logged; `.env*` excluded from prompts; secrets redacted before any prompt; nothing persisted); record the outcome in the step 9 report
+
+## 12. Pull request preparation
+
+- [ ] 12.1 `/pr-describe` in Spanish against `final-project-CRN`: the Why marked as the agent's text (Follow-ups E1–E12, P1–P5 and any later round), the deviation of P1 from AC 1's wording, what goes to DIS-73 (E10), the existing tests unchanged (8.1), the `npm audit` result if any install happened, and the Stryker score
+
+## 13. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
+
+- [ ] 13.1 Open the PR against `final-project-CRN`; DIS-71 to In Review with a Spanish comment linking it
+- [ ] 13.2 CI green, including the mutation job: wait in the foreground with `gh pr checks <n> --watch --interval 60` (timeout 600000), repeated until no check is pending; link the run in an addendum to the step 9 report
+- [ ] 13.3 `/show-spec-working` (may reuse the step 10 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
+- [ ] 13.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
+- [ ] 13.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
+- [ ] 13.6 Fix every finding in this change (TDD for behaviour), each with an A/B/C/D destination in `design.md` → Follow-ups; re-run what each fix invalidates and add an addendum to the affected report; commit to the same PR; re-run a check whose findings led to non-trivial fixes until no Blocker or Major
+- [ ] 13.7 `/opsx:archive` (it creates `openspec/specs/drift-detection/spec.md` with the delta's `## Purpose`; no other main spec is edited, the change has no other delta); commit it to the same PR; `node scripts/dev-processes.mjs stop`; merge (`gh pr merge <n> --merge`, through the merge gate) only after the archive commit and with CI green (autonomous run, `KIT_AUTONOMOUS_RUN=1`, only; otherwise the author merges)
