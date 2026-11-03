@@ -323,3 +323,203 @@ All 28 existing scenarios have a task, and task 8.2's per-file count (16/4/6/2) 
 
 - DIS-71 `[enhanced]` §2 AC 1 and §3 "Informe" aligned as the audit asked; the `[original]` block is
   untouched. A Spanish comment summarises this round. A Spanish comment on DIS-73 records R8.
+
+---
+
+## Run 2 (2026-11-03)
+
+CHANGES REQUIRED
+
+# Spec audit: add-drift-detection (DIS-71), run 2
+
+- Date: 2026-11-03
+- Change: `openspec/changes/add-drift-detection/` as it is after commit `e214bdb` (round 1 corrections). It contains the proposal, design D1–D19 with Follow-ups E1–E12, P1–P5 and R1–R11, the delta `specs/drift-detection/spec.md` with 29 scenarios, and tasks 0–13.
+- Ticket: DIS-71 (sub-issue, In Progress) with its 3 comments, the parent DIS-48 (Backlog, no comments) and the DIS-73 comments, all loaded from Linear.
+- Earlier run: run 1 (CHANGES REQUIRED, B1–B6). Its resolution section was checked against the artifacts. Every fix it lists is present.
+- The answers to the two run-1 questions are the agent's text (R10 and R8). They do not contradict the ticket: the `[enhanced]` AC 1 now says `driftProvenanceSchema`, and the DIS-73 comment records R8. They are accepted here.
+
+## Questions for the author
+
+None. Both blocking findings below are technical decisions. The agent can take them without a product or scope call.
+
+## 1. Scope against the ticket
+
+Clean. The change stays within DIS-71:
+- the three modules of the `[original]` block;
+- the scripted-LLM DoD;
+- no CLI.
+
+The CLI, the golden Q5 and the `query_log` row of the parent stay with DIS-73 (D10, R8). The additions from round 1 are consequences of the change, not new scope:
+- R5: rewording the "until DIS-71" texts;
+- R6/R7: the `D1` id and the line-cut drop;
+- R9: the internal `UNSTORED_FILE_ID`.
+
+## 2. Inherited acceptance criteria
+
+Clean. All five ACs of DIS-71 `[enhanced]` map to a requirement and a scenario:
+- AC1 maps to "The two planted contradictions…". AC 1 now names `driftProvenanceSchema`, so the run-1 deviation is gone.
+- AC2 maps to "A claim the code confirms…".
+- AC3 maps to the three "Unknown drift answers" scenarios.
+- AC4 maps to "An invalid extraction…", "A claim outside the document is dropped", "…citing an unknown id…" and "…without evidence or statement…".
+- AC5 maps to the four "Verification of a contradiction" scenarios, "An unknown or unindexed project fails…" and "A failing answer call propagates unchanged".
+
+The parent's ACs that DIS-71 inherits (`INFERENCE` with provenance, confirmed claims not reported, `verification` on both sides, `no-docs`) are covered. The golden Q5 and `query_log` belong to DIS-73.
+
+## 3. Missing scenarios
+
+Clean for blocking purposes. The behaviours that are tested only as extra cases (tasks 3.5, 4.3, 4.7, 5.8) were accepted in R11 (destination D).
+
+- Improvable. Scenario "The document is sent numbered and as untrusted data": line 2 (`<<<END_UNTRUSTED_DATA doc>>>`) also matches the `delimiter-spoof` pattern (`packages/core/src/explain/sanitize.ts:29`, `firstMatches` at `:147-153`). The run therefore emits two `untrusted_content_flagged` events: `delimiter-spoof` for line 2 and `ignore-instructions` for line 3. The THEN names only the line-3 event, so a test that asserts the whole event list would fail against a correct implementation. State both events in the THEN.
+
+## 4. Ambiguity
+
+- Improvable. `design.md` → Risks, the reindex bullet says "a run is short". This is a risk note, not a requirement. Replace it with "a run makes at most 130 `answer` calls plus their `verify` calls in one process".
+- No occurrence of fast, easy, secure, efficient, appropriate or robust in the proposal, the spec, the design or the tasks.
+- "many" appears once, in task 4.3 ("however many claims are confronted"), meaning "any number". It is not a defect.
+
+## 5. Open decisions
+
+- **B7 (blocking): the untrusted-data ids of the claim and the document in the confrontation prompt, and whether they count as known evidence ids.**
+  - D5's user message wraps the claim's text and the document's text (`wrapped(...)`), but names the id of neither wrapper. `wrapUntrusted(id, text)` (`packages/core/src/explain/untrusted-text.ts:35`) requires one.
+  - The spec says "each under an evidence id local to the prompt (`E1…En`)", which can be read as covering the claim and the document too.
+  - D6 reports the document citation under `D1`.
+  - Quarantine step 7 rejects "an id the prompt does not hold". If the model cites `D1` (or the claim's id) and the implementer counts it as held, the id reaches `verifyAnswer`. `verifyAnswer` maps only the ids of `spanOf`. `applyVerdicts` keeps the statement, and then `spanOf.get(evidenceId) as SanitizedSpan` is `undefined` in `located`/`pairOf` (`packages/core/src/verify/verify-answer.ts:96-99,127-128`). That is a `TypeError`, not a skipped claim.
+  - The double of D12 also has to know these ids to "unwrap the markers".
+
+  Fix in D5, in the spec "Confrontation of a claim" and in task 4.7. Correction text below.
+- **B8 (blocking): the serialisation that `promptHash` hashes, for both drift prompts.**
+  - The spec ("Drift report") says "the SHA-256 (lowercase hexadecimal) of exactly what its prompt sent". D3 says "`promptHash` over the sent messages".
+  - Neither says which bytes are hashed. The scenario "The report of a contradiction carries both citations…" asserts that the provenance "hashes the sent prompt", so its test pins the format.
+  - `explain` has one rule: the UTF-8 bytes of `JSON.stringify(messages)` (`packages/core/src/explain/prompt.ts:56,95`).
+
+  Fix in the spec and in D3/D5 by naming that rule.
+- No other open decision. Run 1's B1–B4 are settled in the spec and the design:
+  - `claimsChecked`: settled;
+  - `missing`: propagates;
+  - the budget for the configuration spans: settled;
+  - the subcodes: the closed set, checked against `packages/core/src/explain/schema-violation.ts:7-14`.
+
+## 6. Contradictions inside the change
+
+- Improvable. Task 8.1 still says "`tests/unit/explain/statement-schema.spec.ts` (the helpers of task 2.1 are renamed and exported…)". After R4 only one helper is exported: `unfenced`, renamed `unfenceModelOutput`. D16, task 2.1 and the proposal say so. Align the wording of 8.1.
+- No other contradiction. The proposal, D1–D19 and the spec agree on the following points:
+  - the order of the call;
+  - the event shapes, which D17 and "Drift report" give verbatim;
+  - no `schema_violation` event;
+  - the `D1` id of the extraction events;
+  - the line-cut drop;
+  - the check order of the quarantine;
+  - the D14 table and tasks 5.10, 11.1 and 11.3.
+
+## 7. Contradictions with the project
+
+Clean.
+- The D14 table covers every "until DIS-71" text in the code, specs and docs. The grep also finds `docs/DEMO.md:485` ("su desfase es la pregunta Q5, DIS-71") and `fixtures/README.md:192`. The first stays true. Task 11.2 edits the second.
+- `docs/adr/20261013-fact-statements-stored-as-l2-inference.md` is not contradicted, because `drift` reads and writes no claims.
+- `openspec/specs/graph-schema` already allows `capability = 'drift'`.
+- The `withDailyBudget` blind spot of `docs/backend-standards.md` §8 is now a Risks entry and a note in task 10.2.
+
+## 8. Contrast with the real code
+
+Verified, and correct:
+- `sanitizeForPrompt(question, spans)` (`sanitize.ts:77`) names spans `E{i+1}` (`:64-66`) and flags the first matching line per pattern (`:147-153`). For a cut first line it sets `keptEndLine = startLine` (`:182`), which supports D3/R7.
+- `verifyCitations(source, root, commit, citations)` (`packages/core/src/verify/syntactic.ts:51`) never reads `fileId`. `verifyAnswer(deps, root, commit, statements, spanOf)` (`verify-answer.ts:75`) has the shape D6 assumes. `TypedStatement` (`claim-items.ts:29-38`) matches D6's `{ text, type, spans, evidenceIds }`.
+- `pack.tokens` (`context-pack.ts:206`) counts every fitted span, including `doc` spans, which supports R3. An empty pack (`no-anchor` / `over-budget`, `:83-95`) carries no `root`/`commit`. `drift` takes both from `getProject` (D1), so this is consistent.
+- `ContextOrigin` includes `heuristic` (`context-pack.ts:214`, `rank.ts:11`).
+- The constants and helpers the design reuses exist: `TOKEN_BUDGET_MIN/MAX/DEFAULT` (`budget.ts:8-14`), `MAX_EVIDENCE_TEXT_CHARS` (`limits.ts:51`), `REDACTION_MARKER` (`index/secret-scanner.ts:5`), `normaliseText`/`questionTerms` (`anchor.ts:42,57`), `estimateTokens`, `redactedLines`, `spanText`, `meterLlm`, `sumVerificationUsage`.
+- The fingerprint inputs (`packages/cli/src/seed/fingerprint.ts:30-41`) do not include `packages/core/src/explain` or `packages/core/src/drift`. Task 2.1 and the rewording in 5.10 therefore need no `seed:build`. `knowledge/confidence.ts` is left alone, as D14 says.
+- `fileKindOf('README.md')` is `doc` and `'R' < 'd'` in byte order. The 12-document scenario's expected order is right.
+- No test pins the export surface of `@codemind/core`, which answers the DIS-71 §3 note. Task 8.1's "none planned" holds.
+
+Improvable:
+- Task 1.1 switches the source double to `verificationContents` "after the first confrontation call". With two or more claims, the context-pack reads of claim 2 come after claim 1's confrontation and would see the verification contents. No current scenario uses `verificationContents` with more than one claim. Say in task 1.1 that the option is meant for single-claim tests. Alternatively, switch on "reads made by the verification", for example after the first confrontation whose verdict is `contradicted`, and let the per-claim pack reads see the normal contents.
+
+## 9. Task size
+
+Clean. 3.2 and 5.2 are split as run 1 asked. Task 1.1 (the double) and task 6.1 (the integration harness) are the largest. Both follow existing templates (`tests/support/explain-doubles.ts`, `tests/integration/explain/explain.spec.ts`) and fit one turn.
+
+## 10. Mandatory steps
+
+Clean.
+- Step 0 is the branch (`feature/dis-71-drift-detection`, scope `DIS-71`).
+- The mandatory sections are present and labelled per `docs/openspec-tasks-mandatory-steps.md`:
+  - 8: Review existing tests;
+  - 9: Run tests and verify data state, with the report template;
+  - 10: Manual interface testing, AGENT MUST EXECUTE;
+  - 11: Documentation;
+  - 13: Pre-merge review, AGENT MUST EXECUTE, last.
+- E2E is declared not applicable with a reason (10.7).
+- The change writes nothing. 0.4, 9.5 and 10.4 compare counts and fingerprints. 10.1 says `db:seed` is the idempotent restoration. The scratchpad script is deleted.
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| Drift request | An invalid drift request is rejected before the store | 1.2, 1.3 |
+| Drift request | A relative workspace root is rejected before the store | 1.4 |
+| Unknown drift answers | Evaluation mode answers llm-required without reading anything | 1.5 |
+| Unknown drift answers | A project without documents answers no-docs | 1.6 |
+| Unknown drift answers | A docPath that is not a stored document answers no-docs | 1.7 |
+| Documents checked by a call | Documents are checked in byte order and the rest is skipped by the limit | 3.6 |
+| Documents checked by a call | A docPath checks only that document | 3.7 |
+| Documents checked by a call | An unknown or unindexed project fails without calling the model | 3.8 |
+| Claim extraction | The document is sent numbered and as untrusted data | 3.1, 3.2a |
+| Claim extraction | An invalid extraction skips the document and the next one is checked | 3.2b, 3.3 |
+| Claim extraction | A claim outside the document is dropped | 3.4 |
+| Claim extraction | Claims beyond the per-document limit are omitted | 3.5 |
+| Claim extraction | Secrets are redacted before any drift prompt | 4.8 |
+| Context of a claim | Document spans are left out of a claim's context | 4.1, 4.2 |
+| Context of a claim | A configuration file that shares a term with the claim joins the context | 4.3 |
+| Context of a claim | A claim with no context is checked without a model call | 4.4 |
+| Confrontation of a claim | A consistent claim is checked and not reported | 4.5 |
+| Confrontation of a claim | A contradicted verdict citing an unknown id skips the claim | 4.6 |
+| Confrontation of a claim | A contradicted verdict without evidence or statement skips the claim | 4.7 |
+| Verification of a contradiction | A contradiction whose only code citation is broken is not reported | 5.2a, 5.3 |
+| Verification of a contradiction | A contradiction keeps only its valid code citations | 5.4 |
+| Verification of a contradiction | An unavailable verifier leaves the evidence cited | 5.5 |
+| Verification of a contradiction | A broken document citation drops the contradiction | 5.6 |
+| Drift report | The report of a contradiction carries both citations, its type and its provenance | 5.1, 5.2a, 5.2b |
+| Drift report | The usage adds every answer and verify call of the run | 5.2c, 5.7 |
+| Drift failures, logging and writes | A failing answer call propagates unchanged | 5.8 |
+| Drift failures, logging and writes | A drift run writes nothing | 5.9 |
+| Drift over the indexed acme-shop | The two planted contradictions of the pricing document are found | 6.1, 6.2 |
+| Drift over the indexed acme-shop | A claim the code confirms is not a contradiction | 6.3 |
+
+No empty row. All 29 scenarios have a task. Task 8.2's per-file count matches the spec:
+- 16 in `drift.spec.ts`;
+- 5 in `doc-claims.spec.ts`;
+- 6 in `contradiction.spec.ts`;
+- 2 in the integration file.
+
+## Corrections to apply
+
+### `specs/drift-detection/spec.md`
+
+1. **Requirement "Confrontation of a claim" (B7).**
+   - Replace "the claim's text and its document citation (path, lines and their text) and the context's sanitised spans, each under an evidence id local to the prompt (`E1…En`)" with: "the claim's text as untrusted data under the id `C1`, its document citation (path, lines and their text) as untrusted data under the id `D1`, and the context's sanitised spans, each under an evidence id local to the prompt (`E1…En`)".
+   - Replace "then an id the prompt does not hold → `unknown_evidence_id`" with "then an id that is not one of the prompt's evidence ids `E1…En` (`C1` and `D1` included) → `unknown_evidence_id`".
+2. **Requirement "Drift report" (B8).** Replace "the SHA-256 (lowercase hexadecimal) of exactly what its prompt sent" with "the SHA-256 (lowercase hexadecimal) of the UTF-8 bytes of `JSON.stringify` of the messages its prompt sent, the rule of `explain`".
+3. **Scenario "The document is sent numbered and as untrusted data" (improvable, point 3).** Replace the THEN's last clause with: "and the report's events hold, wrapped with `docPath` `docs/pricing.md`, one `untrusted_content_flagged` event with pattern `delimiter-spoof` for line 2 and one with pattern `ignore-instructions` for line 3, both under the evidence id `D1`".
+
+### `design.md`
+
+1. **D5 (B7).** Replace the user message with `{ "claim": wrapUntrusted('C1', neutralised claim text), "document": { path, startLine, endLine, text: wrapUntrusted('D1', neutralised lines) }, "evidence": [ … as in explain's prompt, ids E1…En ... ] }`. In step 7, write "an id not in the prompt's `E1…En` (so `C1` or `D1` cited → `unknown_evidence_id`); only `E` ids reach `verifyAnswer`'s `spanOf`".
+2. **D3 and D5 (B8).** Add: "`promptHash` is the SHA-256, lowercase hexadecimal, of the UTF-8 bytes of `JSON.stringify(messages)`, as `packages/core/src/explain/prompt.ts:95`."
+3. **Risks (improvable, point 4).** Replace "a run is short" with "a run makes at most 130 `answer` calls plus their `verify` calls in one process".
+4. **Follow-ups.** Add the following rows, both destination A:
+   - "R12 (Audit run 2, B7; D5) The claim and the document of the confrontation prompt are wrapped as `C1` and `D1`; only `E1…En` are known evidence ids, so citing `C1` or `D1` is `unknown_evidence_id`."
+   - "R13 (Audit run 2, B8; D3, D5) `promptHash` hashes `JSON.stringify(messages)` as `explain`."
+
+### `tasks.md`
+
+1. **Task 4.7 (B7).** Add an extra case: "a `contradicted` verdict citing `D1` (or `C1`) gives `unknown_evidence_id` and no `verify` call."
+2. **Task 1.1 (B7).** The double unwraps `C1`, `D1` and `E1…En`. Also add one of the following:
+   - "`verificationContents`/`verificationFailures` are meant for tests with one confronted claim";
+   - or switch them on after the first confrontation whose verdict is `contradicted`.
+3. **Task 3.2a and 5.2b (B8).** Name the hash rule: "`promptHash` = SHA-256 of `JSON.stringify(messages)`".
+4. **Task 8.1 (point 6).** Replace "(the helpers of task 2.1 are renamed and exported; behaviour unchanged)" with "(`unfenced` is renamed `unfenceModelOutput` and exported by task 2.1; behaviour unchanged)".
+
+### Linear (Spanish; the `[original]` block is not touched)
+
+- **DIS-71, `[enhanced]` §3 "Confrontación":** after «una llamada `answer` con `sanitizeForPrompt` y la afirmación con su cita del doc», add «(la afirmación envuelta como `C1` y la cita del doc como `D1`; solo los ids `E1…En` son evidencias citables, y citar `C1` o `D1` es `unknown_evidence_id`)».
+- **DIS-71, new comment:** «*(Texto del agente, spec-audit ronda 2, 2026-11-03.)* Segunda auditoría de `add-drift-detection`: CHANGES REQUIRED, 2 hallazgos bloqueantes. B7: no se fijaban los ids de los marcadores de la afirmación y del documento en el prompt de confrontación, ni si cuentan como evidencias conocidas; si el modelo citara `D1`, `verifyAnswer` fallaría con un `TypeError` en vez de descartar la afirmación. B8: no se fijaba qué bytes hashea `promptHash`; se adopta la regla de `explain` (`JSON.stringify(messages)`). Mejorables: el escenario del documento con marcadores debe nombrar también el evento `delimiter-spoof` de la línea 2; la tarea 8.1 aún habla de «los ayudantes» exportados; el cambio de contenidos del doble tras la primera confrontación afecta a pruebas con varias afirmaciones; y en Riesgos, «a run is short».»
