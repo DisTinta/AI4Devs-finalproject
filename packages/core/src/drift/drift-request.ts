@@ -7,7 +7,7 @@ import { withoutNul } from '../knowledge/text-without-nul.js';
 // (DIS-71 design D1). Only the name of the field at fault leaves this module, never its value.
 
 /** The fields an invalid drift request can be blamed on; `request` is the request as a whole. */
-export const DRIFT_REQUEST_FIELDS = ['request', 'projectId', 'docPath', 'tokenBudget'] as const;
+export const DRIFT_REQUEST_FIELDS = ['request', 'projectId', 'docPath', 'tokenBudget', 'useCache'] as const;
 
 /** A field an invalid drift request can be blamed on. */
 export type DriftRequestField = (typeof DRIFT_REQUEST_FIELDS)[number];
@@ -29,13 +29,15 @@ export class InvalidDriftRequest extends DomainError {
 
 /**
  * The request of `drift`: the project, optionally one document path of 1 to 1,000 code points without
- * U+0000, and optionally the token budget of the context pack. No other field. `projectId` is only
+ * U+0000, optionally the token budget of the context pack, and optionally `useCache` (a boolean, `true`
+ * when absent; `false` skips the golden drift report lookup, DIS-73). No other field. `projectId` is only
  * checked to be a string: the store reports a malformed or unknown id as `ProjectNotFound`.
  */
 export const driftRequestSchema = z.strictObject({
   projectId: z.string(),
   docPath: withoutNul(z.string().min(1).max(MAX_DOC_PATH_CHARS)).optional(),
   tokenBudget: z.int().min(TOKEN_BUDGET_MIN).max(TOKEN_BUDGET_MAX).optional(),
+  useCache: z.boolean().optional(),
 });
 
 /** The request of `drift`. */

@@ -10,6 +10,7 @@ import type { CostTable } from '../llm/cost-table.js';
 import type { LlmPort } from '../ports/LlmPort.js';
 import type { SourceTreePort } from '../ports/SourceTreePort.js';
 import type { StorePort } from '../ports/StorePort.js';
+import type { QueryLogEntry } from '../knowledge/query-log.js';
 import { latencyMs, sumVerificationUsage } from '../explain/usage.js';
 import { meterLlm } from '../explain/usage-meter.js';
 import type { VerificationUsage } from '../verify/semantic.js';
@@ -20,7 +21,10 @@ import { claimContext, configFilesOf, confrontClaim, isPromptableConfig } from '
 import type { ConfigFiles } from './contradiction.js';
 import { extractClaims } from './doc-claims.js';
 import type { DocClaim } from './doc-claims.js';
+import { driftCacheKey, parseStoredDriftReport } from './drift-cache.js';
+import { driftQueryLogEntry, saveDriftRow, zeroDriftRow } from './query-log.js';
 import type {
+  AnsweredDrift,
   Contradiction,
   DriftCheckEvent,
   DriftDocument,
@@ -34,7 +38,9 @@ import type { DriftRequest } from './drift-request.js';
 
 // The drift use case (DIS-71 design D1): reads the indexed documents, asks the model for their
 // checkable claims, confronts each with the code that bears on it and returns the contradictions whose
-// citations on both sides are verified. It imitates `explain` and writes nothing.
+// citations on both sides are verified. It imitates `explain`: it answers a golden report from the answer
+// cache (DIS-73 design D1) and leaves one `query_log` row per call (design D3); it saves no claim,
+// evidence or cache entry.
 
 /** Most documents one call checks, the first ones in byte order of their paths; later ones are skipped. */
 export const MAX_DRIFT_DOCS = 10;
@@ -50,8 +56,8 @@ export interface DriftDependencies {
   /** Absolute path a relative project root resolves against. */
   workspaceRoot: string;
   /**
-   * The clock of the provenance and of the latency: read first after the project is resolved and last
-   * after the final verification; each semantic check reads it twice more, as in `explain`.
+   * The clock of the provenance and of the latency: read first right after the request is validated
+   * and last after the final verification; each semantic check reads it twice more, as in `explain`.
    */
   now: () => Date;
   /** The verdicts of the semantic check already known. */
@@ -78,34 +84,115 @@ const ZERO_VERIFICATION: VerificationUsage = { calls: 0, cacheHits: 0, inputToke
 
 /**
  * Finds what the documents of one indexed project say that its code, tests or configuration contradict.
- * The request is validated and the workspace root checked before any call. In `evaluation` mode the
- * answer is `unknown` `llm-required` with nothing read; a project with no stored document (or a
- * `docPath` that is not one) is `unknown` `no-docs` after one read of the index state. Otherwise the
- * stored files of kind `doc`, in byte order and at most `MAX_DRIFT_DOCS` (the rest get a
- * `drift_doc_skipped` `limit` event), are read at the indexed commit in one batched read; for each, one
- * `answer` call extracts its claims, and for each confronted claim (at most `MAX_DOC_CLAIMS`) the context
- * is built (`claimContext`) and one `answer` call judges it. A `contradicted` verdict is verified: the
- * document citation syntactically first, then the statement and its cited spans through `verifyAnswer`;
- * a contradiction with no valid citation on either side is not reported. An invalid model output costs
- * one document or one claim (an event with its subcode), never the run. Nothing is written to the store
- * and nothing is logged: the report holds no text of the document, the claims or the model output other
- * than the cited excerpts and the statements it returns.
+ * The request is validated and the workspace root checked before any call, then the clock is read once.
+ * Unless `useCache` is `false`, the answer cache is looked up under `driftCacheKey` in both modes: a
+ * stored drift report is answered (its hit recorded, zero usage, `cacheHit` `true`) without reading the
+ * project or calling the model. Otherwise, in `evaluation` mode the answer is `unknown` `llm-required`
+ * with nothing read; a project with no stored document (or a `docPath` that is not one) is `unknown`
+ * `no-docs` after one read of the index state. Otherwise the stored files of kind `doc`, in byte order
+ * and at most `MAX_DRIFT_DOCS` (the rest get a `drift_doc_skipped` `limit` event), are read at the
+ * indexed commit in one batched read; for each, one `answer` call extracts its claims, and for each
+ * confronted claim (at most `MAX_DOC_CLAIMS`) the context is built (`claimContext`) and one `answer`
+ * call judges it. A `contradicted` verdict is verified: the document citation syntactically first, then
+ * the statement and its cited spans through `verifyAnswer`; a contradiction with no valid citation on
+ * either side is not reported. An invalid model output costs one document or one claim (an event with
+ * its subcode), never the run. Every returned report leaves one `query_log` row, and a rejection after a
+ * model call resolved leaves one with the spend so far. Nothing else is written (a golden hit only
+ * records its hit) and nothing is logged: the report holds no text of the document, the claims or the
+ * model output other than the cited excerpts and the statements it returns.
  *
  * @param dependencies The store, the source reader, the model, the workspace root, the clock, the
  *   verification cache and, optionally, the cost table.
- * @param request The project, optionally one document, and the token budget of each context pack.
- * @returns The report: `answered` with its documents, events and usage, or `unknown`.
+ * @param request The project, optionally one document, the token budget of each context pack and
+ *   whether to look the golden report up.
+ * @returns The report: `answered` with its documents, events, usage and `cacheHit`, or `unknown`.
  * @throws InvalidDriftRequest naming the field at fault, before any call.
  * @throws RangeError naming `workspaceRoot` when it is not absolute, before any call.
- * @throws ProjectNotFound and any failure of the store reads; SourceUnavailable (`not-indexed`, or the
- *   one of a document, configuration or context read, `missing` included) and any other failure of
- *   those reads; LlmUnavailable, BudgetExhausted and any other failure of an `answer` call; any failure
- *   of a verification read other than a missing file, and of a `verify` call other than those the
- *   semantic check absorbs; all unchanged.
+ * @throws ProjectNotFound and any failure of the store reads or of the hit record; SourceUnavailable
+ *   (`not-indexed`, or the one of a document, configuration or context read, `missing` included) and any
+ *   other failure of those reads; LlmUnavailable, BudgetExhausted and any other failure of an `answer`
+ *   call; any failure of a verification read other than a missing file, and of a `verify` call other
+ *   than those the semantic check absorbs; any failure of the row write other than the three it
+ *   absorbs; all unchanged.
  */
 export async function drift(dependencies: DriftDependencies, request: DriftRequest): Promise<DriftReport> {
   const parsed = parseDriftRequest(request);
   if (!isAbsolute(dependencies.workspaceRoot)) throw new RangeError('workspaceRoot must be an absolute path');
+  const { store, now } = dependencies;
+  const startedAt = now();
+  const key = driftCacheKey(parsed.docPath);
+  const meter = meterLlm(dependencies.llm, dependencies.costTable ?? COST_TABLE);
+
+  if (parsed.useCache !== false) {
+    const entry = await store.findCacheEntry(parsed.projectId, key);
+    const stored = entry === undefined ? undefined : parseStoredDriftReport(entry.response);
+    if (entry !== undefined && stored !== undefined) {
+      await store.touchCacheEntry(parsed.projectId, entry.id, startedAt);
+      const finishedAt = now();
+      const hit: AnsweredDrift = {
+        status: 'answered',
+        projectId: parsed.projectId,
+        commit: stored.commit,
+        documents: stored.documents,
+        events: [],
+        usage: usageOf(meter, [], latencyMs(startedAt, finishedAt)),
+        cacheHit: true,
+      };
+      return logged(store, hit, zeroDriftRow(parsed.projectId, key, startedAt, finishedAt, true));
+    }
+  }
+
+  let outcome: DriftReport;
+  try {
+    outcome = await runPipeline(dependencies, meter, parsed, startedAt);
+  } catch (error) {
+    if (meter.resolvedCalls() > 0) {
+      const row = driftQueryLogEntry({
+        projectId: parsed.projectId,
+        key,
+        generation: meter.generation(),
+        verification: { ...meter.verification(), calls: meter.verifyCalls(), latencyMs: null },
+        latencyMs: latencyMs(startedAt, now()),
+        cacheHit: false,
+      });
+      try {
+        await store.saveQueryLog(row);
+      } catch {
+        // The error of the call is the one that matters; a failed row never replaces it.
+      }
+    }
+    throw error;
+  }
+  if (outcome.status === 'unknown') {
+    // An unknown report has no `events`: an absorbed write failure is dropped.
+    await saveDriftRow(store, zeroDriftRow(parsed.projectId, key, startedAt, now(), false));
+    return outcome;
+  }
+  const { usage } = outcome;
+  const row = driftQueryLogEntry({
+    projectId: parsed.projectId,
+    key,
+    generation: usage.generation,
+    verification: usage.verification,
+    latencyMs: usage.latencyMs,
+    cacheHit: false,
+  });
+  return logged(store, outcome, row);
+}
+
+/** Writes the row of an answered report and appends the `query_not_logged` event when the write is absorbed. */
+async function logged(store: StorePort, report: AnsweredDrift, row: QueryLogEntry): Promise<AnsweredDrift> {
+  const code = await saveDriftRow(store, row);
+  return code === undefined ? report : { ...report, events: [...report.events, { type: 'query_not_logged', code }] };
+}
+
+/** The pipeline of one call over the metered model: the unknown answers, the reads and the checks. */
+async function runPipeline(
+  dependencies: DriftDependencies,
+  meter: ReturnType<typeof meterLlm>,
+  parsed: DriftRequest,
+  startedAt: Date,
+): Promise<DriftReport> {
   const { store, source, workspaceRoot, now } = dependencies;
   if (dependencies.llm.mode === 'evaluation') return { status: 'unknown', reason: 'llm-required' };
 
@@ -118,8 +205,6 @@ export async function drift(dependencies: DriftDependencies, request: DriftReque
   if (project.indexedCommit === undefined) throw new SourceUnavailable('not-indexed');
   const commit = project.indexedCommit;
   const root = isAbsolute(project.rootPath) ? project.rootPath : join(workspaceRoot, project.rootPath);
-  const startedAt = now();
-  const meter = meterLlm(dependencies.llm, dependencies.costTable ?? COST_TABLE);
   const configPaths = paths.filter((path) => fileKindOf(path) === 'config' && isPromptableConfig(path));
   const run: RunState = {
     dependencies,
@@ -146,7 +231,15 @@ export async function drift(dependencies: DriftDependencies, request: DriftReque
   for (const docPath of docs.slice(MAX_DRIFT_DOCS)) events.push({ type: 'drift_doc_skipped', docPath, reason: 'limit' });
 
   const latency = latencyMs(startedAt, now());
-  return { status: 'answered', projectId: parsed.projectId, commit, documents, events, usage: usageOf(meter, run.verifications, latency) };
+  return {
+    status: 'answered',
+    projectId: parsed.projectId,
+    commit,
+    documents,
+    events,
+    usage: usageOf(meter, run.verifications, latency),
+    cacheHit: false,
+  };
 }
 
 /** The usage of the run: the meter's resolved calls, the verification sums, the cost rounded once. */
