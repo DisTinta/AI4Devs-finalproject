@@ -110,11 +110,11 @@
 
 ## 12. Pull request preparation
 
-- [ ] 12.1 `/pr-describe` in Spanish against `final-project-CRN`: the Why marked as the agent's text (Follow-ups E1–E12, P1–P5, R1–R11 of audit round 1, R12–R15 of round 2 and any later round), the deviation of P1 from AC 1's wording, what goes to DIS-73 (E10), the existing tests unchanged (8.1), the `npm audit` result if any install happened, and the Stryker score
+- [x] 12.1 `/pr-describe` in Spanish against `final-project-CRN`: the Why marked as the agent's text (Follow-ups E1–E12, P1–P5, R1–R11 of audit round 1, R12–R15 of round 2 and any later round), the deviation of P1 from AC 1's wording, what goes to DIS-73 (E10), the existing tests unchanged (8.1), the `npm audit` result if any install happened, and the Stryker score
 
 ## 13. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 13.1 Open the PR against `final-project-CRN`; DIS-71 to In Review with a Spanish comment linking it
+- [x] 13.1 Open the PR against `final-project-CRN`; DIS-71 to In Review with a Spanish comment linking it
 - [ ] 13.2 CI green, including the mutation job: wait in the foreground with `gh pr checks <n> --watch --interval 60` (timeout 600000), repeated until no check is pending; link the run in an addendum to the step 9 report
 - [ ] 13.3 `/show-spec-working` (may reuse the step 10 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
 - [ ] 13.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
