@@ -1,0 +1,151 @@
+## 0. Setup: Create Feature Branch (MANDATORY - FIRST STEP)
+
+- [ ] 0.1 Feature branch `feature/dis-73-cli-drift-golden` (`BRANCH_PREFIX=feature/`), created from `final-project-CRN` before `/opsx:propose`; confirm `git merge-base --is-ancestor origin/final-project-CRN HEAD` and that `openspec/changes/add-cli-drift/` is on it. `git fetch`; if `origin/final-project-CRN` moved, merge it before any code change (never force-push a published branch). Every commit scope is `DIS-73`
+- [ ] 0.2 Confirm DIS-73 is In Progress in Linear, with a short Spanish comment naming the change `add-cli-drift` and the branch
+- [ ] 0.3 Verify the current branch and `git status`; nothing under `.claude/` or `.cursor/` is ever staged (explicit paths only, never `git add -A` nor `git commit -a`)
+- [ ] 0.4 Baseline: `npx vitest run tests/unit/drift tests/integration/drift tests/unit/cli tests/integration/cli tests/unit/cache tests/unit/seed` green, totals recorded for the step 12 report; in the local database record `SELECT count(*) FROM claim`, `SELECT count(*) FROM cache_entry`, `SELECT question_normalized, hit_count FROM cache_entry c JOIN project p ON p.id = c.project_id WHERE p.name = 'acme-shop' ORDER BY 1` and `SELECT capability, count(*) FROM query_log GROUP BY capability`; record the `analyzer-fingerprint` and `contract-fingerprint` header lines of `seeds/graph-dump.sql` and the `answerFingerprint` of `seeds/cache/acme-shop.json`; then `node scripts/dev-processes.mjs stop`
+
+## 1. Core: request, golden lookup and stored drift report (TDD; spec drift-detection "Drift request", "Unknown drift answers", "Golden drift report lookup"; design D1, P5, P6, P7)
+
+- [ ] 1.1 Extend `tests/support/drift-doubles.ts` (existing support file, changed here): `driftDeps` gains the options `cacheEntries` (key → response, stored in the in-memory store under the project), `failQueryLogWrite` and `findCacheEntryError`, passed to the in-memory store as its existing options do; no existing option or default changes, so every current caller behaves the same. `tests/support/in-memory-store.ts` is not edited (it already implements `findCacheEntry`, `touchCacheEntry`, `saveQueryLog` and their failure options); if it must change, name it here first
+- [ ] 1.2 In `tests/unit/drift/drift.spec.ts` (existing test, changed): RED, the test "An invalid drift request is rejected before the store" gains the case `useCache: 'no'` naming `useCache` (the other eight cases and their assertions unchanged). See it fail
+- [ ] 1.3 GREEN: `packages/core/src/drift/drift-request.ts`: `useCache: z.boolean().optional()`, `DRIFT_REQUEST_FIELDS` gains `useCache`; JSDoc updated
+- [ ] 1.4 Create `tests/unit/drift/drift-cache.spec.ts` (header comment: spec path and DIS-73). RED: test "A golden report is answered from the cache in both modes". See it fail (no module)
+- [ ] 1.5 GREEN: `packages/core/src/drift/drift-cache.ts` (`driftCacheKey`, `storedDriftReportSchema` strict on every level reusing `driftProvenanceSchema`, `FILE_KINDS` and `SPAN_LINE_MAX`, `StoredDriftReport`, `parseStoredDriftReport` returning `undefined` for an invalid value), exported by `drift/index.ts`; in `drift-report.ts` `AnsweredDrift` gains `cacheHit: boolean`; in `drift.ts` the meter is created and the clock read right after validation (design P5), then the lookup before the `evaluation` branch, the hit record at the first read and the hit answer with zero usage (design P6); a live report carries `cacheHit: false`; JSDoc on every export
+- [ ] 1.6 RED → GREEN: test "An invalid golden entry is a miss without an event". Extra cases, not scenarios, in `drift-cache.spec.ts`: `storedDriftReportSchema` rejects an empty `documents`, a negative count, a contradiction of `type` `FACT`, a claim verification `entailed`, an evidence `fileKind` `binary`, an `endLine` before its `startLine`, a text holding U+0000 and an invalid provenance, and accepts the stored part of the report of "The report of a contradiction carries both citations, its type and its provenance"; `driftCacheKey(undefined)` is `drift:` and `driftCacheKey('docs/pricing.md')` is `drift:docs/pricing.md`; no key `normalizeQuestion` returns for the acme-shop and task-api demo questions starts with `drift:`
+- [ ] 1.7 RED → GREEN: test "A docPath is looked up under its own key"
+- [ ] 1.8 RED → GREEN: test "Turning the cache off skips the lookup and saves nothing"
+- [ ] 1.9 RED → GREEN: test "A failing golden lookup stops before the model"
+- [ ] 1.10 In `tests/unit/drift/drift.spec.ts` (existing test, changed): the test "Evaluation mode answers llm-required without reading anything" keeps its name and is called with `useCache: false`, asserting the spec's new THEN (no store read, the one `saveQueryLog` of the row, no source read, no model call); new test "Evaluation mode without a golden report answers llm-required without reading the project" (one `findCacheEntry` with key `drift:`, one `saveQueryLog`, no `readIndexState` or `getProject`, no source read, no model call). Both RED (the row is not written yet), GREEN after task 2.4. The tests whose `toEqual` of an answered report now needs `cacheHit: false`, and the tests whose scripted clock counts its reads, are adjusted with the same values otherwise (design P5); each such test is listed by name in the step 12 report
+
+## 2. Core: the drift query log row (TDD; spec drift-detection "Drift query log", "Drift failures, logging and writes", "Drift report"; design D3)
+
+- [ ] 2.1 Create `tests/unit/drift/query-log.spec.ts` (header comment: spec path and DIS-73). RED: test "A run with the model leaves one row with its usage". See it fail
+- [ ] 2.2 GREEN: `packages/core/src/drift/query-log.ts` (`driftQueryLogEntry`, `saveDriftRow`, as `impact/query-log.ts`), exported by `drift/index.ts`; `drift-report.ts` `DriftEvent` gains the `QueryNotLoggedEvent` member (imported from `explain/explain-event.ts`, which is not edited); `drift.ts` writes the row of a returned answered report and appends `query_not_logged` last when the write is absorbed; JSDoc on every export
+- [ ] 2.3 RED → GREEN: test "A golden report leaves a cache-hit row with zero counters"
+- [ ] 2.4 RED → GREEN: test "An unknown report leaves a zero row" (both unknown branches write the row; an absorbed failure is dropped)
+- [ ] 2.5 RED → GREEN: test "A failure after a model call leaves a row and keeps its error" (the `try` around the pipeline, `meter.resolvedCalls() > 0`, `.catch(() => undefined)`)
+- [ ] 2.6 RED → GREEN: test "No row when drift fails before a model call resolves"
+- [ ] 2.7 RED → GREEN: test "A failed row write still answers and says so"
+- [ ] 2.8 RED → GREEN: test "Other row write errors propagate"
+- [ ] 2.9 In `tests/unit/drift/drift.spec.ts` (existing test, changed): the test "A drift run writes nothing" keeps its name and asserts `saveQueryLog` called exactly once with the other write counters at 0 and the console spies never called; the test "The report of a contradiction carries both citations, its type and its provenance" asserts `cacheHit` `false`. Green
+- [ ] 2.10 In `tests/integration/drift/acme-shop.spec.ts` (existing test, changed): both tests also assert `cacheHit` `false` and that the harness transaction holds one more `query_log` row of acme-shop with `capability` `drift` and `cache_hit` `false`; no existing assertion changes
+- [ ] 2.11 REFACTOR with the suite green (`/tdd-refactor`) over `packages/core/src/drift/`; `grep -rn "adapters\|store-postgres\|fastify\|console\." packages/core/src/drift` prints nothing; `npm run lint:architecture` passes
+
+## 3. CLI: golden drift file format and fingerprint (TDD; spec drift-golden "Golden drift file format", "Golden drift fingerprint"; design D5, P2)
+
+- [ ] 3.1 Create `tests/unit/cache/drift-golden-file.spec.ts` (header comment: spec path and DIS-73). RED: test "The canonical drift render is stable". See it fail
+- [ ] 3.2 GREEN: `packages/cli/src/cache/drift-golden-file.ts`: `DRIFT_GOLDEN` (`acme-shop`, `Q5`, `drift:`), `DriftGoldenFile`, `driftGoldenFileSchema` (strict; `response` checked with `parseStoredDriftReport`), `checkDriftGoldenFile(value, { seedProjectNames, fileName })` (also unique ids and keys, `project` a seed project, file name `<project>.json`), `readDriftGoldenFile`, `renderDriftGoldenFile` (keys in format order, the response's keys in the order of "Drift report", two spaces, LF, final line feed); JSDoc on every export
+- [ ] 3.3 RED → GREEN: test "Golden drift files with an invalid shape are rejected"
+- [ ] 3.4 RED → GREEN: test "The drift fingerprint covers exactly its declared inputs" (`DRIFT_FINGERPRINT_FILES`, `collectDriftFingerprintInputs`, `driftFingerprint`, using `fingerprint` of `seed/fingerprint.ts` as `answer-fingerprint.ts` does; `answer-fingerprint.ts` is not edited)
+
+## 4. CLI: `npm run drift:build` (TDD; spec drift-golden "Drift build command contract and configuration", "The seed the drift report is built on is current", "How a golden drift report is produced", "Retries and failures of a golden drift report", "A failed drift build never leaves a broken golden drift file"; design P1, P4)
+
+- [ ] 4.1 REFACTOR first, suite green before and after: move `readBuildTimeout`, `missingConfig`, `staleSeed`, the unsafe-content check (taking the secrets as an argument instead of the private `Plan`), `gitHead`, `defaultBuildHistory`, `MAX_ATTEMPTS`, `DEFAULT_CACHE_BUILD_TIMEOUT_MS`, `MAX_CACHE_BUILD_TIMEOUT_MS` and the retried LLM reasons from `packages/cli/src/cache-build.ts` to `packages/cli/src/cache/build-support.ts`; `cache-build.ts` imports and re-exports the constants it exported before, so every import of its tests still resolves. `tests/unit/cli/cache-build.spec.ts` and `tests/integration/cli/cache-build.spec.ts` stay green and unchanged; `npm run typecheck` passes
+- [ ] 4.2 Create `tests/unit/cli/drift-build.spec.ts` (header comment: spec path and DIS-73), with seams like `tests/unit/cli/cache-build.spec.ts` (`openTransaction`, `load`, `createLlm`, `source`, `drift`, `now`, `write`, `seedFingerprints`, `buildHistory`, `headCommit`, `outputDir`). RED: test "Drift build arguments and configuration fail before anything else". See it fail
+- [ ] 4.3 GREEN: `packages/cli/src/drift-build.ts` (`runDriftBuild(argv, deps)`, `DRIFT_BUILD_FAILED`), the script `"drift:build"` in `package.json` with the same `tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json` prefix as `cache:build`; JSDoc on every export
+- [ ] 4.4 RED → GREEN: test "The drift build's request limit applies and the daily ceiling does not"
+- [ ] 4.5 RED → GREEN: test "A missing or outdated seed is refused by the drift build"
+- [ ] 4.6 RED → GREEN: test "A skipped document is retried"
+- [ ] 4.7 RED → GREEN: test "A drift report that cannot become golden fails without writing"
+- [ ] 4.8 RED → GREEN: test "A project without documents fails at once"
+- [ ] 4.9 RED → GREEN: test "A failed write leaves the previous golden drift file intact"
+- [ ] 4.10 Create `tests/integration/cli/drift-build.spec.ts` (header comment: spec path and DIS-73), set up as `tests/integration/cli/cache-build.spec.ts` (temporary workspace, rebuilt acme-shop history, real Postgres, a scripted live model built on `tests/support/drift-doubles.ts` scripts as in `tests/integration/drift/acme-shop.spec.ts`). RED → GREEN: test "The golden drift report is generated with a scripted model"
+- [ ] 4.11 RED → GREEN: test "A non-sample acme-shop blocks the drift build"
+
+## 5. CLI: `db:seed` loads the golden drift files (TDD; spec seed-load "Golden answers are loaded with the seed", "Golden drift files are checked before connecting"; design D7, P8)
+
+- [ ] 5.1 In `tests/unit/cli/seed-load.spec.ts` (existing test, changed: a new test only; the existing tests gain `driftDir` pointing to a missing directory where they count cache saves, without any other change): RED: test "An invalid golden drift file fails before connecting". See it fail
+- [ ] 5.2 GREEN: `packages/cli/src/seed-load.ts`: `SeedLoadDeps.driftDir?` (default `<repoRoot>/seeds/drift`), `readDriftGoldenFiles(driftDir, seedProjectNames, repoRoot)` checked after `readGoldenFiles` and before connecting, and the saves after the golden answers in the same transaction; JSDoc updated
+- [ ] 5.3 In `tests/integration/cli/seed-load.spec.ts` (existing test, changed): `loadGolden` and the other runs that count acme-shop's `cache_entry` rows set `driftDir` to a missing directory, as the modified GIVENs of "Golden answers are loaded and served in evaluation mode", "A seed without golden files loads only the graph", "Loading golden answers again does not duplicate them" and "A failed golden save leaves the database unchanged" say; no assertion is weakened. RED → GREEN: new test "A golden drift report is loaded under its key"
+
+## 6. Generate the versioned golden drift report (design D6, P1, P4; spec drift-golden "The versioned golden drift file is coherent")
+
+- [ ] 6.1 Create `tests/unit/seed/drift-golden-coherence.spec.ts` (header comment: spec path and DIS-73). RED: test "The versioned golden drift file matches the seed, the table and the code" (no file yet). Its failure message for a stale fingerprint names `npm run drift:build`
+- [ ] 6.2 GREEN: with the local database up and Ollama answering (`qwen2.5-coder`), run `npm run drift:build` (raise `CACHE_BUILD_TIMEOUT_MS` in `.env` only if a request times out; never commit `.env`); record the attempt lines, the model, the duration and the contradictions of `seeds/drift/acme-shop.json` (which of case A they match) in the step 12 report; the 0.4 database counts are unchanged afterwards (the build rolls back). If no answered report comes out in two runs, record it and follow design → Risks before going on
+- [ ] 6.3 Run `npm run db:seed` and confirm acme-shop has a `cache_entry` row keyed `drift:`; the coherence test is green
+
+## 7. CLI: the `drift` command, unit (TDD; spec cli-drift; design D4)
+
+- [ ] 7.1 Create `tests/unit/cli/drift-command.spec.ts` (header comment: spec path and DIS-73), with seams like `tests/unit/cli/ask-command.spec.ts`. RED: test "Drift help and version print without reading the environment". See it fail
+- [ ] 7.2 GREEN: `packages/cli/src/commands/drift.ts` (`runDriftCommand`, `DRIFT_APPLICATION_NAME`, `formatDriftReport`, `formatDriftUnknown`, `toFailure` handling `InvalidDriftRequest` and delegating to `toFailure` of `ask.ts`), the dispatch and the global-help line in `packages/cli/src/index.ts`; JSDoc on every export
+- [ ] 7.3 RED → GREEN: test "Drift usage errors never quote the arguments"
+- [ ] 7.4 RED → GREEN: test "An invalid drift document path is rejected before any connection"
+- [ ] 7.5 RED → GREEN: test "Drift configuration errors fail before any connection"
+- [ ] 7.6 RED → GREEN: test "A daily budget stops the drift model call"
+- [ ] 7.7 RED → GREEN: test "Only the exact name resolves the drift project"
+- [ ] 7.8 RED → GREEN: test "Drift receives only the project id and the document path"
+- [ ] 7.9 RED → GREEN: test "A drift report is printed by document with both citations". Extra cases, not scenarios: a report with `cacheHit` `true` ends with an empty line and `note: golden report (answer cache)`; a multi-line statement and claim text are continued with 3 spaces; an empty line is printed without indentation
+- [ ] 7.10 RED → GREEN: test "A project without documents answers no-docs on the command line"
+- [ ] 7.11 RED → GREEN: test "Drift events go to stderr with their level"
+- [ ] 7.12 RED → GREEN: test "Model, budget and source failures keep their code on the command line"
+- [ ] 7.13 RED → GREEN: test "An unexpected drift failure is internal"
+- [ ] 7.14 RED → GREEN: test "Control characters in a drift report are escaped"
+
+## 8. CLI: the `drift` command, integration (TDD; spec cli-drift; design D4, D7)
+
+- [ ] 8.1 Create `tests/integration/cli/drift-command.spec.ts` (header comment: spec path and DIS-73), set up as `tests/integration/cli/ask-command.spec.ts` and `tests/integration/cli/impact-command.spec.ts` (harness transaction, `loadSeed`, the versioned golden files saved through the real store). RED → GREEN: test "The global help lists drift once"
+- [ ] 8.2 RED → GREEN: test "An unreachable database fails without leaking the URL for drift"
+- [ ] 8.3 RED → GREEN: test "The drift connections are closed after a run"
+- [ ] 8.4 RED → GREEN: test "Q5 is printed from the golden report in evaluation mode" (the versioned `seeds/drift/acme-shop.json` saved in the harness transaction; the evaluation LLM; `hit_count` and the `query_log` row read back)
+- [ ] 8.5 RED → GREEN: test "Evaluation mode without a golden report answers llm-required on the command line"
+- [ ] 8.6 RED → GREEN: test "A live run over the indexed acme-shop prints the planted contradictions" (acme-shop indexed as in `tests/integration/drift/acme-shop.spec.ts`, the scripted model through the `createLlm` seam, `DAILY_BUDGET_USD` set)
+- [ ] 8.7 REFACTOR with the suite green over `packages/cli/src/commands/drift.ts`, `drift-build.ts`, `cache/`; `npm run lint` passes
+
+## 9. Documentation of the code
+
+- [ ] 9.1 JSDoc complete on every new or changed export of `packages/core/src/drift/` and `packages/cli/src/` (the contract of the specs, the `@throws` lists); `npm run docs:coverage` passes
+
+## 10. Backend: Review and Update Existing Tests (MANDATORY)
+
+- [ ] 10.1 Existing test files that change, each named by the task that changes it, without weakening any assertion: `tests/unit/drift/drift.spec.ts` (tasks 1.2, 1.10, 2.9: one new case, one new test, two tests kept by name with the spec's new THEN, `cacheHit: false` and the clock reads of design P5), `tests/integration/drift/acme-shop.spec.ts` (task 2.10: added assertions), `tests/support/drift-doubles.ts` (task 1.1: new options only), `tests/unit/cli/seed-load.spec.ts` (task 5.1: `driftDir` and one new test), `tests/integration/cli/seed-load.spec.ts` (task 5.3: `driftDir` and one new test). If another existing test must change, it is named here first, before it is edited
+- [ ] 10.2 Existing tests that must stay green unchanged: `tests/unit/cli/cache-build.spec.ts` and `tests/integration/cli/cache-build.spec.ts` (task 4.1 moves helpers only), `tests/unit/cli/ask-command.spec.ts`, `tests/integration/cli/ask-command.spec.ts`, `tests/integration/cli/impact-command.spec.ts`, `tests/unit/cli/verify.spec.ts`, `tests/integration/cli/verify.spec.ts`, `tests/unit/seed/golden-coherence.spec.ts`, `tests/unit/seed/golden-questions.spec.ts`, `tests/unit/cache/golden-file.spec.ts`, `tests/unit/cache/answer-fingerprint.spec.ts`, `tests/unit/drift/doc-claims.spec.ts`, `tests/unit/drift/contradiction.spec.ts`, `tests/unit/ci/verify-job.spec.ts`, `tests/unit/ci/e2e-job.spec.ts`, `tests/support/in-memory-store.ts`. Then `npm run typecheck` and `grep -rn "drift" tests --include=*.ts -l` to find any other test touching the changed surface
+- [ ] 10.3 Every `#### Scenario:` of the four delta specs maps 1:1 to a test with exactly the same name (grep each title in `tests/`): `drift-detection` 22 (10 in `tests/unit/drift/drift.spec.ts`, 5 in `drift-cache.spec.ts`, 7 in `query-log.spec.ts`); `seed-load` 6 (4 existing and 1 new in `tests/integration/cli/seed-load.spec.ts`, 1 new in `tests/unit/cli/seed-load.spec.ts`); `drift-golden` 13 (3 in `tests/unit/cache/drift-golden-file.spec.ts`, 7 in `tests/unit/cli/drift-build.spec.ts`, 2 in `tests/integration/cli/drift-build.spec.ts`, 1 in `tests/unit/seed/drift-golden-coherence.spec.ts`); `cli-drift` 19 (13 in `tests/unit/cli/drift-command.spec.ts`, 6 in `tests/integration/cli/drift-command.spec.ts`); none without a test, none with two; the count per file recorded in the step 12 report
+
+## 11. Backend: Run Tests and Verify Data State (MANDATORY)
+
+- [ ] 11.1 Capture the pre-test baseline: the 0.4 indicators
+- [ ] 11.2 Run the targeted tests: `npx vitest run tests/unit/drift tests/integration/drift tests/unit/cli tests/integration/cli tests/unit/cache tests/unit/seed`
+- [ ] 11.3 Run the required broader suite and gates: `npx vitest run --project dom --project seed-build --project node`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`, `npm run verify` (no `explain` fingerprint input and no seed fingerprint input is edited, so it passes without `seed:build` or `cache:build`)
+- [ ] 11.4 Mutation: `npx stryker run --mutate "packages/core/src/drift/{drift.ts,drift-cache.ts,query-log.ts,drift-request.ts}"`, then `--mutate "packages/cli/src/commands/drift.ts"`, then `--mutate "packages/cli/src/{drift-build.ts,cache/drift-golden-file.ts,cache/build-support.ts}"` (each run under the 10-minute call limit, `--ignoreStatic` if needed); score ≥ `MIN_MUTATION_SCORE=70` each; kill the meaningful survivors with red-first tests; record accepted survivors in `design.md` → Follow-ups (destination D)
+
+## 12. Backend: Verify Data State and Report (MANDATORY)
+
+- [ ] 12.1 Verify the post-test state: the 0.4 counts unchanged except acme-shop's `cache_entry` row `drift:` added by task 6.3 and any rows the manual step 13 writes (each recorded), the two seed fingerprint header lines and the `answerFingerprint` of `seeds/cache/acme-shop.json` unchanged, `git status --porcelain seeds` showing only `seeds/drift/acme-shop.json`; no `.stryker-tmp/` left. Restore and document if not; `node scripts/dev-processes.mjs stop`
+- [ ] 12.2 Create the report `openspec/changes/add-cli-drift/reports/YYYY-MM-DD-12-test-and-state-verification.md` from the template in `docs/openspec-tasks-mandatory-steps.md` §6, with the 0.4 baseline, the totals, the Stryker scores, the 1:1 scenario map of 10.3, the tests changed by 1.10 by name, the `drift:build` run of 6.2, the `npm audit --audit-level=high` result if any install happened (none is planned), and the privacy check of 15.4
+- [ ] 12.3 Mark complete only after the tests pass and the report exists
+
+## 13. Backend: Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
+
+- [ ] 13.1 Prepare: local database up and seeded (`npm run db:seed`, which is also the restoration of the cache rows); record a timestamp, the 0.4 counts and acme-shop's `drift:` `hit_count`
+- [ ] 13.2 Success path in evaluation mode, Git Bash: `npm run cli -- drift acme-shop` with every `LLM_*` variable empty on the command line (`LLM_BASE_URL= LLM_API_KEY= npm run cli -- drift acme-shop`); check exit `0`, the golden report and `note: golden report (answer cache)`, `hit_count` +1 and one new `query_log` row (`capability` `drift`, `cache_hit` true, zero counters)
+- [ ] 13.3 Live path with Ollama (`.env` as configured): `npm run cli -- drift acme-shop --doc docs/pricing.md` with `DAILY_BUDGET_USD` unset, then with a tiny `DAILY_BUDGET_USD` on the command line after a run (`BUDGET_EXHAUSTED` only if the price table prices the model; record what happens and why); record the contradictions, the stderr events and the new `query_log` row with its tokens
+- [ ] 13.4 Error cases: `drift` (USAGE, 2), `drift acme-shop --doc ""` (INVALID_DRIFT_REQUEST, 2), `drift no-existe` (PROJECT_NOT_FOUND, 1), `DATABASE_URL= npm run cli -- drift acme-shop` (MISSING_CONFIG, 1), `drift task-api` in evaluation mode (`UNKNOWN (llm-required)` and its message)
+- [ ] 13.5 PowerShell (agent, never left to the author): run the new `docs/DEMO.md` step (task 15.3) with `pwsh -NoProfile -Command '…'` and with `powershell.exe -NoProfile -Command '…'`, without setting `$env:` variables (the command loads `.env` itself; if `.env` configures a live model, the step's evaluation-mode form is the one `docs/DEMO.md` gives); record both versions (`$PSVersionTable.PSVersion`) and outputs
+- [ ] 13.6 Restore: `npm run db:seed` resets the `hit_count`; the `query_log` rows written by 13.2–13.5 are recorded (they are the command's intended effect and the table is append-only by design); `git status` without stray files; `node scripts/dev-processes.mjs stop`
+- [ ] 13.7 Document every command and output in `openspec/changes/add-cli-drift/reports/YYYY-MM-DD-13-manual-interface-testing.md` (mask the OS user name in paths; no document text beyond the printed excerpts)
+
+## 14. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
+
+- [ ] 14.1 Not applicable: the change adds no web or HTTP interface (the CLI is exercised end to end by step 8 and step 13); the step 13 report says so
+
+## 15. Update Technical Documentation (MANDATORY)
+
+- [ ] 15.1 `docs/project-context.md`: core/drift reads the golden drift report and writes its `query_log` row (the sentence that says it logs nothing is replaced); the `drift` command; `npm run drift:build` in the command list; `seeds/drift/`; the new test files in the Testing list; no ADR (design D14)
+- [ ] 15.2 `fixtures/README.md`: the expected column of the Q5 row and the golden paragraph say the CLI serves the golden drift report of `seeds/drift/acme-shop.json` in evaluation mode, generated by `npm run drift:build`, unreviewed (`reviews: []`, design D10), and which contradictions it holds; the question column is not edited
+- [ ] 15.3 `docs/DEMO.md`: a step `drift acme-shop` in evaluation mode with its captured output (task 13.5); `readme.md`: lines 508, 588, 605 and 1034 describe `drift` as delivered (in Spanish), and the command appears with `ask` and `impact` wherever the CLI commands are listed; `prompts.md` gains the DIS-73 prompt with its Índice entry if the run adds one
+- [ ] 15.4 `/update-docs`: the docs gate passes; `/privacy-ethics-check` over the diff (document text and model output reach stdout only as escaped excerpts and statements, never an error or a log line; the golden refused when it holds the AWS key shape, an absolute path, a URL or the API key; no personal data); record the outcome in the step 12 report
+
+## 16. Pull request preparation
+
+- [ ] 16.1 `/pr-describe` in Spanish against `final-project-CRN`: the Why marked as the agent's text (Follow-ups E1–E14, P1–P10 and any audit round), the deviation of P1 from the ticket's D6 and P3 from its variable name, the existing tests changed (10.1), the `drift:build` run, the `npm audit` result if any install happened, and the Stryker scores
+
+## 17. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
+
+- [ ] 17.1 Open the PR against `final-project-CRN`; DIS-73 to In Review with a Spanish comment linking it
+- [ ] 17.2 CI green, including the mutation job: wait in the foreground with `gh pr checks <n> --watch --interval 60` (timeout 600000), repeated until no check is pending; link the run in an addendum to the step 12 report
+- [ ] 17.3 `/show-spec-working` (may reuse the step 13 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
+- [ ] 17.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
+- [ ] 17.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
+- [ ] 17.6 Fix every finding in this change (TDD for behaviour), each with an A/B/C/D destination in `design.md` → Follow-ups; re-run what each fix invalidates and add an addendum to the affected report; commit to the same PR; re-run a check whose findings led to non-trivial fixes until no Blocker or Major
+- [ ] 17.7 Any edit of a main spec (`openspec/specs/drift-detection/spec.md` or `openspec/specs/seed-load/spec.md`, the capabilities this change has a delta for) is made before `/opsx:archive`; then `/opsx:archive` (it creates `openspec/specs/cli-drift/spec.md` and `openspec/specs/drift-golden/spec.md` with their `## Purpose`); commit it to the same PR; `node scripts/dev-processes.mjs stop`; merge (`gh pr merge <n> --merge`, through the merge gate) only after the archive commit and with CI green (autonomous run, `KIT_AUTONOMOUS_RUN=1`, only; otherwise the author merges)
