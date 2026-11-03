@@ -32,6 +32,7 @@
     "verify": "tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/verify.ts",
     "demo:ask": "node scripts/demo-ask.mjs",
     "demo:excerpt": "node scripts/demo-excerpt.mjs",
+    "measure:graph": "node scripts/measure-graph.mjs",
     "test": "vitest run",
     "test:a11y": "vitest run tests/a11y",
     "test:coverage": "vitest run --coverage --exclude \"**/*.linear.spec.ts\" --exclude \"**/*.scaling.spec.ts\"",

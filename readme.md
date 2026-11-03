@@ -26,7 +26,7 @@ Proyecto Final del Máster AI4Devs · Cristina Rodríguez Núñez
 > | Alinear el contrato OpenAPI con la decisión de indexar solo por CLI | Aplicado tras la revisión | [4](#4-especificación-de-la-api): `/index` sale del contrato |
 > | Decidir qué pasa con los embeddings | Aplicado tras la revisión: se documenta el estado | Nota de [2.2](#22-descripción-de-componentes-principales); la decisión del puerto la tomará DIS-46 |
 > | Mostrar la IA en las fases de Pruebas, Despliegue y Mantenimiento | Aplicado tras la revisión | [8.3](#83-ia-en-las-seis-fases-del-ciclo) |
-> | Medir el verificador | Previsto | DIS-79 (Tabla 1 y Tabla 2 de [2.6](#26-tests)) |
+> | Medir el verificador | Previsto | DIS-81 (Tabla 1 de [2.6](#26-tests)); la Tabla 2 la midió DIS-79 |
 > | Aristas con un extremo polimórfico sin clave foránea | Ya resuelto antes de la revisión | Dos FK por extremo y `CHECK` (ADR `20260928-edge-endpoints-as-fk-pairs`) |
 > | Confinamiento de rutas con `startsWith` | Ya resuelto antes de la revisión | `path.relative` en `path-policy.ts` ([2.5](#25-seguridad)) |
 > | Acceso a Git detrás de un puerto | Ya resuelto antes de la revisión | `GitPort` (DIS-35) |
@@ -679,7 +679,7 @@ AI4Devs-finalproject/
 │   └── e2e/                        #   specs de Playwright (npm run test:e2e)
 │
 ├── .github/workflows/              # ci.yml · frontend.yml · claude-auto-review.yml · claude-interactive.yml
-├── scripts/                        # npm run up · demo:ask · demo:excerpt y la carga de .env (solo módulos de Node)
+├── scripts/                        # npm run up · demo:ask · demo:excerpt · measure:graph y la carga de .env (solo módulos de Node)
 ├── docker-compose.yml              # solo PostgreSQL 16 + pgvector (no hay Dockerfile)
 ├── Makefile                        # atajos de npm run up / npm run down para Git Bash o WSL
 ├── stryker.config.json             # pruebas de mutación, umbral 80
@@ -873,7 +873,7 @@ Los tests forman parte de la **definición de hecho de cada ticket**, no de una 
 
 #### Mediciones que se publicarán
 
-*(pendiente, Entrega 3).* Las dos tablas se rellenan con el script de medición de CM-HU-22 (DIS-79); hoy solo existe `task-api` como fixture, sin analizador ni semilla.
+La Tabla 2 está medida: la rellena `npm run measure:graph` (DIS-79) a partir de la semilla `seeds/graph-dump.sql` y de las anotaciones congeladas, y `tests/unit/docs/graph-quality.spec.ts` falla si sus cifras dejan de coincidir con la medición. La Tabla 1 sigue pendiente de `measure-context` (DIS-81).
 
 **Tabla 1 — Ahorro de contexto** (~20 preguntas por repositorio, revisión manual)
 
@@ -886,8 +886,15 @@ Los tests forman parte de la **definición de hecho de cada ticket**, no de una 
 
 | Analizador | Cobertura | Precisión | Aristas `exact` | Aristas `heuristic` |
 |---|---|---|---|---|
-| PHP/Laravel | *(pendiente)* | *(pendiente)* | *(pendiente)* | *(pendiente)* |
-| TypeScript | *(pendiente)* | *(pendiente)* | *(pendiente)* | *(pendiente)* |
+| PHP/Laravel | 77,4 % (24/31) | 100,0 % (24/24) | 47 | 17 |
+| TypeScript | 100,0 % (26/26) | 100,0 % (26/26) | 37 | 0 |
+
+Concordancia entre los dos agentes anotadores (de `docs/measurements/annotation/agreement.json`):
+
+- `acme-shop`: concordancia 100 % (50/50), kappa 1
+- `task-api`: concordancia 100 % (50/50), kappa 1
+
+Método, definiciones, desglose por construcción, sitios fallados y limitaciones: [`docs/measurements/graph-quality.md`](docs/measurements/graph-quality.md).
 
 La Tabla 2 es la medición más interesante del proyecto: se espera que TypeScript salga claramente mejor porque el compilador resuelve referencias, mientras PHP depende de heurísticas sobre las convenciones de Laravel. **Medir el límite del propio sistema y explicar por qué existe es mejor material que ocultarlo**, y da contenido concreto al primer sacrificio de [2.1](#21-diagrama-de-arquitectura).
 

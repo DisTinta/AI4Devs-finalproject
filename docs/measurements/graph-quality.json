@@ -1,0 +1,1811 @@
+{
+  "formatVersion": 1,
+  "seed": {
+    "path": "seeds/graph-dump.sql",
+    "analyzerFingerprint": "sha256:c7da76cae0637280c2b3aefbb14e0ef36bf475ffbcbb8e3796e7c924d38796df"
+  },
+  "projects": [
+    {
+      "fixture": "acme-shop",
+      "language": "php",
+      "positives": 31,
+      "truePositives": 24,
+      "falseNegatives": 7,
+      "falsePositives": 0,
+      "trueNegatives": 19,
+      "coverage": 0.7742,
+      "precision": 1,
+      "resolutionAgreement": {
+        "agreed": 24,
+        "of": 24
+      },
+      "callsEdges": {
+        "exact": 47,
+        "heuristic": 17
+      },
+      "sites": [
+        {
+          "id": "php-01",
+          "call": "$this->discounts->discountFor(",
+          "site": {
+            "file": "app/Services/PriceCalculator.php",
+            "line": 28
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "php-treesitter-laravel"
+          },
+          "attributedEdges": [
+            {
+              "file": "app/Services/DiscountService.php",
+              "symbol": "DiscountService::discountFor",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-02",
+          "call": "$this->taxes->taxFor(",
+          "site": {
+            "file": "app/Services/PriceCalculator.php",
+            "line": 31
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "php-treesitter-laravel"
+          },
+          "attributedEdges": [
+            {
+              "file": "app/Services/TaxService.php",
+              "symbol": "TaxService::taxFor",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-03",
+          "call": "$this->shipping->shippingFor(",
+          "site": {
+            "file": "app/Services/PriceCalculator.php",
+            "line": 32
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "php-treesitter-laravel"
+          },
+          "attributedEdges": [
+            {
+              "file": "app/Services/ShippingService.php",
+              "symbol": "ShippingService::shippingFor",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-04",
+          "call": "$order->subtotal",
+          "site": {
+            "file": "app/Services/PriceCalculator.php",
+            "line": 27
+          },
+          "expected": "heuristic",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "heuristic",
+            "extractor": "php-treesitter-laravel"
+          },
+          "attributedEdges": [
+            {
+              "file": "app/Models/Order.php",
+              "symbol": "Order::getSubtotalAttribute",
+              "resolution": "heuristic"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-05",
+          "call": "$this->coupons->percentFor(",
+          "site": {
+            "file": "app/Services/DiscountService.php",
+            "line": 37
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "php-treesitter-laravel"
+          },
+          "attributedEdges": [
+            {
+              "file": "app/Services/CouponValidator.php",
+              "symbol": "CouponValidator::percentFor",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-06",
+          "call": "event(",
+          "site": {
+            "file": "app/Services/DiscountService.php",
+            "line": 45
+          },
+          "expected": "heuristic",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "heuristic",
+            "extractor": "php-treesitter-laravel"
+          },
+          "attributedEdges": [
+            {
+              "file": "app/Listeners/RecordDiscountAudit.php",
+              "symbol": "RecordDiscountAudit::handle",
+              "resolution": "heuristic"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-07",
+          "call": "$this->carrier->flatRateFor(",
+          "site": {
+            "file": "app/Services/ShippingService.php",
+            "line": 31
+          },
+          "expected": "heuristic",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "heuristic",
+            "extractor": "php-treesitter-laravel"
+          },
+          "attributedEdges": [
+            {
+              "file": "app/Services/CarrierGateway.php",
+              "symbol": "CarrierGateway::__call",
+              "resolution": "heuristic"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-08",
+          "call": "Pricing::compute(",
+          "site": {
+            "file": "app/Http/Controllers/OrderController.php",
+            "line": 18
+          },
+          "expected": "heuristic",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "heuristic",
+            "extractor": "php-treesitter-laravel"
+          },
+          "attributedEdges": [
+            {
+              "file": "app/Services/PriceCalculator.php",
+              "symbol": "PriceCalculator::compute",
+              "resolution": "heuristic"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-09",
+          "call": "Pricing::compute(",
+          "site": {
+            "file": "app/Http/Controllers/CheckoutController.php",
+            "line": 31
+          },
+          "expected": "heuristic",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "heuristic",
+            "extractor": "php-treesitter-laravel"
+          },
+          "attributedEdges": [
+            {
+              "file": "app/Services/PriceCalculator.php",
+              "symbol": "PriceCalculator::compute",
+              "resolution": "heuristic"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-10",
+          "call": "RecalculateTotals::dispatch(",
+          "site": {
+            "file": "app/Observers/OrderObserver.php",
+            "line": 18
+          },
+          "expected": "heuristic",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "heuristic",
+            "extractor": "php-treesitter-laravel"
+          },
+          "attributedEdges": [
+            {
+              "file": "app/Jobs/RecalculateTotals.php",
+              "symbol": "RecalculateTotals::handle",
+              "resolution": "heuristic"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-11",
+          "call": "[OrderController::class, 'show']",
+          "site": {
+            "file": "routes/api.php",
+            "line": 13
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "php-treesitter-laravel"
+          },
+          "attributedEdges": [
+            {
+              "file": "app/Http/Controllers/OrderController.php",
+              "symbol": "OrderController::show",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-12",
+          "call": "'App\\Http\\Controllers\\CheckoutController@store'",
+          "site": {
+            "file": "routes/web.php",
+            "line": 13
+          },
+          "expected": "heuristic",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "heuristic",
+            "extractor": "php-treesitter-laravel"
+          },
+          "attributedEdges": [
+            {
+              "file": "app/Http/Controllers/CheckoutController.php",
+              "symbol": "CheckoutController::store",
+              "resolution": "heuristic"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-13",
+          "call": "Order::create(",
+          "site": {
+            "file": "app/Http/Controllers/CheckoutController.php",
+            "line": 21
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-14",
+          "call": "$request->lines(",
+          "site": {
+            "file": "app/Http/Controllers/CheckoutController.php",
+            "line": 23
+          },
+          "expected": "exact",
+          "outcome": "fn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-15",
+          "call": "response(",
+          "site": {
+            "file": "app/Http/Controllers/CheckoutController.php",
+            "line": 29
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-16",
+          "call": "$order->subtotal",
+          "site": {
+            "file": "app/Http/Controllers/OrderController.php",
+            "line": 23
+          },
+          "expected": "heuristic",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "heuristic",
+            "extractor": "php-treesitter-laravel"
+          },
+          "attributedEdges": [
+            {
+              "file": "app/Models/Order.php",
+              "symbol": "Order::getSubtotalAttribute",
+              "resolution": "heuristic"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-17",
+          "call": "Order::query(",
+          "site": {
+            "file": "app/Http/Controllers/OrderController.php",
+            "line": 30
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-18",
+          "call": "Pricing::compute(",
+          "site": {
+            "file": "app/Http/Controllers/OrderController.php",
+            "line": 35
+          },
+          "expected": "heuristic",
+          "outcome": "fn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-19",
+          "call": "$request->input(",
+          "site": {
+            "file": "app/Http/Middleware/EnsureCartNotEmpty.php",
+            "line": 19
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-20",
+          "call": "is_array(",
+          "site": {
+            "file": "app/Http/Middleware/EnsureCartNotEmpty.php",
+            "line": 21
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-21",
+          "call": "parent::validated(",
+          "site": {
+            "file": "app/Http/Requests/StoreOrderRequest.php",
+            "line": 43
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-22",
+          "call": "Pricing::compute(",
+          "site": {
+            "file": "app/Jobs/RecalculateTotals.php",
+            "line": 32
+          },
+          "expected": "heuristic",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "heuristic",
+            "extractor": "php-treesitter-laravel"
+          },
+          "attributedEdges": [
+            {
+              "file": "app/Services/PriceCalculator.php",
+              "symbol": "PriceCalculator::compute",
+              "resolution": "heuristic"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-23",
+          "call": "Log::info(",
+          "site": {
+            "file": "app/Jobs/RecalculateTotals.php",
+            "line": 34
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-24",
+          "call": "Pricing::compute(",
+          "site": {
+            "file": "app/Listeners/SendOrderConfirmation.php",
+            "line": 19
+          },
+          "expected": "heuristic",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "heuristic",
+            "extractor": "php-treesitter-laravel"
+          },
+          "attributedEdges": [
+            {
+              "file": "app/Services/PriceCalculator.php",
+              "symbol": "PriceCalculator::compute",
+              "resolution": "heuristic"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-25",
+          "call": "$this->hasMany(",
+          "site": {
+            "file": "app/Models/Customer.php",
+            "line": 25
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-26",
+          "call": "in_array(",
+          "site": {
+            "file": "app/Models/Customer.php",
+            "line": 30
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-27",
+          "call": "$this->lines",
+          "site": {
+            "file": "app/Models/Order.php",
+            "line": 47
+          },
+          "expected": "heuristic",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "heuristic",
+            "extractor": "php-treesitter-laravel"
+          },
+          "attributedEdges": [
+            {
+              "file": "app/Models/Order.php",
+              "symbol": "Order::lines",
+              "resolution": "heuristic"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-28",
+          "call": "Money::zero(",
+          "site": {
+            "file": "app/Models/Order.php",
+            "line": 49
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "php-treesitter-laravel"
+          },
+          "attributedEdges": [
+            {
+              "file": "app/Support/Money.php",
+              "symbol": "Money::zero",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-29",
+          "call": "Money::fromCents(",
+          "site": {
+            "file": "app/Models/OrderLine.php",
+            "line": 39
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "php-treesitter-laravel"
+          },
+          "attributedEdges": [
+            {
+              "file": "app/Support/Money.php",
+              "symbol": "Money::fromCents",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-30",
+          "call": "event(",
+          "site": {
+            "file": "app/Observers/OrderObserver.php",
+            "line": 19
+          },
+          "expected": "heuristic",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "heuristic",
+            "extractor": "php-treesitter-laravel"
+          },
+          "attributedEdges": [
+            {
+              "file": "app/Listeners/SendOrderConfirmation.php",
+              "symbol": "SendOrderConfirmation::handle",
+              "resolution": "heuristic"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-31",
+          "call": "RecalculateTotals::dispatch(",
+          "site": {
+            "file": "app/Observers/OrderObserver.php",
+            "line": 25
+          },
+          "expected": "heuristic",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "heuristic",
+            "extractor": "php-treesitter-laravel"
+          },
+          "attributedEdges": [
+            {
+              "file": "app/Jobs/RecalculateTotals.php",
+              "symbol": "RecalculateTotals::handle",
+              "resolution": "heuristic"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-32",
+          "call": "$app->make(",
+          "site": {
+            "file": "app/Providers/AppServiceProvider.php",
+            "line": 34
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-33",
+          "call": "$app->make(",
+          "site": {
+            "file": "app/Providers/AppServiceProvider.php",
+            "line": 39
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-34",
+          "call": "$this->app->singleton(",
+          "site": {
+            "file": "app/Providers/AppServiceProvider.php",
+            "line": 43
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-35",
+          "call": "$app->make(",
+          "site": {
+            "file": "app/Providers/AppServiceProvider.php",
+            "line": 44
+          },
+          "expected": "heuristic",
+          "outcome": "fn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-36",
+          "call": "Order::observe(",
+          "site": {
+            "file": "app/Providers/AppServiceProvider.php",
+            "line": 52
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-37",
+          "call": "Coupon::query(",
+          "site": {
+            "file": "app/Services/CouponValidator.php",
+            "line": 22
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-38",
+          "call": "$subtotal->percentage(",
+          "site": {
+            "file": "app/Services/DiscountService.php",
+            "line": 42
+          },
+          "expected": "exact",
+          "outcome": "fn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-39",
+          "call": "$discount->isGreaterThan(",
+          "site": {
+            "file": "app/Services/DiscountService.php",
+            "line": 44
+          },
+          "expected": "exact",
+          "outcome": "fn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-40",
+          "call": "$order->customer",
+          "site": {
+            "file": "app/Services/DiscountService.php",
+            "line": 53
+          },
+          "expected": "heuristic",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "heuristic",
+            "extractor": "php-treesitter-laravel"
+          },
+          "attributedEdges": [
+            {
+              "file": "app/Models/Order.php",
+              "symbol": "Order::customer",
+              "resolution": "heuristic"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-41",
+          "call": "$order->lineCount(",
+          "site": {
+            "file": "app/Services/DiscountService.php",
+            "line": 62
+          },
+          "expected": "exact",
+          "outcome": "fn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-42",
+          "call": "$order->subtotal",
+          "site": {
+            "file": "app/Services/PriceCalculator.php",
+            "line": 40
+          },
+          "expected": "heuristic",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "heuristic",
+            "extractor": "php-treesitter-laravel"
+          },
+          "attributedEdges": [
+            {
+              "file": "app/Models/Order.php",
+              "symbol": "Order::getSubtotalAttribute",
+              "resolution": "heuristic"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-43",
+          "call": "$this->discounts->discountFor(",
+          "site": {
+            "file": "app/Services/PriceCalculator.php",
+            "line": 42
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "php-treesitter-laravel"
+          },
+          "attributedEdges": [
+            {
+              "file": "app/Services/DiscountService.php",
+              "symbol": "DiscountService::discountFor",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-44",
+          "call": "config(",
+          "site": {
+            "file": "app/Services/ShippingService.php",
+            "line": 24
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-45",
+          "call": "config(",
+          "site": {
+            "file": "app/Services/TaxService.php",
+            "line": 22
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-46",
+          "call": "$order->shipping_country",
+          "site": {
+            "file": "app/Services/TaxService.php",
+            "line": 23
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-47",
+          "call": "$base->percentage(",
+          "site": {
+            "file": "app/Services/TaxService.php",
+            "line": 26
+          },
+          "expected": "exact",
+          "outcome": "fn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-48",
+          "call": "round(",
+          "site": {
+            "file": "app/Support/Money.php",
+            "line": 29
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-49",
+          "call": "Route::get(",
+          "site": {
+            "file": "routes/api.php",
+            "line": 12
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "php-50",
+          "call": "[OrderController::class, 'index']",
+          "site": {
+            "file": "routes/api.php",
+            "line": 12
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "php-treesitter-laravel"
+          },
+          "attributedEdges": [
+            {
+              "file": "app/Http/Controllers/OrderController.php",
+              "symbol": "OrderController::index",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        }
+      ]
+    },
+    {
+      "fixture": "task-api",
+      "language": "typescript",
+      "positives": 26,
+      "truePositives": 26,
+      "falseNegatives": 0,
+      "falsePositives": 0,
+      "trueNegatives": 24,
+      "coverage": 1,
+      "precision": 1,
+      "resolutionAgreement": {
+        "agreed": 26,
+        "of": 26
+      },
+      "callsEdges": {
+        "exact": 37,
+        "heuristic": 0
+      },
+      "sites": [
+        {
+          "id": "ts-01",
+          "call": "newId(",
+          "site": {
+            "file": "src/services/task.service.ts",
+            "line": 32
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "ts-compiler"
+          },
+          "attributedEdges": [
+            {
+              "file": "src/services/id.ts",
+              "symbol": "newId",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-02",
+          "call": "canTransition(",
+          "site": {
+            "file": "src/services/task.service.ts",
+            "line": 49
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "ts-compiler"
+          },
+          "attributedEdges": [
+            {
+              "file": "src/domain/task-status.ts",
+              "symbol": "canTransition",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-03",
+          "call": "this.get(",
+          "site": {
+            "file": "src/services/task.service.ts",
+            "line": 46
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "ts-compiler"
+          },
+          "attributedEdges": [
+            {
+              "file": "src/services/task.service.ts",
+              "symbol": "TaskService::get",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-04",
+          "call": "applyFilters(",
+          "site": {
+            "file": "src/repositories/in-memory-task.repository.ts",
+            "line": 26
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "ts-compiler"
+          },
+          "attributedEdges": [
+            {
+              "file": "src/services/task.filters.ts",
+              "symbol": "applyFilters",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-05",
+          "call": "sortTasks(",
+          "site": {
+            "file": "src/repositories/in-memory-task.repository.ts",
+            "line": 27
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "ts-compiler"
+          },
+          "attributedEdges": [
+            {
+              "file": "src/services/task.filters.ts",
+              "symbol": "sortTasks",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-06",
+          "call": "buildPage(",
+          "site": {
+            "file": "src/repositories/in-memory-task.repository.ts",
+            "line": 31
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "ts-compiler"
+          },
+          "attributedEdges": [
+            {
+              "file": "src/domain/pagination.ts",
+              "symbol": "buildPage",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-07",
+          "call": "request.server.taskService.create(",
+          "site": {
+            "file": "src/controllers/tasks.controller.ts",
+            "line": 30
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-08",
+          "call": "controller.create",
+          "site": {
+            "file": "src/routes/tasks.routes.ts",
+            "line": 22
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "ts-compiler"
+          },
+          "attributedEdges": [
+            {
+              "file": "src/controllers/tasks.controller.ts",
+              "symbol": "TasksController::create",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-09",
+          "call": "this.repository.findById(",
+          "site": {
+            "file": "src/services/task.service.ts",
+            "line": 20
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "ts-compiler"
+          },
+          "attributedEdges": [
+            {
+              "file": "src/repositories/task.repository.ts",
+              "symbol": "TaskRepository::findById",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-10",
+          "call": "task.tags.includes(",
+          "site": {
+            "file": "src/services/task.filters.ts",
+            "line": 14
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-11",
+          "call": "app.setValidatorCompiler(",
+          "site": {
+            "file": "src/app.ts",
+            "line": 25
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-12",
+          "call": "registerErrorHandler(",
+          "site": {
+            "file": "src/app.ts",
+            "line": 28
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "ts-compiler"
+          },
+          "attributedEdges": [
+            {
+              "file": "src/plugins/error-handler.ts",
+              "symbol": "registerErrorHandler",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-13",
+          "call": "registerDb(",
+          "site": {
+            "file": "src/app.ts",
+            "line": 29
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "ts-compiler"
+          },
+          "attributedEdges": [
+            {
+              "file": "src/plugins/db.ts",
+              "symbol": "registerDb",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-14",
+          "call": "app.register(",
+          "site": {
+            "file": "src/app.ts",
+            "line": 31
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-15",
+          "call": "registerRoutes",
+          "site": {
+            "file": "src/app.ts",
+            "line": 31
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "ts-compiler"
+          },
+          "attributedEdges": [
+            {
+              "file": "src/routes/index.ts",
+              "symbol": "registerRoutes",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-16",
+          "call": "z.object(",
+          "site": {
+            "file": "src/config/env.ts",
+            "line": 9
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-17",
+          "call": "envSchema.parse(",
+          "site": {
+            "file": "src/config/env.ts",
+            "line": 19
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-18",
+          "call": "request.server.taskService.list(",
+          "site": {
+            "file": "src/controllers/tasks.controller.ts",
+            "line": 14
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-19",
+          "call": "Math.ceil(",
+          "site": {
+            "file": "src/domain/pagination.ts",
+            "line": 19
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-20",
+          "call": "TRANSITIONS[from].includes(",
+          "site": {
+            "file": "src/domain/task-status.ts",
+            "line": 26
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-21",
+          "call": "new InMemoryTaskRepository(",
+          "site": {
+            "file": "src/plugins/db.ts",
+            "line": 12
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "ts-compiler"
+          },
+          "attributedEdges": [
+            {
+              "file": "src/repositories/in-memory-task.repository.ts",
+              "symbol": "InMemoryTaskRepository::constructor",
+              "resolution": "exact"
+            },
+            {
+              "file": "src/services/task.service.ts",
+              "symbol": "TaskService::constructor",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-22",
+          "call": "new TaskService(",
+          "site": {
+            "file": "src/plugins/db.ts",
+            "line": 13
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "ts-compiler"
+          },
+          "attributedEdges": [
+            {
+              "file": "src/repositories/in-memory-task.repository.ts",
+              "symbol": "InMemoryTaskRepository::constructor",
+              "resolution": "exact"
+            },
+            {
+              "file": "src/services/task.service.ts",
+              "symbol": "TaskService::constructor",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-23",
+          "call": "app.setErrorHandler(",
+          "site": {
+            "file": "src/plugins/error-handler.ts",
+            "line": 11
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-24",
+          "call": "error.issues.map(",
+          "site": {
+            "file": "src/plugins/error-handler.ts",
+            "line": 17
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-25",
+          "call": "this.tasks.get(",
+          "site": {
+            "file": "src/repositories/in-memory-task.repository.ts",
+            "line": 21
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-26",
+          "call": "sorted.slice(",
+          "site": {
+            "file": "src/repositories/in-memory-task.repository.ts",
+            "line": 30
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-27",
+          "call": "new HealthController(",
+          "site": {
+            "file": "src/routes/health.routes.ts",
+            "line": 5
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-28",
+          "call": "controller.check",
+          "site": {
+            "file": "src/routes/health.routes.ts",
+            "line": 6
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "ts-compiler"
+          },
+          "attributedEdges": [
+            {
+              "file": "src/controllers/health.controller.ts",
+              "symbol": "HealthController::check",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-29",
+          "call": "app.get(",
+          "site": {
+            "file": "src/routes/tasks.routes.ts",
+            "line": 18
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-30",
+          "call": "controller.getById",
+          "site": {
+            "file": "src/routes/tasks.routes.ts",
+            "line": 20
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "ts-compiler"
+          },
+          "attributedEdges": [
+            {
+              "file": "src/controllers/tasks.controller.ts",
+              "symbol": "TasksController::getById",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-31",
+          "call": "controller.update",
+          "site": {
+            "file": "src/routes/tasks.routes.ts",
+            "line": 27
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "ts-compiler"
+          },
+          "attributedEdges": [
+            {
+              "file": "src/controllers/tasks.controller.ts",
+              "symbol": "TasksController::update",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-32",
+          "call": "z.object(",
+          "site": {
+            "file": "src/schemas/pagination.schema.ts",
+            "line": 10
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-33",
+          "call": "z.object(",
+          "site": {
+            "file": "src/schemas/task.schema.ts",
+            "line": 19
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-34",
+          "call": ".refine(",
+          "site": {
+            "file": "src/schemas/task.schema.ts",
+            "line": 38
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-35",
+          "call": "z.string(",
+          "site": {
+            "file": "src/schemas/task.schema.ts",
+            "line": 43
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-36",
+          "call": "loadEnv(",
+          "site": {
+            "file": "src/server.ts",
+            "line": 9
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "ts-compiler"
+          },
+          "attributedEdges": [
+            {
+              "file": "src/config/env.ts",
+              "symbol": "loadEnv",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-37",
+          "call": "app.listen(",
+          "site": {
+            "file": "src/server.ts",
+            "line": 13
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-38",
+          "call": "process.exit(",
+          "site": {
+            "file": "src/server.ts",
+            "line": 16
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-39",
+          "call": "randomUUID(",
+          "site": {
+            "file": "src/services/id.ts",
+            "line": 8
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-40",
+          "call": "tasks.filter(",
+          "site": {
+            "file": "src/services/task.filters.ts",
+            "line": 11
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-41",
+          "call": "matchesSearch(",
+          "site": {
+            "file": "src/services/task.filters.ts",
+            "line": 15
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "ts-compiler"
+          },
+          "attributedEdges": [
+            {
+              "file": "src/services/task.filters.ts",
+              "symbol": "matchesSearch",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-42",
+          "call": "priorityRank(",
+          "site": {
+            "file": "src/services/task.filters.ts",
+            "line": 35
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "ts-compiler"
+          },
+          "attributedEdges": [
+            {
+              "file": "src/domain/task-priority.ts",
+              "symbol": "priorityRank",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-43",
+          "call": "compareNullableDate(",
+          "site": {
+            "file": "src/services/task.filters.ts",
+            "line": 37
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "ts-compiler"
+          },
+          "attributedEdges": [
+            {
+              "file": "src/services/task.filters.ts",
+              "symbol": "compareNullableDate",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-44",
+          "call": "new TaskNotFoundError(",
+          "site": {
+            "file": "src/services/task.service.ts",
+            "line": 21
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "ts-compiler"
+          },
+          "attributedEdges": [
+            {
+              "file": "src/domain/errors.ts",
+              "symbol": "TaskNotFoundError::constructor",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-45",
+          "call": "this.repository.list(",
+          "site": {
+            "file": "src/services/task.service.ts",
+            "line": 26
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "ts-compiler"
+          },
+          "attributedEdges": [
+            {
+              "file": "src/repositories/task.repository.ts",
+              "symbol": "TaskRepository::list",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-46",
+          "call": "this.clock(",
+          "site": {
+            "file": "src/services/task.service.ts",
+            "line": 30
+          },
+          "expected": "none",
+          "outcome": "tn",
+          "hit": null,
+          "attributedEdges": [],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-47",
+          "call": "this.repository.create(",
+          "site": {
+            "file": "src/services/task.service.ts",
+            "line": 42
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "ts-compiler"
+          },
+          "attributedEdges": [
+            {
+              "file": "src/repositories/task.repository.ts",
+              "symbol": "TaskRepository::create",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-48",
+          "call": "new IllegalStatusTransitionError(",
+          "site": {
+            "file": "src/services/task.service.ts",
+            "line": 50
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "ts-compiler"
+          },
+          "attributedEdges": [
+            {
+              "file": "src/domain/errors.ts",
+              "symbol": "IllegalStatusTransitionError::constructor",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-49",
+          "call": "pruneUndefined(",
+          "site": {
+            "file": "src/services/task.service.ts",
+            "line": 56
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "ts-compiler"
+          },
+          "attributedEdges": [
+            {
+              "file": "src/services/task.service.ts",
+              "symbol": "pruneUndefined",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        },
+        {
+          "id": "ts-50",
+          "call": "this.repository.update(",
+          "site": {
+            "file": "src/services/task.service.ts",
+            "line": 61
+          },
+          "expected": "exact",
+          "outcome": "tp",
+          "hit": {
+            "resolution": "exact",
+            "extractor": "ts-compiler"
+          },
+          "attributedEdges": [
+            {
+              "file": "src/repositories/task.repository.ts",
+              "symbol": "TaskRepository::update",
+              "resolution": "exact"
+            }
+          ],
+          "falsePositiveEdges": []
+        }
+      ]
+    }
+  ]
+}
