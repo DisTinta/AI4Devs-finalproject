@@ -106,9 +106,10 @@ describe('Published Table 1', () => {
       formatTokens(project.baselineTokens),
       formatTokens(project.inputTokens),
       formatSavings(project.savingsTenths),
-      'pendiente de DIS-82',
     ]);
-    expect(tableRows(intro, TABLE_HEADER)).toEqual(expected);
+    // The fifth column («Correctas (de 20)») comes from the answer review (DIS-82 design P8): its own test
+    // is "The Correctas column agrees with the verdicts" in tests/unit/docs/answer-review.spec.ts.
+    expect(tableRows(intro, TABLE_HEADER).map((cells) => cells.slice(0, 4))).toEqual(expected);
     for (const project of projects) expect(below).toContain(projectLine(project));
     expect(below).toContain(deviationLine(tokenizer));
     expect(below).toContain(`](${README_LINK})`);

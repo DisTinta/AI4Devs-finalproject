@@ -873,18 +873,24 @@ Los tests forman parte de la **definición de hecho de cada ticket**, no de una 
 
 #### Mediciones que se publicarán
 
-Las dos tablas están medidas. La Tabla 2 la rellena `npm run measure:graph` (DIS-79) a partir de la semilla `seeds/graph-dump.sql` y de las anotaciones congeladas, y `tests/unit/docs/graph-quality.spec.ts` falla si sus cifras dejan de coincidir con la medición. La Tabla 1 la rellena `npm run measure:context` (DIS-81) con 20 preguntas congeladas por repositorio, hechas a la API con un modelo local, y `tests/unit/docs/context-savings.spec.ts` falla si sus cifras dejan de ser la agregación de los datos en bruto versionados.
+Las dos tablas están medidas. La columna «Correctas» de la Tabla 1 sale de la revisión de las 40 respuestas por dos agentes revisores (DIS-82), congelada por hash y comprobada por `tests/unit/docs/answer-review.spec.ts`. La Tabla 2 la rellena `npm run measure:graph` (DIS-79) a partir de la semilla `seeds/graph-dump.sql` y de las anotaciones congeladas, y `tests/unit/docs/graph-quality.spec.ts` falla si sus cifras dejan de coincidir con la medición. La Tabla 1 la rellena `npm run measure:context` (DIS-81) con 20 preguntas congeladas por repositorio, hechas a la API con un modelo local, y `tests/unit/docs/context-savings.spec.ts` falla si sus cifras dejan de ser la agregación de los datos en bruto versionados.
 
 **Tabla 1 — Ahorro de contexto** (20 preguntas por repositorio)
 
 | Repositorio | Contexto bruto | CODEMIND | Ahorro | Correctas (de 20) |
 |---|---|---|---|---|
-| `acme-shop` (PHP/Laravel) | 86 355 | 116 025 | -34,4 % | pendiente de DIS-82 |
-| `task-api` (TypeScript) | 52 420 | 85 200 | -62,5 % | pendiente de DIS-82 |
+| `acme-shop` (PHP/Laravel) | 86 355 | 116 025 | -34,4 % | 10 |
+| `task-api` (TypeScript) | 52 420 | 85 200 | -62,5 % | 12 |
 
 - `acme-shop`: 17 respondidas y 3 UNKNOWN (invalid-model-output 1, no-anchor 2); verificación 28,1 % de los tokens y 18,2 % del tiempo; coste de verificación n/a (0 USD con Ollama local); latencia mediana 162,5 s (verificación 24,7 s)
 - `task-api`: 16 respondidas y 4 UNKNOWN (invalid-model-output 2, no-anchor 2); verificación 36,3 % de los tokens y 24,1 % del tiempo; coste de verificación n/a (0 USD con Ollama local); latencia mediana 93,6 s (verificación 11,5 s)
 - Desviación de `baselineTokens` (chars/4) frente al tokenizador de `qwen2.5-coder:latest` en 89 ficheros: +2,4 % en total (mínimo -31,2 %, máximo +43,3 % por fichero)
+- `acme-shop`: 10 correctas, 9 parciales, 1 incorrectas (de 20); concordancia entre revisores 95 % (19/20), kappa 0,908
+- `task-api`: 12 correctas, 2 parciales, 6 incorrectas (de 20); concordancia entre revisores 90 % (18/20), kappa 0,826
+
+La columna «Correctas» cuenta solo las respuestas que dos agentes revisores independientes de modelos distintos, ciegos entre sí, juzgaron `correct` contra el código del repositorio de ejemplo, con un criterio escrito antes de leer ninguna respuesta y con un tercer agente para los tres desacuerdos. El criterio, las salidas, los veredictos de las 40 respuestas y los hashes están en [`docs/measurements/answer-review.md`](docs/measurements/answer-review.md).
+
+**Qué dice la columna «Correctas».** *(Texto del agente, DIS-82.)* De las 40 respuestas, 22 son correctas, 11 parciales y 7 incorrectas; solo las correctas entran en la tabla. En `acme-shop`, 9 de las 20 son parciales: lo central es cierto y falla una afirmación secundaria, por ejemplo una que el código contradice o que no tiene respaldo en él. En `task-api` hay más fallos de fondo: de las 6 incorrectas, 2 son respuestas `UNKNOWN` a preguntas que el código sí contesta (`invalid-model-output`) y 4 son respuestas con contenido que no contestan la pregunta o afirman algo que el código contradice. Las 4 respuestas `UNKNOWN` a preguntas cuyo `expected` es `unknown` cuentan como correctas, porque el repositorio no implementa lo que se pregunta. Son 40 respuestas de una sola ejecución juzgadas por modelos de una misma familia, con una concordancia alta pero con un kappa inestable a este tamaño: la columna describe estas respuestas, no la calidad del producto en general, y no se ha ajustado ninguna cifra.
 
 **Por qué CODEMIND envía más tokens que el contexto bruto.** *(Texto del agente, DIS-81.)* En estos dos repositorios de muestra, creados a propósito y pequeños (sus ficheros tienen entre decenas y unos pocos cientos de tokens), el contexto bruto de una respuesta son los pocos ficheros que cita, y CODEMIND envía además el prompt de sistema, los fragmentos con sus metadatos y una o varias llamadas de verificación (el 28,1 % y el 36,3 % de los tokens enviados). Con ficheros así de cortos eso pesa más que lo que se ahorra al no mandar el resto del repositorio. El ahorro es una medición, no una promesa: no se ha ajustado ninguna cifra, y con repositorios grandes (donde el contexto bruto crece con el tamaño y el paquete no) el signo puede cambiar, algo que esta medición no comprueba. El método, el entorno y las limitaciones están en [`docs/measurements/context-savings.md`](docs/measurements/context-savings.md); los datos en bruto, el CSV y el JSON, en `docs/measurements/context/`.
 
@@ -904,7 +910,7 @@ Método, definiciones, desglose por construcción, sitios fallados y limitacione
 
 La Tabla 2 es la medición más interesante del proyecto: se espera que TypeScript salga claramente mejor porque el compilador resuelve referencias, mientras PHP depende de heurísticas sobre las convenciones de Laravel. **Medir el límite del propio sistema y explicar por qué existe es mejor material que ocultarlo**, y da contenido concreto al primer sacrificio de [2.1](#21-diagrama-de-arquitectura).
 
-**Limitaciones a declarar junto a las tablas:** una sola ejecución, sin repeticiones; preguntas de la Tabla 1 escritas por un agente y congeladas antes de la ejecución (el hash está en el informe), con un modelo local de 7,6B parámetros; `baselineTokens` es una estimación local (chars/4, PH-16) cuya desviación medida se da bajo la tabla; la relación de verificación se mide por tokens y latencia (PH-27) y una verificación respondida desde la caché en memoria de la API no cuesta ningún token; anotación de los sitios de llamada de la Tabla 2 realizada por dos agentes anotadores independientes de modelos distintos; repositorios de muestra pequeños y creados a propósito. No son resultados de investigación, son mediciones de producto.
+**Limitaciones a declarar junto a las tablas:** una sola ejecución, sin repeticiones; preguntas de la Tabla 1 escritas por un agente y congeladas antes de la ejecución (el hash está en el informe), con un modelo local de 7,6B parámetros; `baselineTokens` es una estimación local (chars/4, PH-16) cuya desviación medida se da bajo la tabla; la relación de verificación se mide por tokens y latencia (PH-27) y una verificación respondida desde la caché en memoria de la API no cuesta ningún token; anotación de los sitios de llamada de la Tabla 2 realizada por dos agentes anotadores independientes de modelos distintos (DIS-80); veredictos de corrección de la Tabla 1 dados por dos agentes revisores independientes de modelos distintos (DIS-82); repositorios de muestra pequeños y creados a propósito. No son resultados de investigación, son mediciones de producto.
 
 ---
 
