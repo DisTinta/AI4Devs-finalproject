@@ -180,7 +180,9 @@ and the answer fingerprint, its final line counts golden answers, and `golden-an
 "Golden questions" says Q5 is not a golden question. Extending it would modify five requirements and
 about ten scenarios of `golden-answers` and the tests that pin them. A separate command with no
 arguments (`packages/cli/src/drift-build.ts`, script `drift:build` in `package.json`) reuses the same
-steps through helpers moved, unchanged, from `cache-build.ts` to `packages/cli/src/cache/build-support.ts`
+steps through helpers moved without behaviour change from `cache-build.ts` to
+`packages/cli/src/cache/build-support.ts` (the unsafe-content check takes the list of secrets instead
+of the private `Plan`)
 (`readBuildTimeout`, `missingConfig`, `staleSeed`, `isUnsafe`, `gitHead`, `defaultBuildHistory`,
 `MAX_ATTEMPTS`, the retried LLM reasons), and states its contract by reference to `cache:build`'s.
 This is the option that changes least of the existing behaviour (the lead-engineer rule of
@@ -325,4 +327,15 @@ All rows are the agent's text (autonomous run, 2026-11-03). No row has destinati
 | I4 | (Audit run 1) Proposal and design wording aligned with the spec: what the build refuses, and the rows per call. | A |
 | I5 | (Audit run 1) seed-load "Sample projects are loaded idempotently" added as MODIFIED (golden drift reports, entries replaced by key), both scenarios kept by name (task 5.3, counts of 10.3). | A |
 | I6 | (Audit run 1) `drift.ts` has its own `defaultOpenStore` with `codemind-drift` (D4, task 7.2); the manual budget check of task 13.3 states its expected outcome (`LLM_CONFIG_INVALID` for an unpriced model, `BUDGET_EXHAUSTED` otherwise). | A |
+| R2-B1 | (Spec audit run 2, decided by the agent as lead engineer) The PowerShell capture of task 13.5 forces evaluation mode with Node's `--env-file` flag pointing at a scratch file with empty `LLM_BASE_URL` and `LLM_API_KEY` (`npx tsx --env-file=<file> --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts drift acme-shop`): Node sets the two keys to the empty string before the preload, `loadEnvFile` keeps a key that is already set (`scripts/env.mjs`, `Object.hasOwn`), and `llmConfigFromEnv` reads empty as unset; `DATABASE_URL` still comes from `.env`. Checked by the agent on Node v24.11.1 (probe printed `["","",true,"string"]`). The audit's `$env:LLM_BASE_URL=' '` form is rejected: `docs/AUTONOMOUS-RUN.md` §6 forbids setting `$env:` variables (the auto-mode classifier denies them). `.env` is not edited. `docs/DEMO.md` (task 15.3) gives the plain `npm run cli -- drift acme-shop` for a `.env` copied from `.env.example` and this form for a `.env` that configures a model. | A |
+| R2-I1 | (Audit run 2) Mutation of task 11.4 covers the whole `packages/core/src/drift/` directory, as the ticket's non-functional line asks, split into runs under the 10-minute call limit. | A |
+| R2-I2 | (Audit run 2) cli-drift "A daily budget stops the drift model call" states that the index state holds `docs/pricing.md` and a source double serves it, so the real use case reaches the model call. | A |
+| R2-I3 | (Audit run 2) A golden hit whose row write is absorbed answers with `events` exactly the `query_not_logged` event (spec "Golden drift report lookup", case in "A failed row write still answers and says so", task 2.7). | A |
+| R2-I4 | (Audit run 2) In `drift:build` the unsafe-content check is applied before the retry rule (drift-golden "Retries and failures of a golden drift report"). | A |
+| R2-I5 | (Audit run 2) P1 and proposal Impact say the helpers move without behaviour change and the unsafe-content check takes the list of secrets instead of `Plan`. | A |
+| R2-I6 | (Audit run 2) "Unknown drift answers" wording covers `useCache: false`, when no lookup is made. | A |
+| R2-I7 | (Audit run 2) Task 13.5 writes the step's command text in `docs/DEMO.md` first; task 15.3 adds the captured output and prose. | A |
+| R2-I8 | (Audit run 2) The error line keeps the `details.path` of `SourceUnavailable` as `ask` gives it (a stored path, terminal-safe); only the message never holds the document path given; new throw in "Model, budget and source failures keep their code on the command line" (task 7.12). | A |
+| R2-I9 | (Audit run 2) `storedDriftReportSchema` requires at least one evidence per contradiction (task 1.6). | A |
+| R2-I10 | (Audit run 2) Task 8.5 runs over the harness transaction, as task 8.4. | A |
 | R8-in | Inbound from DIS-71 (`add-drift-detection` Follow-ups E10 and R8): CLI, golden Q5, row, `withDailyBudget`, `readme.md`. Closed by E1, E3–E8, E12. | A |

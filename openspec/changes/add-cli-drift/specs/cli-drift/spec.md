@@ -97,7 +97,8 @@ code or the output. No output SHALL contain the database URL, its credentials or
 
 #### Scenario: A daily budget stops the drift model call
 
-- **GIVEN** a store double holding acme-shop whose `query_log` spend of the day is `0.5`, a scripted
+- **GIVEN** a store double holding acme-shop, whose index state holds `docs/pricing.md` at an indexed
+  commit and whose `query_log` spend of the day is `0.5`, a source double serving that document, a scripted
   `live` model priced in the cost table, `DAILY_BUDGET_USD=0.5` and `LLM_API_KEY=SENTINEL-key-5d2b`
 - **WHEN** `drift acme-shop` runs with the real drift use case
 - **THEN** it exits with `1`, stdout is empty, stderr holds exactly one line with code
@@ -224,7 +225,8 @@ line, rendered terminal-safe as the error line is (`toTerminalSafeJson`), with t
 `drift_check_event` whose inner event is `evidence_broken`, and `info` for every other event; the
 events SHALL NOT change the exit code. On error stdout SHALL stay empty and stderr SHALL hold one
 `{"error":{"code","message","details"}}` line, whose message is built by the command, never taken from
-the error, and never holds the document path given or any text of a document: `ProjectNotFound` SHALL
+the error, and never holds the document path given or any text of a document (the `details.path` of
+`SourceUnavailable` is kept as `ask` gives it: a stored path, rendered by `toTerminalSafeJson`): `ProjectNotFound` SHALL
 be `PROJECT_NOT_FOUND`; `SourceUnavailable`, `LlmUnavailable` and `BudgetExhausted` SHALL keep their
 code, with the message and details the `ask` command gives them; any other unexpected failure SHALL be
 `INTERNAL`, message `unexpected error`; each with exit `1`.
@@ -244,12 +246,14 @@ code, with the message and details the `ask` command gives them; any other unexp
 
 - **GIVEN** a store double holding acme-shop and a drift use case double that throws, one at a time,
   `LlmUnavailable` with reason `timeout`, `BudgetExhausted`, `SourceUnavailable` with reason
-  `not-indexed`, and `ProjectNotFound`
+  `not-indexed`, `ProjectNotFound`, and `SourceUnavailable` with reason `missing` and path
+  `docs/pricing.md`
 - **WHEN** `drift acme-shop --doc docs/SENTINEL-doc-8f1e.md` runs
 - **THEN** each exits with `1`, stdout is empty, stderr holds exactly one line with code
   `LLM_UNAVAILABLE` and `details.reason` `timeout`, then `BUDGET_EXHAUSTED`, then
-  `SOURCE_UNAVAILABLE` with `details.reason` `not-indexed`, then `PROJECT_NOT_FOUND`; and no stderr
-  contains `SENTINEL-doc-8f1e`
+  `SOURCE_UNAVAILABLE` with `details.reason` `not-indexed`, then `PROJECT_NOT_FOUND`, then
+  `SOURCE_UNAVAILABLE` with `details.reason` `missing` and `details.path` `docs/pricing.md`; and no
+  stderr contains `SENTINEL-doc-8f1e`
 
 #### Scenario: An unexpected drift failure is internal
 

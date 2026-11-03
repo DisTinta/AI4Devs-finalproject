@@ -129,7 +129,9 @@ the model request fails as `LLM_UNAVAILABLE` with reason `timeout` or `network`.
 SHALL fail at once with its reason (`no-docs`). A response whose JSON text matches
 `/AKIA[A-Z0-9]{16}/`, or contains, as written or as escaped inside a JSON string, the absolute path of
 the repository root or of the workspace, the value of `DATABASE_URL`, of `LLM_BASE_URL` or, when set,
-of `LLM_API_KEY`, SHALL fail at once with reason `unsafe-content`. A failure of the model with any
+of `LLM_API_KEY`, SHALL fail at once with reason `unsafe-content`. The unsafe-content check SHALL be
+applied first: a response that matches it fails at once with `unsafe-content` even when it also holds
+an `invalid-model-output` skip. A failure of the model with any
 other reason SHALL fail at once as `LLM_UNAVAILABLE`. After 3 failed attempts the build SHALL fail as
 `LLM_UNAVAILABLE` when the last attempt failed that way, and otherwise with `GOLDEN_NOT_CACHEABLE`. A
 `GOLDEN_NOT_CACHEABLE` failure SHALL have the message `Q5 has no cacheable drift report (<reason>)` and

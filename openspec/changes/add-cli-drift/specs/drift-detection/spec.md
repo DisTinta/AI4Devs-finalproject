@@ -35,8 +35,8 @@ rejects with `InvalidDriftRequest`.
 ### Requirement: Unknown drift answers
 
 `drift` SHALL answer `{ status: 'unknown', reason }` with no other field, never an error, in two
-cases, checked in this order after the request and after the golden drift report lookup (see "Golden
-drift report lookup"), when that lookup found no golden report: when the model is in `evaluation`
+cases, checked in this order after the request and, when it is made, after the golden drift report
+lookup (see "Golden drift report lookup") when it finds no golden report: when the model is in `evaluation`
 mode, with reason `llm-required`, without reading the index state, the project or any file and without
 calling the model; and when the project has no stored file of kind `doc` (by the canonical file-kind
 rule applied to the paths of the project's index state), or `docPath` is given and is not one of
@@ -166,12 +166,13 @@ request sets `useCache: false`, and before the evaluation-mode check, in both mo
 key up once in the project's answer cache. An entry whose response is a **stored drift report** SHALL be a hit: an object with
 exactly the keys `commit` (a non-empty string without U+0000) and `documents` (a non-empty list of
 document entries of the shapes of "Drift report": counts that are integers from 0, every
-contradiction with `type` `INFERENCE`, its claim verification `cited`, every evidence with a file kind
+contradiction with `type` `INFERENCE`, its claim verification `cited` and at least one evidence, every evidence with a file kind
 of the graph and verification `entailed` or `cited`, every line an integer from 1 with the last line
 not before the first, every text without U+0000, and a provenance that satisfies
 `driftProvenanceSchema`), as the exported `storedDriftReportSchema` checks it. On a hit `drift` SHALL
 record one hit of that entry at the clock's first read and answer
-`{ status: 'answered', projectId, commit, documents, events: [], usage, cacheHit: true }` with the
+`{ status: 'answered', projectId, commit, documents, events: [], usage, cacheHit: true }` (followed
+by the `query_not_logged` event of "Drift query log" when its row write is absorbed) with the
 stored `commit` and `documents`, a `usage` whose every token, cost and call counter (`generation` and
 `verification` included) is 0 and whose `latencyMs` (and only it) is the latency between the clock's
 first and last reads, without reading the index state, the project or any file and without calling
@@ -288,10 +289,12 @@ that write SHALL propagate.
 - **GIVEN** a store whose `saveQueryLog` rejects with `QueryLogWriteFailed`, then with
   `ProjectNotFound`, then with `InvalidStoreQuery`
 - **WHEN** `drift` answers a `live` run with a contradiction, and then answers `llm-required` in
-  `evaluation` mode
+  `evaluation` mode, and then answers a golden report from a store holding a valid golden entry under
+  `drift:` whose `saveQueryLog` rejects with `QueryLogWriteFailed`
 - **THEN** the answered reports end with the event `{ type: 'query_not_logged', code }` with `code`
-  `store-write-failed`, `project-not-found` and `invalid-entry` respectively, and the unknown reports
-  are exactly `{ status: 'unknown', reason: 'llm-required' }`
+  `store-write-failed`, `project-not-found` and `invalid-entry` respectively, the unknown reports
+  are exactly `{ status: 'unknown', reason: 'llm-required' }`, and the golden report has `cacheHit`
+  `true` and `events` exactly `[{ type: 'query_not_logged', code: 'store-write-failed' }]`
 
 #### Scenario: Other row write errors propagate
 - **GIVEN** a store whose `saveQueryLog` rejects with an `Error`

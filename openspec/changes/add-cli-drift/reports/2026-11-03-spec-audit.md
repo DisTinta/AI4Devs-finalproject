@@ -599,3 +599,29 @@ No row is empty. The per-spec counts of task 10.3 match the deltas: drift-detect
 Do not edit the `[original]` block. Add a comment (Spanish):
 
 > *(Texto del agente, auditoría de la spec de `add-cli-drift`, ronda 2, 2026-11-03.)* Veredicto: CHANGES REQUIRED, con 1 hallazgo bloqueante. B-1: la captura en PowerShell del paso de `docs/DEMO.md` (tarea 13.5) debe forzar el modo evaluación. Con un `.env` que configura Ollama, ejecutar sin `$env:` corre en modo `live`, y en PowerShell `$env:X=''` borra la variable, que `load-env` vuelve a leer de `.env`. Se fija la forma `$env:LLM_BASE_URL=' '; $env:LLM_API_KEY=' '`, sin tocar `.env`. Mejoras: alcance de la mutación en `packages/core/src/drift/`; `details.path` de `SourceUnavailable` en la línea de error; un acierto del golden con la fila no escrita; orden entre `unsafe-content` y reintento en `drift:build`; al menos una evidencia por contradicción en `storedDriftReportSchema`; y precisiones de redacción en P1, en «Unknown drift answers» y en las tareas 8.5, 13.5 y 15.3. Las correcciones amplían los artefactos del cambio; no se crea ninguna issue nueva.
+
+---
+
+## Resolution of run 2
+
+*Agent's text (autonomous run, correction round 2, 2026-11-03).* Run 2 had no question for the
+author. Every decision is also in `design.md` → Follow-ups (rows R2-B1 and R2-I1 to R2-I10), all
+with destination A; none has destination C. `openspec validate add-cli-drift --strict` passes after
+the corrections.
+
+| Finding | Resolution |
+|---|---|
+| B-1 | Decided by the agent, with the audit's `$env:` form rejected. `docs/AUTONOMOUS-RUN.md` §6 forbids the agent to set `$env:` variables (the auto-mode classifier denies them), so corrections 1 and 2 cannot be applied as written. Task 13.5 instead forces evaluation mode with Node's `--env-file` flag: a scratch file holding `LLM_BASE_URL=` and `LLM_API_KEY=`, and `npx tsx --env-file=<file> --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts drift acme-shop`. Node sets both keys to the empty string before the preload, `loadEnvFile` keeps a key already set, `llmConfigFromEnv` reads empty as unset, and `DATABASE_URL` still comes from `.env`; `.env` is not edited. The agent checked it on Node v24.11.1 through `tsx` (probe: both keys empty and present, `DATABASE_URL` loaded). Task 13.5 keeps the audit's checks (the `note: golden report (answer cache)` line and a `query_log` row with `cache_hit` true and zero counters). Task 15.3 says the DEMO step gives the plain command for a `.env` copied from `.env.example` and the `--env-file` form for a `.env` with a model, with the reason. Follow-up R2-B1. Fixed. |
+| I-1 | Fixed (first option of correction 4): task 11.4 mutates the whole `packages/core/src/drift/` directory, split into two runs under the 10-minute limit, with the score reported for the directory and by file. Follow-up R2-I1. |
+| I-2 | Fixed: the GIVEN of cli-drift "A daily budget stops the drift model call" says the index state holds `docs/pricing.md` at an indexed commit and a source double serves it; task 7.6. |
+| I-3 | Fixed: "Golden drift report lookup" says a hit's `events: []` is followed by the `query_not_logged` event when its row write is absorbed; "A failed row write still answers and says so" gains the golden-hit run and its THEN; task 2.7. |
+| I-4 | Fixed: drift-golden "Retries and failures of a golden drift report" applies the unsafe-content check first, with the audit's wording. |
+| I-5 | Fixed: design P1 and proposal Impact say the helpers move without behaviour change and the unsafe-content check takes the list of secrets instead of the private `Plan`. |
+| I-6 | Fixed: "Unknown drift answers" checks its cases after the request and, when it is made, after the golden lookup when it finds no golden report. |
+| I-7 | Fixed: task 13.5 writes the step's command text in `docs/DEMO.md` first; task 15.3 adds the captured output and the prose. |
+| I-8 | Fixed: cli-drift "Drift events and failures" keeps `details.path` of `SourceUnavailable` as `ask` gives it (a stored path, through `toTerminalSafeJson`); "Model, budget and source failures keep their code on the command line" gains the `missing` throw with path `docs/pricing.md`; task 7.12. |
+| I-9 | Fixed: the stored drift report definition requires at least one evidence per contradiction; task 1.6 rejects a contradiction with `evidence: []`. |
+| I-10 | Fixed: task 8.5 runs over the harness transaction, as task 8.4. |
+
+The scenario counts of task 10.3 are unchanged (drift-detection 22, seed-load 8, drift-golden 13,
+cli-drift 19): every addition is a case inside an existing scenario.

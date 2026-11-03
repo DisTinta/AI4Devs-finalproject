@@ -65,7 +65,8 @@ claims (D7 of DIS-71 stands); checking the golden drift report in `npm run verif
 
 - **Code**: new `packages/cli/src/commands/drift.ts`, `packages/cli/src/drift-build.ts`,
   `packages/cli/src/cache/drift-golden-file.ts`, `packages/cli/src/cache/build-support.ts` (helpers
-  moved out of `cache-build.ts`, no behaviour change); new `packages/core/src/drift/drift-cache.ts` and
+  moved out of `cache-build.ts`, no behaviour change; the unsafe-content check takes the list of
+  secrets instead of the private `Plan`); new `packages/core/src/drift/drift-cache.ts` and
   `packages/core/src/drift/query-log.ts`; changed `packages/core/src/drift/{drift.ts,drift-request.ts,
   drift-report.ts,index.ts}`, `packages/cli/src/index.ts` (dispatch and help),
   `packages/cli/src/seed-load.ts`, `packages/cli/src/cache-build.ts` (imports the moved helpers),
