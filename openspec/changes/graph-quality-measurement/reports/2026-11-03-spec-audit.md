@@ -239,3 +239,209 @@ graph-quality-measurement --strict` passes; the spec has 10 requirements and 26 
 | Improvable: task 5.4 size | Fixed: split into 5.4 (RED test) and 5.5 (write the report); the old 5.5 is 5.6. | tasks |
 | Mandatory steps: scenario count | Fixed: 6.2 and 11.8 say 26 scenarios. | tasks 6.2, 11.8 |
 | Linear `[enhanced]` and comment | Done: the decisions are added to the `[enhanced]` part of DIS-79 (never `[original]`) and a Spanish comment records Q1 and Q2 as decided by the agent, not as questions left open (rejected as "open questions for the author": the autonomous run leaves nothing for the author). | Linear DIS-79 |
+
+---
+
+## Run 2 (2026-11-03)
+
+CHANGES REQUIRED
+
+**Questions for the author:** none. Q1 (coverage `tp / positives` instead of the parent's "/ 50") and Q2 (precision `tp / (tp + false-positive edges)`, with the parent's ratio published as `resolutionAgreement`) were decided by the agent in run 1, in design → Follow-ups (Q1, Q2, destination D). Both decisions follow the sub-issue's M4. The sub-issue governs over the parent, so they are acceptable.
+
+Audit inputs (run 2): `proposal.md`, `design.md`, `specs/graph-quality/spec.md` and `tasks.md` of `openspec/changes/graph-quality-measurement` (branch `feature/dis-79-measure-graph` at `d2100bf`), and `reports/2026-11-03-spec-audit.md` (run 1 and its resolution). From Linear: DIS-79 (`[original]`, `[reality-map]`, `[enhanced]` including the "Decisiones añadidas tras la auditoría de spec (ejecución 1)", and 8 comments) and its parent DIS-53. From the repository: `docs/openspec-tasks-mandatory-steps.md`, `docs/project-context.md` (lines 628-630 and 1671), `readme.md` lines 29 and 872-894, `scripts/annotation-agreement.mjs` (lines 265-278, 440-474 and 605), `packages/cli/src/seed/parse-seed.ts` (lines 18-83), `seeds/graph-dump.sql` (header, `project`/`symbol`/`edge` lines), `fixtures/annotations/*.callsites.json` (the `new`, `read` and route sites), `docs/measurements/annotation/agreement.json` and `docs/measurements/annotation/selection.json`.
+
+### 1. Scope against the ticket
+
+Every item follows from the DIS-79 sub-issue (original text plus `[enhanced]` M1–M10 and the run-1 decisions recorded in the enhanced part):
+- the script, with the freeze check first;
+- the seed as the graph;
+- the M3 rules and the M4 measures;
+- the JSON, the report and Table 2;
+- the README intro rewrite and the re-pointing of row 29 (M9);
+- the DIS-81 comment hand-off (M9, destination B);
+- the PowerShell check (M10).
+
+Other items:
+- P1 comes from the parent's inherited "el script falla si faltan sitios".
+- P4 and P6 refine M3 so it works on the frozen data.
+- The `docs/project-context.md` and `prompts.md` edits are mandatory documentation.
+
+The change does not widen to Table 1 or `measure-context`. **Clean.**
+
+- **Improvable (ticket fidelity, also point 6).** The ticket's M3 defines an *attributed* edge as one "cuyo destino es el del acierto **o** cuyo destino tiene como último segmento … el nombre llamado". The spec ("Site matching and attribution") and proposal line 28 keep only the called-name clause. The outcome and false-positive counts do not change, because a hit is never a false positive. But a hit whose target name differs from the called name would be missing from `attributedEdges`, the "aristas atribuidas" of sub-issue AC 1. Fix: in the spec, "An *attributed* edge SHALL be an edge of the scope whose target is the site's annotated target, or a symbol whose last name segment … is a called name of the site". Do the same in proposal line 28 and design D3.
+
+### 2. Inherited acceptance criteria
+
+| AC | Requirement | Scenario | State |
+|---|---|---|---|
+| Parent 1: coverage, precision, exact/heuristic counts; fails if sites are missing | Measures per project; Annotation files are complete | Measures of a synthetic project; An annotation file has 49 sites | Covered (definitions per M4, Q1/Q2) |
+| Parent 3: Table 2 without *(pendiente)* | Published Table 2 | The README table agrees with the measurement | Covered (intro predicate open, see B1 in point 5) |
+| Parent 4: deterministic | Measurement output and CLI | The measurement is deterministic | Covered |
+| Parent 5: TS ≥ PHP, otherwise explained | Published Table 2 | A TypeScript figure below PHP is explained | Covered |
+| Sub 1: JSON per project and per site with "aristas atribuidas", byte-identical | Measurement output and CLI; Measures per project | The measurement is deterministic | Covered |
+| Sub 2: freeze broken → 1, seed not read, `checkFreeze` messages; unknown argument → 2 | Freeze check; CLI | A frozen annotation file was modified; The agreement report is missing; An unknown argument is a usage error | Covered |
+| Sub 3 (a)–(f) | Site matching and attribution; Measures per project | 11 + 2 scenarios | Covered |
+| Sub 4: Table 2 format, agreement under the table, link, doc test | Published Table 2; Committed measurement matches the repository | 3 scenarios | Covered |
+| Sub 5: frozen sources untouched | The frozen sources are not modified | The frozen sources still match their hashes | Covered |
+
+The parent's limitation "anotación por la autora" is superseded by DIS-80, and the report never says "humana" or "a mano". **Clean.**
+
+### 3. Missing scenarios
+
+Every behaviour a test must pin has a scenario. The following MUST clauses have none (all improvable):
+- "Measurement output and CLI": `--root` **given twice** → exit 2. The scenario covers `--verbose` and `--root` with no value only. Add "and again with `--root a --root b`".
+- "Freeze check before measuring": a report that **records no hash**. `checkFreeze` returns `the report records no SHA-256 hash` (`scripts/annotation-agreement.mjs:461`), and that message names no file, while the requirement says each line names the file. Fix the requirement: "a problem that concerns the report itself is prefixed `docs/measurements/annotation-agreement.md: `". Add the case to the scenario "The agreement report is missing", or add a sibling scenario.
+- "The graph is read from the seed": an **unreadable** seed. Task 2.4 tests it, but no scenario names it. Append to "A malformed seed line is an error": "and a copy without `seeds/graph-dump.sql` exits 1 with one stderr line `seeds/graph-dump.sql: the file cannot be read`". If this becomes a 27th scenario instead, update tasks 6.2 and 11.8.
+
+### 4. Ambiguity
+
+Searched the four artifacts for "fast", "easy", "secure", "efficient", "many", "appropriate" and "robust":
+- spec "however many sites attribute it": a quantifier, not a vague quality.
+- proposal line 15, "a small CLI": descriptive, not a requirement.
+
+**Clean.**
+
+### 5. Open decisions
+
+- **B1 (blocking): the "intro no longer pending" check has no testable predicate.**
+  - Spec "Published Table 2" says "The introduction of «Mediciones que se publicarán» SHALL NOT mark Table 2 as pending". Its scenario says the intro "does not say *(pendiente)* of Table 2".
+  - The current intro (`readme.md:876`) begins `*(pendiente, Entrega 3).* Las dos tablas …`. Task 5.3 rewrites it so that it still says Table 1 is pending (DIS-81).
+  - `tests/unit/docs/graph-quality.spec.ts` must decide alone what "*(pendiente)* of Table 2" means inside a paragraph that legitimately marks Table 1 as pending. That decision is a test-pinned rule.
+  - Fix it in the requirement and the scenario: "The first paragraph after `#### Mediciones que se publicarán` SHALL NOT start with `*(pendiente`, SHALL contain `npm run measure:graph`, and SHALL NOT contain `Las dos tablas se rellenan`. The pending state of Table 1 SHALL be stated in that paragraph only through a sentence naming `DIS-81`." In the scenario's THEN, replace the *(pendiente)* clause with those three assertions.
+- **Improvable: `formatRatio` for whole percentages.** Spec "Published Table 2" says "with one decimal". The prototype gives `task-api` 26/26, so the cell will be either `100,0 % (26/26)` or `100 % (26/26)`. The agreement line uses the opposite convention (`100 %`, "no trailing `,0`"). Both sides of the test use the same `formatRatio`, so the test cannot detect a wrong choice. State it once in D7 and the spec: "always one decimal: `formatRatio(26, 26)` is `100,0 % (26/26)`". Add that assertion to task 3.4.
+- **Improvable: annotation files that are not valid JSON or lack fields.** This can only happen on a `--root` copy whose report hash was updated, as task 2.1 does. "Annotation files are complete" covers `formatVersion`, count and ids, but not invalid JSON or a site without `site`/`call`/`form`. Add to the requirement: "an annotation file that cannot be read or parsed as JSON is a problem naming the file (exit 1)".
+- **Improvable: child rows of an unknown project.** Task 2.3 removes the `task-api` rows from a copy of the seed. If only the `project` row were removed, `file`/`edge` rows would name a missing project. `seedProjects` throws in that case (`parse-seed.ts:54`). Pin the behaviour in D2: "a `file` or `edge` row whose `project_id` names no `project` row is a malformed line".
+
+### 6. Contradictions inside the change
+
+- **Improvable (factual).** Design D3.5 says "two `new` on one line (`task-api`)". In the frozen data, `ts-21` (`new InMemoryTaskRepository(`) and `ts-22` (`new TaskService(`) are on lines 12 and 13 of `registerDb` in `src/plugins/db.ts` (`fixtures/annotations/task-api.callsites.json:380-418`). They share a symbol, not a line. The synthetic scenario ("same line of one TypeScript method") is still valid. Correct D3.5 to "two `new` in one symbol (`ts-21`, `ts-22` in `registerDb`)".
+- **Improvable.** Design → Risks says "the count of false positives is a lower bound". That is not true under D3. A `none` site's scope includes:
+  - every edge whose source is an enclosing symbol, including the whole class;
+  - every file-level edge of `site.file`.
+
+  A correct edge from an *unannotated* call with the same called name in that scope (for example another `->save(` in the same method, or a module-level call) is "the hit of no site", so it becomes a false positive. The count can therefore err in both directions. Fix Risks and the spec's report limitation: "attribution by called name can miss a wrong edge with another name, and can count as false positive a correct edge of an unannotated call with the same name in the same scope; the false-positive count is therefore approximate in both directions".
+- The rest is consistent. Proposal, design D3–D7 and the spec agree on scope, hit, called name, false positive, measures, rounding, JSON layout, texts and exit codes.
+
+### 7. Contradictions with the project
+
+- `openspec/specs/graph-annotations/spec.md` → "Frozen annotations and agreement report": the change keeps its freeze premise and adds no delta. Consistent.
+- `docs/project-context.md:628-630`: the base branch `final-project-CRN` matches tasks 0.1, 5.6 and 11.1.
+- `readme.md:894` says "dos agentes … de modelos distintos". The spec's limitation now says "two different models of one family (`claude-opus-5-5`, `claude-sonnet-5-5`)". Consistent.
+- The autonomous merge in 11.9 is covered by `docs/adr/20261020-kit-autonomous-mode.md`, as run 1 found.
+- `scripts/*.mjs` imports only `node:` built-ins and sibling `.mjs` files (wiring test), with typing through `.d.mts`. Consistent.
+
+**Clean.**
+
+### 8. Contrast with the real code
+
+- `checkFreeze(report, root)` takes the report text and returns the problems listed above (`scripts/annotation-agreement.mjs:452-474`). D5 reads the report first and names it on failure. Consistent, apart from the prefix for the no-hash message (point 3).
+- `roundRatio` (`scripts/annotation-agreement.mjs:274-277`) is not exported. D4 reimplements its integer formula. Consistent.
+- `seedProjects(...).edgeCount` counts `INSERT INTO edge` rows per project (`parse-seed.ts:80-81`), not the `project.edge_count` column, so the D2 parity test compares like with like. Consistent.
+- The seed puts one statement per line. `symbol` rows hold `start_line`/`end_line` and signatures with commas and parentheses inside quotes (`seeds/graph-dump.sql:62-63`). `edge` rows carry `project_id`, `kind`, `resolution` and `extractor` (`seeds/graph-dump.sql:184`). The D2 reader and D6 (`hit.extractor`) match this shape.
+- `selection.json` holds per-fixture `construction`/`ids` rows. For `acme-shop` the ids add up to the 50 sites. `task-api` has a `reexport` row with no ids. Under the spec ("one row per construction … in its order"), that row prints with zeros. The rule decides it, so this is not a defect, but D8 could mention it. Improvable.
+- README Table 2 headers (``Aristas `exact` ``, ``Aristas `heuristic` ``) and row labels (`PHP/Laravel`, `TypeScript`) match `readme.md:887-890`.
+
+No duplicated abstraction. **Clean** apart from the improvable notes.
+
+### 9. Task size
+
+Every task fits one agent turn. The run-1 split of 5.4/5.5 is in place.
+
+- **Improvable (ordering).** Task 5.3 adds a README link to `docs/measurements/graph-quality.md`, but that file is only created in 5.5. Between the two tasks, `tests/unit/docs/guides.spec.ts` (README links) fails, while 6.1/P8 promise it stays green. Either create the report file in 5.3 with its headings, or add the link in 5.5.
+
+### 10. Mandatory steps
+
+- Step 0 is first and verifies `feature/dis-79-measure-graph` from `final-project-CRN` (0.1–0.4).
+- Steps 6–11 are present, in order and labelled `(MANDATORY)`. Steps 8, 9 and 11 say `AGENT MUST EXECUTE`. Step 7 names its report file and the template.
+- Mutating tasks restore state:
+  - 5.2 points the test at a changed copy, then restores it;
+  - 7.6 and 8.3 check the hashes and run `node scripts/dev-processes.mjs stop`;
+  - 8.2 uses scratchpad copies and deletes them.
+- The PowerShell check is the agent's (8.1, `-NoProfile`, no `$env:`).
+- 6.2 and 11.8 give 26 scenarios and ten requirements. That matches the spec: 2 + 3 + 1 + 11 + 2 + 2 + 1 + 2 + 1 + 1 = 26.
+
+**Clean.**
+
+### 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| Freeze check before measuring | A frozen annotation file was modified | 1.3 |
+| | The agreement report is missing | 1.3 |
+| The graph is read from the seed | The seed reader agrees with the CLI's seed parser | 2.2 |
+| | A project of the annotations is not in the seed | 2.3 |
+| | A malformed seed line is an error | 2.4 |
+| Annotation files are complete | An annotation file has 49 sites | 2.1 |
+| Site matching and attribution | An edge from the enclosing symbol to the annotated target is a hit | 3.1 |
+| | An edge from the site's file is in scope | 3.1 |
+| | A positive site without a matching edge is a miss | 3.1 |
+| | An edge with the called name to another target is a false positive | 3.2 |
+| | A none site with an attributed edge is a false positive | 3.2 |
+| | A none site without an attributed edge is a true negative | 3.2 |
+| | The called name of a route action, an array callable and a snake_case read | 3.2 |
+| | Two sites in one symbol do not count each other's hit as a false positive | 3.3 |
+| | An edge of another kind or another project does not count | 3.3 |
+| | A source symbol whose range ends before the site is out of scope | 3.3 |
+| | Of two hits the one with the expected resolution is recorded | 3.3 |
+| Measures per project | Measures of a synthetic project | 3.4 |
+| | Undefined measures are null | 3.4 |
+| Measurement output and CLI | The measurement is deterministic | 3.5 |
+| | An unknown argument is a usage error | 1.1, 1.2 |
+| Committed measurement matches the repository | The committed JSON is the current measurement | 5.1, 5.2 |
+| Published Table 2 | The README table agrees with the measurement | 5.3 |
+| | A TypeScript figure below PHP is explained | 5.3 |
+| Measurement report | The report agrees with the measurement | 5.4, 5.5 |
+| The frozen sources are not modified | The frozen sources still match their hashes | 5.2, 5.6 |
+
+No empty row. Docs-only tasks without a requirement are acceptable: 10.1 (row 29, README tree), 10.2, 10.3 and 10.4. **Clean.**
+
+---
+
+### Corrections to apply
+
+#### `specs/graph-quality/spec.md`
+
+1. **"Published Table 2"** (B1, blocking).
+   - Replace "The introduction of «Mediciones que se publicarán» SHALL NOT mark Table 2 as pending." with: "The first paragraph after `#### Mediciones que se publicarán` SHALL NOT start with `*(pendiente`, SHALL contain `npm run measure:graph` and SHALL NOT contain `Las dos tablas se rellenan`; the pending state of Table 1 SHALL be stated in that paragraph only through a sentence naming `DIS-81`."
+   - In "The README table agrees with the measurement", replace "and the introduction of «Mediciones que se publicarán» does not say *(pendiente)* of Table 2" with: "and the first paragraph after `#### Mediciones que se publicarán` does not start with `*(pendiente`, contains `npm run measure:graph`, does not contain `Las dos tablas se rellenan`, and names `DIS-81` for Table 1".
+   - Add (improvable): "Percentages are always written with one decimal: `formatRatio(26, 26)` is `100,0 % (26/26)`."
+2. **"Site matching and attribution"** (improvable, ticket M3). Change the definition to: "An *attributed* edge SHALL be an edge of the scope whose target is the site's annotated target, or a symbol whose last name segment (after the last `::`) is a called name of the site."
+3. **"Measurement output and CLI"** (improvable). In "An unknown argument is a usage error", change the WHEN to: "the command runs with `--verbose`, again with `--root` and no value, and again with `--root a --root b`".
+4. **"Freeze check before measuring"** (improvable). Append: "A problem that concerns the report itself (unreadable, or `the report records no SHA-256 hash`) SHALL be written prefixed `docs/measurements/annotation-agreement.md: `." Extend "The agreement report is missing" with: "and a copy whose report has no `## Hashes SHA-256` row gives one stderr line naming the report".
+5. **"The graph is read from the seed"** (improvable).
+   - Append: "A `file`, `symbol` or `edge` row that names no `project` or `file` row of the seed is a malformed line."
+   - Extend "A malformed seed line is an error" with: "and a copy without `seeds/graph-dump.sql` exits 1 with the stderr line `seeds/graph-dump.sql: the file cannot be read`".
+6. **"Annotation files are complete"** (improvable). Append: "An annotation file that cannot be read or parsed as JSON is a problem naming the file."
+7. **"Measurement report"** (improvable). Replace the first limitation with: "attribution by called name can miss a wrong edge whose target has another name, and can count as a false positive a correct edge of an unannotated call with the same name in the same scope, so the false-positive count is approximate in both directions".
+
+#### `design.md`
+
+- D3: the attributed-edge definition of correction 2. D3.5: replace "two `new` on one line (`task-api`)" with "two `new` in one symbol (`ts-21`, `ts-22` in `registerDb`, `src/plugins/db.ts:12-13`)".
+- D2: a child row naming no `project`/`file` row is a malformed line (correction 5).
+- D5: the report-prefix rule of correction 4.
+- D7: "always one decimal: `formatRatio(26, 26)` → `100,0 % (26/26)`"; the intro predicate of correction 1.
+- D8: a construction of `selection.json` with no ids (the `reexport` row of `task-api`) prints a row of zeros.
+- Risks: replace "the count of false positives is a lower bound" with the two-way wording of correction 7.
+- Follow-ups: add a table "spec audit run 2" with B1 (destination A) and each improvable item taken (destination A).
+
+#### `tasks.md`
+
+- 1.1: add the `['--root', 'a', '--root', 'b']` case (exit 2).
+- 1.3: add the report-with-no-hash case and the report prefix.
+- 2.1: add an annotation file that is not valid JSON (in-memory, one problem naming the file).
+- 2.3: also an `edge` row of an unknown project is a malformed line.
+- 3.4: add `formatRatio(26, 26) === '100,0 % (26/26)'`.
+- 5.3: replace the intro assertion with the three assertions of correction 1. Write the intro so it starts without `*(pendiente`, names `npm run measure:graph`, and marks only Table 1 as pending with `DIS-81`. Either add the link to `docs/measurements/graph-quality.md` in 5.5, or create the report file with its headings in 5.3, so `tests/unit/docs/guides.spec.ts` never goes red.
+- 6.2 / 11.8: keep 26 if the new cases extend existing scenarios. If a scenario is added, update the count.
+
+#### Linear
+
+- **DIS-79**, `[enhanced]` part, under "Decisiones añadidas tras la auditoría de spec", never inside `[original]`. Add, in Spanish, marked as the agent's text:
+  "*(Texto del agente, corrección 2, ejecución autónoma, 2026-11-03.)*
+  - La entrada de «Mediciones que se publicarán» deja de estar pendiente para la Tabla 2: no empieza por `*(pendiente`, cita `npm run measure:graph`, ya no dice «Las dos tablas se rellenan» y nombra DIS-81 solo para la Tabla 1.
+  - Los porcentajes de la Tabla 2 llevan siempre una decimal (`100,0 % (26/26)`).
+  - Una arista atribuida es la que llega al destino anotado o la que acaba en el nombre llamado (M3).
+  - Los falsos positivos por nombre llamado son aproximados en los dos sentidos: puede faltar una arista errónea con otro nombre y puede contar una arista correcta de una llamada no anotada con el mismo nombre. Se declara en `## Limitaciones`.
+  - `--root` repetido da código 2.
+  - Un informe sin hashes, una semilla ausente o un fichero de anotación que no es JSON dan código 1 con el fichero nombrado."
+- **DIS-79**, a comment in Spanish, marked as the agent's text, summarizing run 2: one blocking finding (B1), corrected in the change, plus the improvable items applied. No new issue.
