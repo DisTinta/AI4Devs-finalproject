@@ -2,6 +2,8 @@ import { isAbsolute } from 'node:path';
 import { normalizeQuestion } from '../cache/normalize.js';
 import { answerFromCache, isCacheable, parseStoredResponse, toStoredResponse } from '../cache/response-cache.js';
 import type { StoredResponse } from '../cache/response-cache.js';
+import { SEMANTIC_CACHE_MIN_SIMILARITY, skipCode, usableVector } from '../cache/similarity-cache.js';
+import type { CacheEntry } from '../knowledge/cache-entry.js';
 import { anchor } from '../context/anchor.js';
 import { buildContextPack } from '../context/context-pack.js';
 import type { ContextSpan } from '../context/context-pack.js';
@@ -20,7 +22,7 @@ import { verifyAnswer } from '../verify/verify-answer.js';
 import { toClaimItems, toConfidenceStatement } from './claim-items.js';
 import type { TypedStatement, VerifiedStatement } from './claim-items.js';
 import type { AnswerEvidence, ExplainAnswer, PriorClaim, StoredExplain, UnsavedExplain } from './explain-answer.js';
-import type { AnswerNotCachedCode, ExplainEvent, QueryNotLoggedCode } from './explain-event.js';
+import type { AnswerNotCachedCode, ExplainEvent, QueryNotLoggedCode, SemanticCacheSkippedCode } from './explain-event.js';
 import { parseExplainRequest } from './explain-request.js';
 import type { ExplainRequest } from './explain-request.js';
 import { toPriorClaim } from './prior-claims.js';
@@ -92,6 +94,10 @@ interface CallState {
    * refresh's (DIS-42 design D8); `verifyLatencyMs` is this sum once a check returned.
    */
   verifySumMs: number;
+  /** The usable embedding of the key, when the similarity step obtained one (DIS-67); saved with the answer. */
+  embedding?: readonly number[];
+  /** Why the similarity step was skipped, when it was and an event is due (DIS-67 design S1). */
+  skipped?: SemanticCacheSkippedCode;
 }
 
 /**
@@ -101,7 +107,13 @@ interface CallState {
  * the project's answer cache (DIS-21): an entry whose stored response passes the check is answered, in
  * both modes, as the stored answer with `events: []` and the usage of a hit (no token, no cost,
  * `cacheHit: true`), after its hit is recorded, without building the pack, reading the prior claims,
- * calling the model or writing a claim; anything else is a miss. On a miss it answers `UNKNOWN` when
+ * calling the model or writing a claim; anything else is a miss. In live mode, on an exact miss with a
+ * non-empty key, it then embeds the key once (DIS-67, `similarity-cache.ts`) and, unless the request
+ * sets `useCache: false`, looks up the project's most similar entry at `SEMANTIC_CACHE_MIN_SIMILARITY`
+ * and answers it exactly as an exact hit; a missing embedding model skips the step silently, another
+ * `LlmUnavailable` or a spent budget skips it with one `semantic_cache_skipped` event (first in the
+ * answer's events), and any other error of the embedding request propagates before the pack. The vector
+ * is saved with a cacheable answer. The embedding is never counted in the usage or the row. On a miss it answers `UNKNOWN` when
  * the model is in evaluation mode (`llm-required`), builds the pack (`over-budget` when no span fits),
  * sanitises the question and the pack's spans (from then on the only spans: a span over the limit is
  * cut), reads the prior claims of those spans, asks the model once with the purpose `answer`,
@@ -202,7 +214,9 @@ export async function explain(dependencies: ExplainDependencies, request: Explai
     const hit = answerFromCache(outcome.hit, latency);
     return withEvents(hit, undefined, await saveRow(store, row(meteredVerification(), latency, true)));
   }
-  if (!('verification' in outcome)) return finish(store, parsed.projectId, key, outcome.answer, row(meteredVerification(), latency));
+  if (!('verification' in outcome)) {
+    return finish(store, parsed.projectId, key, outcome.answer, row(meteredVerification(), latency), state);
+  }
   const usage = aggregateUsage({
     generation: meter.generation(),
     verification: outcome.verification,
@@ -210,7 +224,7 @@ export async function explain(dependencies: ExplainDependencies, request: Explai
     latencyMs: latency,
   });
   const answer = { ...outcome.answer, usage } as ExplainAnswer;
-  return finish(store, parsed.projectId, key, answer, row(usage.verification, latency));
+  return finish(store, parsed.projectId, key, answer, row(usage.verification, latency), state);
 }
 
 /**
@@ -218,7 +232,9 @@ export async function explain(dependencies: ExplainDependencies, request: Explai
  * `key`, then writes the call's row, and returns the answer with `answer_not_cached` and then
  * `query_not_logged` appended when either write was not made. A save that fails with an error other
  * than `CacheWriteFailed` or `ProjectNotFound` is thrown after the row was sent, as on any rejection
- * after a model call resolved; a failure of that row never replaces it (D8).
+ * after a model call resolved; a failure of that row never replaces it (D8). The save carries the key's
+ * embedding when the similarity step obtained one (DIS-67), and the answer starts with the
+ * `semantic_cache_skipped` event when that step was skipped with a code.
  */
 async function finish(
   store: StorePort,
@@ -226,17 +242,18 @@ async function finish(
   key: string,
   answer: ExplainAnswer,
   entry: QueryLogEntry,
+  state: CallState,
 ): Promise<ExplainAnswer> {
   let notCached: AnswerNotCachedCode | undefined;
   if (key !== '' && isCacheable(answer)) {
     try {
-      notCached = await saveCache(store, projectId, key, answer);
+      notCached = await saveCache(store, projectId, key, answer, state.embedding);
     } catch (error) {
       await store.saveQueryLog(entry).catch(() => undefined);
       throw error;
     }
   }
-  return withEvents(answer, notCached, await saveRow(store, entry));
+  return withEvents(answer, notCached, await saveRow(store, entry), state.skipped);
 }
 
 /**
@@ -251,9 +268,10 @@ async function saveCache(
   projectId: string,
   key: string,
   answer: StoredExplain | UnknownExplain,
+  embedding: readonly number[] | undefined,
 ): Promise<AnswerNotCachedCode | undefined> {
   try {
-    await store.saveCacheEntry(projectId, key, toStoredResponse(answer));
+    await store.saveCacheEntry(projectId, key, toStoredResponse(answer), embedding);
     return undefined;
   } catch (error) {
     if (error instanceof CacheWriteFailed) return 'store-write-failed';
@@ -290,18 +308,55 @@ function withEvents<A extends ExplainAnswer>(
   answer: A,
   notCached: AnswerNotCachedCode | undefined,
   notLogged: QueryNotLoggedCode | undefined,
+  skipped?: SemanticCacheSkippedCode,
 ): A {
-  const events: ExplainEvent[] = [
+  const before: ExplainEvent[] = skipped === undefined ? [] : [{ type: 'semantic_cache_skipped', code: skipped }];
+  const after: ExplainEvent[] = [
     ...(notCached === undefined ? [] : [{ type: 'answer_not_cached' as const, code: notCached }]),
     ...(notLogged === undefined ? [] : [{ type: 'query_not_logged' as const, code: notLogged }]),
   ];
-  return events.length === 0 ? answer : { ...answer, events: [...answer.events, ...events] };
+  return before.length === 0 && after.length === 0 ? answer : { ...answer, events: [...before, ...answer.events, ...after] };
+}
+
+/**
+ * The stored response of a cache entry found by key or by similarity, after its hit is recorded at
+ * `startedAt`: `undefined` (a miss, nothing recorded) when there is no entry or its response fails the
+ * check (DIS-21 design C6; DIS-67 design S4: one path for both kinds of hit).
+ */
+async function recordHit(
+  store: StorePort,
+  projectId: string,
+  entry: CacheEntry | undefined,
+  startedAt: Date,
+): Promise<StoredResponse | undefined> {
+  if (entry === undefined) return undefined;
+  const stored = parseStoredResponse(entry.response);
+  if (stored === undefined) return undefined;
+  await store.touchCacheEntry(projectId, entry.id, startedAt);
+  return stored;
+}
+
+/**
+ * Requests the embedding of `key` once and keeps the usable vector in `state.embedding`; a failure is
+ * classified by `skipCode`: it keeps the code in `state.skipped` (`not-configured` keeps none) and an
+ * unusable vector counts as `embedding-unavailable`.
+ *
+ * @throws Any error that is neither `LlmUnavailable` nor `BudgetExhausted`, unchanged.
+ */
+async function embedKey(llm: LlmPort, key: string, state: CallState): Promise<void> {
+  try {
+    const vector = usableVector(await llm.embed([key]));
+    if (vector === undefined) state.skipped = 'embedding-unavailable';
+    else state.embedding = vector;
+  } catch (error) {
+    state.skipped = skipCode(error);
+  }
 }
 
 /**
  * The pipeline of one call over the metered model, from anchoring to the claim write. It looks `key` up
- * in the answer cache (unless the request sets `useCache: false` or `key` is empty) and records a hit at
- * `startedAt`. It records in `state` the pack's baseline and the progress of the semantic check (for a
+ * in the answer cache (unless the request sets `useCache: false` or `key` is empty), then, in live mode,
+ * embeds it and looks up the most similar entry (DIS-67), and records a hit at `startedAt`. It records in `state` the pack's baseline and the progress of the semantic check (for a
  * rejection row), and stamps every claim's provenance with `startedAt`.
  */
 async function answerQuestion(
@@ -318,14 +373,20 @@ async function answerQuestion(
   if (anchors.length === 0) return { answer: unknown('no-anchor') };
   // The answer cache (DIS-21 design C6, D2): after anchoring, before the evaluation-mode check, in
   // both modes. An entry whose response fails the check is a miss, without an event.
-  if (request.useCache !== false && key !== '') {
-    const entry = await store.findCacheEntry(projectId, key);
-    if (entry !== undefined) {
-      const stored = parseStoredResponse(entry.response);
-      if (stored !== undefined) {
-        await store.touchCacheEntry(projectId, entry.id, startedAt);
-        return { hit: stored };
-      }
+  const lookUp = request.useCache !== false && key !== '';
+  if (lookUp) {
+    const hit = await recordHit(store, projectId, await store.findCacheEntry(projectId, key), startedAt);
+    if (hit !== undefined) return { hit };
+  }
+  // The similarity step (DIS-67 design S4): live mode only, after the exact miss and before the
+  // evaluation check. The key is embedded once, for the lookup (unless the cache is off) and for the
+  // save; a failure only skips the lookup (`skipCode`), any other error propagates.
+  if (llm.mode === 'live' && key !== '') {
+    await embedKey(llm, key, state);
+    if (lookUp && state.embedding !== undefined) {
+      const similar = await store.findSimilarCacheEntry(projectId, state.embedding, SEMANTIC_CACHE_MIN_SIMILARITY);
+      const hit = await recordHit(store, projectId, similar, startedAt);
+      if (hit !== undefined) return { hit };
     }
   }
   if (llm.mode === 'evaluation') return { answer: unknown('llm-required') };

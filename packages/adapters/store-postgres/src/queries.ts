@@ -441,6 +441,29 @@ export const FIND_CACHE_ENTRY = `
    WHERE p.id = $1`;
 
 /**
+ * Finds the project's answer cache entry most similar to the embedding `$2` (cast to `vector`), when
+ * its similarity (1 minus the cosine distance) is at least `$3` (DIS-67 design S3). It starts from the
+ * project row, so it returns no row exactly when the project does not exist, and one row whose `id` is
+ * `NULL` when no entry reaches the minimum. The distance is computed over the project's rows with an
+ * embedding in a `MATERIALIZED` CTE (read through `cache_entry_project_id_idx`, never ordered by the
+ * HNSW index, whose post-filtering could miss the project's entry); the best row is chosen by
+ * distance, then the most recently created, then the greatest id, and the minimum applies outside.
+ */
+export const FIND_SIMILAR_CACHE_ENTRY = `
+  WITH scored AS MATERIALIZED (
+    SELECT c.id, c.response, c.created_at, c.question_embedding <=> $2::vector AS distance
+      FROM cache_entry c
+     WHERE c.project_id = $1 AND c.question_embedding IS NOT NULL
+  )
+  SELECT e.id, e.response, e.similarity
+    FROM project p
+    LEFT JOIN LATERAL (
+      SELECT s.id, s.response, 1 - s.distance AS similarity FROM scored s
+       ORDER BY s.distance, s.created_at DESC, s.id DESC
+       LIMIT 1) e ON e.similarity >= $3
+   WHERE p.id = $1`;
+
+/**
  * Serialises the saves of one (project, key) pair until the transaction ends. The id is cast to
  * `uuid` and back so every letter case of one id takes the same lock; node-postgres sends untyped
  * parameters, hence the explicit casts.
@@ -450,10 +473,13 @@ export const LOCK_CACHE_KEY = `SELECT pg_advisory_xact_lock(hashtextextended($1:
 /** Deletes every answer cache entry of the project under the key `$2`. */
 export const DELETE_CACHE_KEY = `DELETE FROM cache_entry WHERE project_id = $1 AND question_normalized = $2`;
 
-/** Inserts an answer cache entry; no row is inserted when the project does not exist. */
+/**
+ * Inserts an answer cache entry with the embedding `$4` (cast to `vector`; `NULL` for none); no row is
+ * inserted when the project does not exist.
+ */
 export const INSERT_CACHE_ENTRY = `
-  INSERT INTO cache_entry (project_id, question_normalized, response)
-  SELECT p.id, $2, $3::jsonb FROM project p WHERE p.id = $1`;
+  INSERT INTO cache_entry (project_id, question_normalized, response, question_embedding)
+  SELECT p.id, $2, $3::jsonb, $4::vector FROM project p WHERE p.id = $1`;
 
 /**
  * Records one hit of the entry `$2` of the project, at `$3`, in one statement: whether the project

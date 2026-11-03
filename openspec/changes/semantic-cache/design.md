@@ -67,7 +67,9 @@ one project holds one entry per distinct question. `FIND_SIMILAR_CACHE_ENTRY` th
 distance of the project's rows with an embedding in a `MATERIALIZED` CTE (planned through
 `cache_entry_project_id_idx`, never ordered by the HNSW index), orders by distance, `created_at DESC`,
 `id DESC`, takes the first row and applies `1 - distance >= $3` outside. The HNSW index stays (schema
-contract; useful to DIS-69 or a global search later). Alternative considered: `SET LOCAL
+contract; useful to DIS-69 or a global search later). The purpose column of the `graph-schema` index
+table ("cache hit by question similarity") describes the intended use and stays unchanged; the cache
+lookup of this change is exact and does not use the index. Alternative considered: `SET LOCAL
 hnsw.iterative_scan`; rejected: depends on the pgvector version of the image and is still approximate.
 The scenario "The similarity search is exact whatever the other projects hold" pins it.
 
@@ -78,7 +80,8 @@ else `undefined`) and `skipCode(error)` (`not-configured` → no code, other `Ll
 `embedding-unavailable`, `BudgetExhausted` → `budget-exhausted`, anything else → rethrown). It does
 not import `explain/` (no cycle, as `response-cache.ts`); `SEMANTIC_CACHE_SKIPPED_CODES` and the event
 type live in `explain-event.ts` with the other closed sets, and the module imports only the type of the
-code. `answerQuestion`, after the exact lookup and before the evaluation check: `if (llm.mode ===
+code. It also exports `reachesThreshold(similarity)` (similarity `>=` `SEMANTIC_CACHE_MIN_SIMILARITY`),
+the single TypeScript statement of the inclusive rule, applied by the in-memory double. `answerQuestion`, after the exact lookup and before the evaluation check: `if (llm.mode ===
 'live' && key !== '')` request `llm.embed([key])`, classify, keep the vector and the skip code in
 `state`; if `useCache !== false` and a vector exists, `findSimilarCacheEntry(projectId, vector,
 SEMANTIC_CACHE_MIN_SIMILARITY)`, then `parseStoredResponse`, `touchCacheEntry`, `{ hit }` exactly as the
@@ -272,3 +275,24 @@ the author. The run asked no question for the author.*
 | B8 | Manual plan 11.4/11.5 uses three recorded fresh questions (D₁ embed model empty, D₂ broken embed model, D₃ with `useCache: false` in the API) and keeps the rephrased question only for the evaluation run | **A** — this change |
 | I1 | "The threshold is inclusive at the boundary" names the live scripted model's completions | **A** — this change |
 | I2 | "The most similar entry of the project wins": no entry is stored under the rephrased question's key | **A** — this change |
+
+Spec audit, run 3 (2026-11-03). *Agent's text: decided as lead engineer in the apply step, without the author. The run asked no question for the author.*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| I1 | `reachesThreshold` declared in S4 and applied by the in-memory double (task 4.3) | **A** — this change |
+| I2 | Similarities of C and D bounded in the tie scenario of `graph-store` | **A** — this change |
+| I3 | Manual restoration covers the stale claims that the refresh rewrites (11.1, 11.7) | **A** — this change |
+| I4 | Manual plan uses a rephrasing whose similarity measured in 11.2 reaches the constant; if none does, the miss is recorded as a limitation | **A** — this change |
+| I5 | The `useCache: false` request of 11.5 names the rephrased question and checks the new entry in SQL | **A** — this change |
+| I6 | Note appended to the `[enhanced]` part of DIS-67 (backend-standards §5 edited; exact search, not LATERAL over HNSW) | **A** — done in Linear |
+| I7 | Sentence on the HNSW index purpose column in S3 | **A** — this change |
+
+Apply step (2026-11-03). *Agent's text: decided as lead engineer in the apply step, without the author.*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| R3 | Calibration of design S11 with `nomic-embed-text` (step 11 report): rephrasings of the price question measured 0.8321 («explícame el cálculo del precio final»), 0.8328, 0.9260, 0.9518, 0.9708 and 0.9924, and of the coupon question 0.9084; different topics 0.5506, 0.6321, 0.6665, 0.7102, 0.8465 (taxes), 0.8745 (shipping, same sentence frame) and 0.8920 (apply instead of validate coupons). No constant in [0.80, 0.95] separates every pair (the lowest rephrasing is below the highest different topic), so by S11 the constant stays 0.85 and the limitation is recorded: a short question with the same frame and one different noun can hit (observed: the shipping question was answered with the price entry), and the headline rephrasing of CM-HU-19 misses. `useCache: false` bypasses it | **D** — accepted |
+| R4 | A future calibration (another embedding model, a task prefix on the embedded text, or a second check on the hit) needs a delta change and its own spec audit; it is passed to DIS-69, which exposes the hit rate and so makes false hits measurable (comment there) | **B** — DIS-69 |
+| R5 | The local chat model `qwen2.5-coder` mostly returns `invalid-model-output` for the explain prompt, so the manual run could not show a live cacheable answer saved with its embedding; the save is pinned by the unit and integration tests, and the manual run saved the seeded answer through the real store with the real embedding instead | **D** — accepted |
+| R6 | The in-memory double compares with the `minSimilarity` it receives, not with the constant, because the minimum is a call argument; `reachesThreshold` stays the single statement of the rule for core and is tested on its own. The `explain` scenarios of `semantic-cache` live in `tests/unit/explain/explain-similarity.spec.ts`, not in `explain-cache.spec.ts` | **D** — accepted |

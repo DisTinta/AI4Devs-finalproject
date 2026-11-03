@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LlmUnavailable, type CompletionRequest } from '@codemind/core';
+import { EMBEDDING_DIMENSIONS, LlmUnavailable, type CompletionRequest } from '@codemind/core';
 import { createOpenAiCompatibleLlm, llmConfigFromEnv, type LiveLlmConfig } from '@codemind/adapter-llm';
 
 // Spec `llm-adapter`: every request goes through a recording fake `fetch` (design D8); nothing
@@ -273,7 +273,7 @@ describe('OpenAI-compatible completions', () => {
 });
 
 /** A vector of `length` components, filled with `value` so tests can tell vectors apart. */
-function vector(value: number, length = 1536): number[] {
+function vector(value: number, length = EMBEDDING_DIMENSIONS): number[] {
   return Array.from({ length }, () => value);
 }
 
@@ -384,7 +384,7 @@ describe('OpenAI-compatible embeddings', () => {
 
   it('A vector of another dimension is rejected', async () => {
     // Arrange
-    const { fetch } = fakeFetch(json({ data: [{ index: 0, embedding: vector(0.1, 768) }] }));
+    const { fetch } = fakeFetch(json({ data: [{ index: 0, embedding: vector(0.1, 1536) }] }));
     const llm = createOpenAiCompatibleLlm(live(EMBED_ENV), { fetch });
 
     // Act
@@ -392,8 +392,8 @@ describe('OpenAI-compatible embeddings', () => {
 
     // Assert
     expect(error.reason).toBe('dimension-mismatch');
-    expect(error.expected).toBe(1536);
-    expect(error.received).toBe(768);
+    expect(error.expected).toBe(768);
+    expect(error.received).toBe(1536);
   });
 
   it('Without an embedding model, embeddings fail and completions work', async () => {

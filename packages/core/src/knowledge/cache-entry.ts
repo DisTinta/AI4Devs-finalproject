@@ -1,3 +1,4 @@
+import { EMBEDDING_DIMENSIONS } from '../llm/embedding-dimensions.js';
 import { InvalidStoreQuery } from './errors.js';
 import { hasNoNul } from './text-without-nul.js';
 
@@ -14,6 +15,12 @@ export interface CacheEntry {
   /** The stored response as written (any JSON value), or `null` when the column is `NULL`. */
   response: unknown;
 }
+
+/** An entry found by similarity (DIS-67 design S5): the entry and its cosine similarity to the query. */
+export type SimilarCacheEntry = CacheEntry & {
+  /** 1 minus the cosine distance between the stored embedding and the query embedding. */
+  similarity: number;
+};
 
 /** The hyphenated 8-4-4-4-12 form of an id, any letter case. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -57,4 +64,34 @@ export function assertValidEntryId(entryId: string): void {
  */
 export function assertValidHitInstant(at: Date): void {
   if (!(at instanceof Date) || Number.isNaN(at.getTime())) throw new InvalidStoreQuery('at', 'must be a valid date');
+}
+
+/**
+ * Checks an embedding before any statement (DIS-67 design S5): an array of exactly
+ * `EMBEDDING_DIMENSIONS` finite numbers, at least one different from 0. The message never holds a
+ * component.
+ *
+ * @throws InvalidStoreQuery naming `embedding` otherwise.
+ */
+export function assertValidEmbedding(embedding: readonly number[]): void {
+  const valid =
+    Array.isArray(embedding) &&
+    embedding.length === EMBEDDING_DIMENSIONS &&
+    embedding.every((component) => typeof component === 'number' && Number.isFinite(component)) &&
+    embedding.some((component) => component !== 0);
+  if (!valid) {
+    throw new InvalidStoreQuery('embedding', `must be ${EMBEDDING_DIMENSIONS} finite numbers, not all zero`);
+  }
+}
+
+/**
+ * Checks the minimum similarity of a similarity lookup before any statement: a finite number between 0
+ * and 1, both included.
+ *
+ * @throws InvalidStoreQuery naming `minSimilarity` otherwise.
+ */
+export function assertValidMinSimilarity(minSimilarity: number): void {
+  if (typeof minSimilarity !== 'number' || !Number.isFinite(minSimilarity) || minSimilarity < 0 || minSimilarity > 1) {
+    throw new InvalidStoreQuery('minSimilarity', 'must be a number between 0 and 1');
+  }
 }

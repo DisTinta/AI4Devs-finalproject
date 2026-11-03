@@ -18,3 +18,4 @@ Decisions that affect more than one module or cost more than a day to revert. Ne
 | 2026-10-26 | [A CHANGES REQUIRED spec audit opens correction rounds in an autonomous run instead of stopping the ticket](./20261026-autonomous-audit-correction-rounds.md) | Accepted |
 | 2026-10-26 | [The project's Node baseline is 22.12, in `engines`, in CI and in every guide](./20261026-node-22-baseline.md) | Accepted |
 | 2026-10-29 | [A stale claim is refreshed in its own row, and no previous version is kept](./20261029-stale-claims-refreshed-in-place.md) | Accepted |
+| 2026-11-03 | [Embeddings stay on `LlmPort.embed()`, at 768 dimensions, and changing the embedding model is a migration or a cache invalidation](./20261103-embeddings-stay-on-llm-port.md) | Accepted |

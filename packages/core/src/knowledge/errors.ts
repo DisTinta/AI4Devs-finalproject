@@ -69,6 +69,8 @@ export type StoreQueryArgument =
   | 'entry'
   | 'question'
   | 'response'
+  | 'embedding'
+  | 'minSimilarity'
   | 'entryId'
   | 'at'
   | 'paths';

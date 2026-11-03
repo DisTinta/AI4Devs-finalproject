@@ -246,7 +246,7 @@ describe('runAskCommand: configuration and connection', () => {
         throw new LlmUnavailable('http-status', { status: 401 });
       },
       embed: async () => {
-        throw new Error('not used');
+        throw new LlmUnavailable('not-configured');
       },
     };
     const live = await run(['ask', 'acme-shop', Q1], {

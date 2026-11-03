@@ -191,7 +191,8 @@ as the error the test gives.
 
 - **GIVEN** a project with entries A (similarity 0.88 with a query vector Q) and B (similarity 0.95),
   and two entries C and D of the same embedding inserted directly with `created_at`
-  `2026-10-01T00:00:00Z` and `2026-10-02T00:00:00Z`
+  `2026-10-01T00:00:00Z` and `2026-10-02T00:00:00Z`; C and D have a similarity below 0.88 with Q, and
+  A and B a similarity below 0.99 with the embedding of C and D
 - **WHEN** the project is searched with Q and minimum 0.85, and with the embedding of C and D and
   minimum 0.99
 - **THEN** the first resolves to B and the second to D

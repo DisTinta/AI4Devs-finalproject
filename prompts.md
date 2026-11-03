@@ -99,6 +99,7 @@
 83. [Medición de la calidad del grafo (DIS-79)](#83-medición-de-la-calidad-del-grafo-dis-79)
 84. [Medición del ahorro de contexto y del verificador (DIS-81)](#84-medición-del-ahorro-de-contexto-y-del-verificador-dis-81)
 85. [Revisión de las respuestas de la Tabla 1 por un panel de agentes (DIS-82)](#85-revisión-de-las-respuestas-de-la-tabla-1-por-un-panel-de-agentes-dis-82)
+86. [Búsqueda por similitud en la caché de respuestas (DIS-67)](#86-búsqueda-por-similitud-en-la-caché-de-respuestas-dis-67)
 
 ---
 
@@ -5658,3 +5659,24 @@ columna «Correctas» sin tocar ninguna salida del panel (texto del agente).
 **Ajuste humano.** Ninguno: ejecución autónoma (texto del agente). Un detalle de redacción: el apartado de
 limitaciones del informe de medición no puede contener la cadena «pendiente», y «independientes» la contiene, así que
 ahí se escribió «dos agentes revisores de modelos distintos».
+
+---
+
+# 86. Búsqueda por similitud en la caché de respuestas (DIS-67)
+
+### Prompt 1 — Paso de apply del cambio `semantic-cache` en la ejecución autónoma
+
+Extracto literal del encargo que recibió el subagente:
+
+```
+Run /opsx:apply on change semantic-cache: every task in TDD (failing test first, then implementation, in the layer order), marking tasks.md as you go, with the mandatory verification steps. Run the tests, lint and typecheck. Commit, push and open the PR to final-project-CRN with /pr-describe (write the "why" yourself and mark it as agent-written). Return pr.
+```
+
+**Por qué funcionó.** El `design.md` y las cinco specs, cerrados tras tres auditorías, fijaban la firma del puerto, el
+orden de las comprobaciones, el evento cerrado y los vectores de frontera (el 0,85 exacto del doble en memoria), así
+que el agente pudo escribir primero cada test y después el código sin preguntar nada (texto del agente).
+
+**Ajuste humano.** Ninguno: ejecución autónoma (texto del agente). Dos desviaciones menores del plan: los escenarios de
+`explain` de la capacidad nueva viven en un fichero propio (`explain-similarity.spec.ts`) y no en `explain-cache.spec.ts`,
+y el doble en memoria compara con el mínimo que recibe y no con la constante, porque el mínimo es un parámetro de la
+llamada; `reachesThreshold` queda como la declaración única de la regla inclusiva y la usa su propio test.

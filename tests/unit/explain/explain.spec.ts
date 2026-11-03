@@ -21,6 +21,7 @@ import {
 } from '@codemind/core';
 import type { Claim, ContextSpan, ExplainAnswer, ExplainRequest } from '@codemind/core';
 import { acmeShopGraph } from '../../support/acme-shop-graph';
+import { embeddingVector } from '../../support/embedding-vector';
 import {
   citingIds,
   COMMIT,
@@ -112,6 +113,7 @@ describe('Requirement: Explain request', () => {
       findClaimsOverlapping: 0,
       saveQueryLog: 0,
       findCacheEntry: 0,
+      findSimilarCacheEntry: 0,
       saveCacheEntry: 0,
       touchCacheEntry: 0,
       invalidateCache: 0,
@@ -150,6 +152,7 @@ describe('Requirement: Explain request', () => {
       findClaimsOverlapping: 0,
       saveQueryLog: 0,
       findCacheEntry: 0,
+      findSimilarCacheEntry: 0,
       saveCacheEntry: 0,
       touchCacheEntry: 0,
       invalidateCache: 0,
@@ -219,6 +222,7 @@ describe('Requirement: Explain request', () => {
       findClaimsOverlapping: 0,
       saveQueryLog: 0,
       findCacheEntry: 0,
+      findSimilarCacheEntry: 0,
       saveCacheEntry: 0,
       touchCacheEntry: 0,
       invalidateCache: 0,
@@ -258,6 +262,39 @@ describe('Requirement: Explain request', () => {
 });
 
 describe('Requirement: Precedence and UNKNOWN answers', () => {
+  // DIS-67 (change semantic-cache, specs/explain/spec.md → "Precedence and UNKNOWN answers").
+  it('A live miss requests one embedding before the pack', async () => {
+    // Arrange
+    const holder: { d?: ReturnType<typeof doubles> } = {};
+    let atEmbed: { reads: number; neighbors: number; priorClaims: number } | undefined;
+    const d = doubles({
+      script: citingIds('ok', [['E1']]),
+      embed: () => {
+        const seen = holder.d!;
+        atEmbed = {
+          reads: seen.sourceCalls.readFileAt + seen.sourceCalls.readFilesAt,
+          neighbors: seen.loaded.calls.neighbors,
+          priorClaims: seen.loaded.calls.findClaimsOverlapping,
+        };
+        return [embeddingVector(1)];
+      },
+    });
+    holder.d = d;
+
+    // Act
+    const answer = await explain(d.deps, { projectId: d.projectId, question: Q1 });
+
+    // Assert
+    expect(answer).toMatchObject({ kind: 'answered', usage: { cacheHit: false } });
+    expect(d.model.embeddings).toEqual([['como se calcula el precio final de un pedido']]);
+    expect(atEmbed).toEqual({ reads: 0, neighbors: 0, priorClaims: 0 });
+    expect(d.order.indexOf('findCacheEntry')).toBeLessThan(d.order.indexOf('embed'));
+    expect(d.order.indexOf('embed')).toBeLessThan(d.order.indexOf('findSimilarCacheEntry'));
+    expect(d.order.indexOf('findSimilarCacheEntry')).toBeLessThan(d.order.indexOf('findClaimsOverlapping'));
+    expect(d.order.indexOf('findSimilarCacheEntry')).toBeLessThan(d.order.indexOf('complete'));
+    expect(d.loaded.calls.findSimilarCacheEntry).toBe(1);
+  });
+
   it('A question without anchor is unknown in both modes without building the pack', async () => {
     // Arrange
     const live = doubles({ mode: 'live' });

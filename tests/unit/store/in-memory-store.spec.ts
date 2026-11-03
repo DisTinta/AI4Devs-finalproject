@@ -1,6 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { CacheWriteFailed, ClaimWriteFailed, InvalidStoreQuery, MAX_PRIOR_CLAIMS, ProjectNotFound, QueryLogWriteFailed } from '@codemind/core';
+import {
+  CacheWriteFailed,
+  ClaimWriteFailed,
+  InvalidStoreQuery,
+  MAX_PRIOR_CLAIMS,
+  ProjectNotFound,
+  QueryLogWriteFailed,
+  SEMANTIC_CACHE_MIN_SIMILARITY,
+} from '@codemind/core';
 import type {
   Claim,
   ClaimItem,
@@ -14,6 +22,7 @@ import type {
   QueryLogEntry,
   TraversalDirection,
 } from '@codemind/core';
+import { embeddingVector } from '../../support/embedding-vector';
 import { createInMemoryStore } from '../../support/in-memory-store';
 import type { InMemoryStore } from '../../support/in-memory-store';
 import { edge, file, ref, symbol } from '../../support/sample-graph';
@@ -1130,6 +1139,59 @@ describe('in-memory StorePort double', () => {
       expect(failed).toBe(injected.save);
       expect(loaded.cacheEntries()).toEqual([]);
       expect(loaded.calls).toMatchObject({ findCacheEntry: 3, saveCacheEntry: 3, touchCacheEntry: 1, invalidateCache: 1 });
+    });
+
+    // DIS-67 (change semantic-cache, specs/graph-store/spec.md → "Answer cache entries").
+    it('The in-memory double searches by similarity like the database', async () => {
+      // Arrange
+      const injected: { similar?: unknown } = {};
+      const loaded = createInMemoryStore({
+        projects: [
+          { project: newProject('one'), graph: graphOf([file('a.php')], []) },
+          { project: newProject('two'), graph: graphOf([file('b.php')], []) },
+          { project: newProject('three'), graph: graphOf([file('c.php')], []) },
+        ],
+        failCacheCall: { similar: () => injected.similar },
+      });
+      const [first, second, third] = loaded.projectIds as [string, string, string];
+      const e1 = embeddingVector(1);
+      const q = embeddingVector(17, 10, 3, 1, 1);
+      const seed = (projectId: string, key: string, response: unknown, embedding?: number[], createdAt?: Date) =>
+        loaded.seedCacheEntry({ projectId, key, response, embedding, createdAt });
+      const r1 = seed(first, 'como se calcula el precio final de un pedido', { r: 1 }, e1);
+      seed(first, 'otra pregunta', { r: 2 });
+      seed(second, 'como se calcula el precio final de un pedido', { r: 3 }, e1);
+      // Similarities with the query vector (1, 0, …): A 0.88, B 0.95; C and D are the same vector at 0.5.
+      const unit = (cosine: number) => embeddingVector(cosine, Math.sqrt(1 - cosine * cosine));
+      seed(third, 'a', { r: 'A' }, unit(0.88));
+      const b = seed(third, 'b', { r: 'B' }, unit(0.95));
+      seed(third, 'c', { r: 'C' }, unit(0.5), new Date('2026-10-01T00:00:00Z'));
+      const d = seed(third, 'd', { r: 'D' }, unit(0.5), new Date('2026-10-02T00:00:00Z'));
+
+      // Act
+      const exact = await loaded.store.findSimilarCacheEntry(first, e1, 0.85);
+      const boundary = await loaded.store.findSimilarCacheEntry(first, q, 0.8);
+      const above = await loaded.store.findSimilarCacheEntry(first, q, 0.9);
+      const orthogonal = await loaded.store.findSimilarCacheEntry(first, embeddingVector(0, 1), 0);
+      const best = await loaded.store.findSimilarCacheEntry(third, embeddingVector(1), 0.85);
+      const tie = await loaded.store.findSimilarCacheEntry(third, unit(0.5), 0.99);
+      const atThreshold = await loaded.store.findSimilarCacheEntry(first, q, SEMANTIC_CACHE_MIN_SIMILARITY);
+      const short = await rejectionOf(() => loaded.store.findSimilarCacheEntry(first, e1.slice(1), 0.85));
+      injected.similar = new Error('injected');
+      const failed = await rejectionOf(() => loaded.store.findSimilarCacheEntry(first, e1, 0.85));
+
+      // Assert
+      expect(exact).toEqual({ id: r1, response: { r: 1 }, similarity: 1 });
+      expect(boundary).toEqual({ id: r1, response: { r: 1 }, similarity: 0.85 });
+      expect(above).toBeUndefined();
+      expect(orthogonal).toEqual({ id: r1, response: { r: 1 }, similarity: 0 });
+      expect(best?.id).toBe(b);
+      expect(tie?.id).toBe(d);
+      expect(atThreshold?.similarity).toBe(0.85);
+      expect(short).toBeInstanceOf(InvalidStoreQuery);
+      expect((short as InvalidStoreQuery).argument).toBe('embedding');
+      expect(failed).toBe(injected.similar);
+      expect(loaded.calls.findSimilarCacheEntry).toBe(9);
     });
   });
 

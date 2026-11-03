@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import {
   assertValidCacheKey,
+  assertValidEmbedding,
+  assertValidMinSimilarity,
   assertValidPaths,
   assertValidCacheResponse,
   assertValidEntryId,
@@ -18,6 +20,7 @@ import {
 } from '@codemind/core';
 import type {
   CacheEntry,
+  SimilarCacheEntry,
   ClaimItem,
   ClaimRefresh,
   ClaimSpan,
@@ -85,6 +88,7 @@ export interface InMemoryStore {
     findClaimsOverlapping: number;
     saveQueryLog: number;
     findCacheEntry: number;
+    findSimilarCacheEntry: number;
     saveCacheEntry: number;
     touchCacheEntry: number;
     invalidateCache: number;
@@ -126,16 +130,19 @@ export interface StoredCacheEntry {
   key: string;
   /** The stored response (a JSON round trip of what was written), or `null`. */
   response: unknown;
+  /** The stored embedding, or `null` for an entry saved without one. */
+  embedding: number[] | null;
   hitCount: number;
   lastHitAt: Date | null;
   createdAt: Date;
 }
 
-/** A cache entry to seed: its project, key and response, and optionally its hit count and instant. */
+/** A cache entry to seed: its project, key and response, and optionally its embedding, hit count and instant. */
 export interface SeedCacheEntry {
   projectId: string;
   key: string;
   response: unknown;
+  embedding?: readonly number[];
   hitCount?: number;
   createdAt?: Date;
 }
@@ -146,6 +153,7 @@ export interface SeedCacheEntry {
  */
 export interface CacheCallFailures {
   find?: () => unknown;
+  similar?: () => unknown;
   save?: () => unknown;
   touch?: () => unknown;
   invalidate?: () => unknown;
@@ -218,6 +226,19 @@ function jsonRoundTrip(value: unknown): unknown {
 /** A well-formed id, as the Postgres store accepts it: the hyphenated 8-4-4-4-12 form. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** The cosine similarity of two vectors of the same length, in double precision. */
+function cosineSimilarity(a: readonly number[], b: readonly number[]): number {
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    dot += a[i]! * b[i]!;
+    normA += a[i]! * a[i]!;
+    normB += b[i]! * b[i]!;
+  }
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
 /** Byte order of two strings, as `COLLATE "C"`. */
 function byteOrder(a: string, b: string): number {
   return Buffer.compare(Buffer.from(a, 'utf8'), Buffer.from(b, 'utf8'));
@@ -276,6 +297,7 @@ export function createInMemoryStore({
     findClaimsOverlapping: 0,
     saveQueryLog: 0,
     findCacheEntry: 0,
+    findSimilarCacheEntry: 0,
     saveCacheEntry: 0,
     touchCacheEntry: 0,
     invalidateCache: 0,
@@ -449,7 +471,7 @@ export function createInMemoryStore({
   }
 
   /** Stores a cache entry as given, without any check. */
-  function seedCacheEntry({ projectId, key, response, hitCount = 0, createdAt }: SeedCacheEntry): string {
+  function seedCacheEntry({ projectId, key, response, embedding, hitCount = 0, createdAt }: SeedCacheEntry): string {
     const id = randomUUID();
     if (createdAt !== undefined) lastStamp = Math.max(lastStamp, createdAt.getTime());
     cacheRows.push({
@@ -457,6 +479,7 @@ export function createInMemoryStore({
       projectId: projectId.toLowerCase(),
       key,
       response: jsonRoundTrip(response),
+      embedding: embedding === undefined ? null : [...embedding],
       hitCount,
       lastHitAt: null,
       createdAt: createdAt ?? new Date(nextStamp()),
@@ -512,11 +535,40 @@ export function createInMemoryStore({
       return newest === undefined ? undefined : { id: newest.id, response: jsonRoundTrip(newest.response) };
     },
 
-    async saveCacheEntry(projectId: string, questionNormalized: string, response: object): Promise<void> {
+    async findSimilarCacheEntry(
+      projectId: string,
+      embedding: readonly number[],
+      minSimilarity: number,
+    ): Promise<SimilarCacheEntry | undefined> {
+      calls.findSimilarCacheEntry += 1;
+      // Same order as the Postgres adapter (DIS-67 design S5): id form, embedding, minimum, project.
+      if (!UUID.test(projectId)) throw new ProjectNotFound(projectId);
+      assertValidEmbedding(embedding);
+      assertValidMinSimilarity(minSimilarity);
+      const project = projectOf(projectId);
+      injected(failCacheCall.similar);
+      const [best] = cacheRows
+        .filter((row) => row.projectId === project.id && row.embedding !== null)
+        .map((row) => ({ row, similarity: cosineSimilarity(row.embedding!, embedding) }))
+        .sort(
+          (a, b) =>
+            b.similarity - a.similarity || b.row.createdAt.getTime() - a.row.createdAt.getTime() || byteOrder(b.row.id, a.row.id),
+        );
+      if (best === undefined || best.similarity < minSimilarity) return undefined;
+      return { id: best.row.id, response: jsonRoundTrip(best.row.response), similarity: best.similarity };
+    },
+
+    async saveCacheEntry(
+      projectId: string,
+      questionNormalized: string,
+      response: object,
+      embedding?: readonly number[],
+    ): Promise<void> {
       calls.saveCacheEntry += 1;
       if (!UUID.test(projectId)) throw new ProjectNotFound(projectId);
       assertValidCacheKey(questionNormalized);
       assertValidCacheResponse(response);
+      if (embedding !== undefined) assertValidEmbedding(embedding);
       const project = projectOf(projectId);
       injected(failCacheCall.save);
       const kept = cacheRows.filter((row) => !(row.projectId === project.id && row.key === questionNormalized));
@@ -526,6 +578,7 @@ export function createInMemoryStore({
         projectId: project.id,
         key: questionNormalized,
         response: jsonRoundTrip(response),
+        embedding: embedding === undefined ? null : [...embedding],
         hitCount: 0,
         lastHitAt: null,
         createdAt: new Date(nextStamp()),

@@ -234,6 +234,29 @@ export interface StaleClaimNotRefreshedEvent {
   code: StaleClaimNotRefreshedCode;
 }
 
+/**
+ * Why the similarity step of the answer cache was skipped (DIS-67 design S1): the embedding model
+ * failed or returned an unusable vector (`embedding-unavailable`), or the daily budget was spent
+ * (`budget-exhausted`). A missing embedding model (`not-configured`) adds no event. A closed set, so
+ * no free text can leak.
+ */
+export const SEMANTIC_CACHE_SKIPPED_CODES = ['embedding-unavailable', 'budget-exhausted'] as const;
+
+/** Why the similarity step was skipped. */
+export type SemanticCacheSkippedCode = (typeof SEMANTIC_CACHE_SKIPPED_CODES)[number];
+
+/**
+ * The similarity step of the answer cache was skipped and the call went on as after an exact miss; a
+ * cacheable answer is saved without an embedding. It carries only its code: no message, no detail, no
+ * cause, no part of the question or its key, no component of a vector. At most once per answer.
+ */
+export interface SemanticCacheSkippedEvent {
+  /** Discriminant. */
+  type: 'semantic_cache_skipped';
+  /** Why the step was skipped. */
+  code: SemanticCacheSkippedCode;
+}
+
 /** An event of an explain answer. */
 export type ExplainEvent =
   | SchemaViolationEvent
@@ -244,4 +267,5 @@ export type ExplainEvent =
   | AnswerLanguageMismatchEvent
   | StaleClaimNotRefreshedEvent
   | AnswerNotCachedEvent
-  | QueryNotLoggedEvent;
+  | QueryNotLoggedEvent
+  | SemanticCacheSkippedEvent;

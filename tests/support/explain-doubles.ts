@@ -101,13 +101,15 @@ export function doubles(options: DoubleOptions = {}) {
         }
       : {},
   );
-  const { verify, answerUsage, verifyUsage, verifyModel, answerModel } = options;
+  const { verify, answerUsage, verifyUsage, verifyModel, answerModel, embed, embedInputTokens } = options;
   const model = createScriptedLlm(options.mode ?? 'live', options.script, order, {
     verify,
     answerUsage,
     verifyUsage,
     verifyModel,
     answerModel,
+    embed,
+    embedInputTokens,
   });
   const clock = scriptedClock(options.now);
   const base = options.store?.(loaded.store) ?? loaded.store;
@@ -132,6 +134,10 @@ export function doubles(options: DoubleOptions = {}) {
     findCacheEntry: (...args) => {
       order.push('findCacheEntry');
       return base.findCacheEntry(...args);
+    },
+    findSimilarCacheEntry: (...args) => {
+      order.push('findSimilarCacheEntry');
+      return base.findSimilarCacheEntry(...args);
     },
     touchCacheEntry: (...args) => {
       order.push('touchCacheEntry');
