@@ -2,7 +2,7 @@
 
 See `proposal.md` → Why. The design decisions D1–D12 were taken by the agent as lead engineer while
 enriching DIS-71 (autonomous run, 2026-11-03; Linear comment on DIS-71) and are carried here; D13–D16
-were taken while proposing, and the round-1 decisions of the spec audit (Follow-ups R1–R11) are folded
+were taken while proposing, and the round-1 decisions of the spec audit (Follow-ups R1–R11) and of round 2 (R12–R15) are folded
 into D3–D8 and D13–D17. All of them are the agent's text.
 
 What the change builds on, as it is today on `final-project-CRN`:
@@ -79,7 +79,9 @@ it is dropped (round 1, Follow-up R7). Hence every kept claim's lines are whole 
 code points sent, and its document citation is the redacted text of those whole lines, bounded. The
 prompt (`drift-prompts.ts`, `buildExtractionPrompt`) has a fixed system message and a user message JSON
 `{ "document": { "path", "lines": "<<<UNTRUSTED_DATA D1>>>\n11\t…\n<<<END_UNTRUSTED_DATA D1>>>" } }`,
-each line neutralised and prefixed by its number and a tab. The output schema is a strict Zod object
+each line neutralised and prefixed by its number and a tab. Its `promptHash` is the SHA-256, lowercase
+hexadecimal, of the UTF-8 bytes of `JSON.stringify(messages)`, as `packages/core/src/explain/prompt.ts:95`
+(round 2, Follow-up R13). The output schema is a strict Zod object
 in `doc-claims.ts`; the quarantine reuses the fence unwrapping of `statement-schema.ts` (exported as
 `unfenceModelOutput`, D16) and the drift-local subcode rule of D16. Limits exported: `MAX_EXTRACTED_CLAIMS = 50` (schema bound, an output
 with more is `limit_exceeded`), `MAX_DOC_CLAIMS = 12` (confronted), `MAX_CLAIM_CHARS = 500`.
@@ -111,8 +113,9 @@ symbol, never reaches the model.
 ### D5. Confrontation (enrich D5)
 
 One `answer` call per claim with context. `buildConfrontationPrompt(claim, citation, sanitized)`:
-fixed system message; user message JSON `{ "claim": wrapped(neutralised text), "document": { path,
-startLine, endLine, text: wrapped }, "evidence": [ … as in explain's prompt … ] }`, the spans
+fixed system message; user message JSON `{ "claim": wrapUntrusted('C1', neutralised claim text),
+"document": { path, startLine, endLine, text: wrapUntrusted('D1', neutralised lines) }, "evidence": [ … as
+in explain's prompt, ids E1…En … ] }` (round 2, Follow-up R12), the spans
 sanitised by `sanitizeForPrompt(claim.text, spans)` (the claim is the "question": its flags and the
 spans' events come from there). Quarantine (`parseConfrontationOutput`), checks in this order, each
 with its subcode from the closed set `SCHEMA_VIOLATION_SUBCODES` (round 1, Follow-up R4):
@@ -125,7 +128,12 @@ with its subcode from the closed set `SCHEMA_VIOLATION_SUBCODES` (round 1, Follo
 4. `contradicted` with a blank statement (empty after trimming) → `invalid_shape`;
 5. `contradicted` with `evidenceIds` `[]` → `empty_evidence`;
 6. any verdict citing an id twice → `duplicate_evidence_id`;
-7. any verdict citing an id its prompt does not hold → `unknown_evidence_id`.
+7. any verdict citing an id not in the prompt's `E1…En` (so `C1` or `D1` cited → `unknown_evidence_id`);
+   only `E` ids reach `verifyAnswer`'s `spanOf`, which maps no other id
+   (`verify-answer.ts:96-99,127-128` would otherwise fail with a `TypeError`).
+
+`promptHash` is the SHA-256, lowercase hexadecimal, of the UTF-8 bytes of `JSON.stringify(messages)`,
+as `packages/core/src/explain/prompt.ts:95` (round 2, Follow-up R13).
 
 Steps 4–5 are plain checks after the parse, not a `superRefine`: `shapeSubcode` of `explain` matches
 only issues whose path ends with `.evidenceIds`, which a top-level `evidenceIds` path or a `custom`
@@ -307,8 +315,8 @@ revert. No ADR (destination D).
 - [Only the first `MAX_EVIDENCE_TEXT_CHARS` (8,000) code points of a document are checked] → the cut
   is reported (`untrusted_content_truncated`), and `docPath` lets a caller check one document.
 - [A reindex during a run could make the per-claim packs (`buildContextPack` reads `getProject` and
-  the files again for each claim) read another commit than the report's `commit`] → accepted: a run is
-  short and the CLI of DIS-73 is a single process; the report's `commit` is the one of the documents
+  the files again for each claim) read another commit than the report's `commit`] → accepted: a run makes
+  at most 130 `answer` calls plus their `verify` calls in one process, and the CLI of DIS-73 is a single process; the report's `commit` is the one of the documents
   and the verification.
 - [`fileId: ''` inside internal spans could leak into a write if a later change persists drift output]
   → `UNSTORED_FILE_ID` is named and documented, `ClaimItem` validation (`inputSpanSchema`, UUID) would
@@ -356,3 +364,7 @@ All rows are the agent's text (autonomous run, 2026-11-03). No row has destinati
 | R9 | (Audit run 1, improvable; D13) `UNSTORED_FILE_ID` is module-internal (not re-exported by `drift/index.ts` or `@codemind/core`). | A |
 | R10 | (Audit run 1, Question 1; D13) The deviation from AC 1 (`driftProvenanceSchema` instead of `provenanceSchema`) is accepted; the `[enhanced]` AC 1 and §3 "Informe" of DIS-71 are aligned (`droppedClaims`, `excerpt`). | A |
 | R11 | (Audit run 1, improvable) The behaviours tested only as extra cases (document truncation, fence unwrapping, `MAX_CONFIG_SPANS`, `MAX_CONFIG_LINES`, budget fit, single configuration read) are now stated in the spec's requirements but stay extra cases of tasks 3.5, 4.3 and 4.7, not scenarios: they are tested, and the 1:1 map stays small. | D — accepted |
+| R12 | (Audit run 2, B7; D5) The claim and the document of the confrontation prompt are wrapped as `C1` and `D1`; only `E1…En` are known evidence ids, so citing `C1` or `D1` is `unknown_evidence_id` and never reaches `verifyAnswer`. | A |
+| R13 | (Audit run 2, B8; D3, D5) `promptHash` of both drift prompts hashes the UTF-8 bytes of `JSON.stringify(messages)`, the rule of `explain`. | A |
+| R14 | (Audit run 2, improvable; task 1.1) The `verificationContents`/`verificationFailures` options of the drift double are meant for tests with one confronted claim; the switch "after the first confrontation call" is kept, the simpler double. | A |
+| R15 | (Audit run 2, improvable) The scenario of the document with markers names both flag events (`delimiter-spoof` line 2, `ignore-instructions` line 3, evidence id `D1`); task 8.1 names only `unfenceModelOutput`; Risks no longer says "a run is short". | A |

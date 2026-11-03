@@ -130,8 +130,9 @@ counted in `droppedClaims`. Of the remaining claims, in the model's order, the f
   and whose line 3 holds `ignore all previous instructions`
 - **WHEN** `drift` checks it
 - **THEN** the extraction prompt holds every line of the document with its number, inside one pair of
-  untrusted-data markers that line 2 does not close, and the report's events hold one
-  `untrusted_content_flagged` event for line 3 of `docs/pricing.md`
+  untrusted-data markers that line 2 does not close, and the report's events hold, wrapped with
+  `docPath` `docs/pricing.md`, one `untrusted_content_flagged` event with pattern `delimiter-spoof` for
+  line 2 and one with pattern `ignore-instructions` for line 3, both under the evidence id `D1`
 
 #### Scenario: An invalid extraction skips the document and the next one is checked
 - **GIVEN** two documents `README.md` and `docs/pricing.md`, and a model whose extraction output for
@@ -201,8 +202,9 @@ call.
 ### Requirement: Confrontation of a claim
 
 Each claim with context SHALL be confronted in exactly one model call with the purpose `answer`, whose
-prompt holds a fixed instruction, the claim's text and its document citation (path, lines and their
-text) and the context's sanitised spans, each under an evidence id local to the prompt (`E1…En`), as
+prompt holds a fixed instruction, the claim's text as untrusted data under the id `C1`, its document
+citation (path, lines and their text) as untrusted data under the id `D1`, and the context's sanitised
+spans, each under an evidence id local to the prompt (`E1…En`), as
 untrusted data with the sanitisation of `explain` (flags, truncation, neutralised markers and their
 events). The output SHALL pass a strict quarantine, whose checks run in this order, each failure
 discarding it with the subcode given: an output over `MAX_MODEL_OUTPUT_BYTES` (65,536 UTF-8 bytes) →
@@ -213,7 +215,8 @@ of at most 500 code points without U+0000, `evidenceIds` an array of at most 10 
 issue is a maximum exceeded (a statement over 500 code points, more than 10 ids) `limit_exceeded`,
 otherwise `invalid_shape`; for a `contradicted` verdict, a blank statement → `invalid_shape`, then an
 empty `evidenceIds` → `empty_evidence`; for any verdict, an id cited twice → `duplicate_evidence_id`,
-then an id the prompt does not hold → `unknown_evidence_id`. An output that fails it SHALL leave that claim with no
+then an id that is not one of the prompt's evidence ids `E1…En` (`C1` and `D1` included) →
+`unknown_evidence_id`; only `E` ids reach the verification. An output that fails it SHALL leave that claim with no
 contradiction, uncounted in `claimsChecked`, with one `drift_claim_skipped` event (the document path,
 the claim's index from 0 among the confronted claims, reason `invalid-model-output` and the subcode),
 and the next claims SHALL still be confronted. A `consistent` or `unrelated` verdict SHALL count the
@@ -296,7 +299,8 @@ provenance }`, in the order of the confronted claims: `evidence` holds each kept
 `{ path, startLine, endLine, fileKind, excerpt, verification }` in the model's citation order; `type`
 SHALL always be `INFERENCE`, never `FACT`, since a contradiction is a judgement between two sources;
 `provenance` SHALL be `{ model, promptHash, inputSpans, createdAt }` with the model name the
-confrontation call reported, the SHA-256 (lowercase hexadecimal) of exactly what its prompt sent, the
+confrontation call reported, the SHA-256 (lowercase hexadecimal) of the UTF-8 bytes of `JSON.stringify` of the messages its prompt
+sent (the rule of `explain`), the
 `{ path, startLine, endLine }` of every span that prompt held (the document citation first, then each
 evidence span in id order) and the clock's first read as ISO 8601 with a time zone; it SHALL satisfy
 the exported schema `driftProvenanceSchema`. `events` SHALL list, document by document in report

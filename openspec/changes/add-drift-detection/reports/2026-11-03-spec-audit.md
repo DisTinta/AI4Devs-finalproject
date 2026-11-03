@@ -523,3 +523,44 @@ No empty row. All 29 scenarios have a task. Task 8.2's per-file count matches th
 
 - **DIS-71, `[enhanced]` §3 "Confrontación":** after «una llamada `answer` con `sanitizeForPrompt` y la afirmación con su cita del doc», add «(la afirmación envuelta como `C1` y la cita del doc como `D1`; solo los ids `E1…En` son evidencias citables, y citar `C1` o `D1` es `unknown_evidence_id`)».
 - **DIS-71, new comment:** «*(Texto del agente, spec-audit ronda 2, 2026-11-03.)* Segunda auditoría de `add-drift-detection`: CHANGES REQUIRED, 2 hallazgos bloqueantes. B7: no se fijaban los ids de los marcadores de la afirmación y del documento en el prompt de confrontación, ni si cuentan como evidencias conocidas; si el modelo citara `D1`, `verifyAnswer` fallaría con un `TypeError` en vez de descartar la afirmación. B8: no se fijaba qué bytes hashea `promptHash`; se adopta la regla de `explain` (`JSON.stringify(messages)`). Mejorables: el escenario del documento con marcadores debe nombrar también el evento `delimiter-spoof` de la línea 2; la tarea 8.1 aún habla de «los ayudantes» exportados; el cambio de contenidos del doble tras la primera confrontación afecta a pruebas con varias afirmaciones; y en Riesgos, «a run is short».»
+
+## Resolution of run 2
+
+*Agent's text (correction round 2, autonomous run, 2026-11-03).* Every decision below is recorded in
+`design.md` → Follow-ups (R12–R15) with its destination; none has destination C. `openspec validate
+add-drift-detection --strict` passes after the edits.
+
+### Questions for the author
+
+- None in run 2.
+
+### Blocking findings
+
+- **B7: fixed.** The confrontation prompt wraps the claim as `C1` and the document citation as `D1`;
+  only `E1…En` are known evidence ids, so a verdict citing `C1` or `D1` is discarded with
+  `unknown_evidence_id` and never reaches `verifyAnswer`'s `spanOf`. Spec "Confrontation of a claim",
+  D5 (user message and step 7), task 1.1 (the double unwraps `C1`, `D1`, `E1…En`) and task 4.7 (extra
+  cases citing `D1` and `C1`, no `verify` call). R12 (A).
+- **B8: fixed.** `promptHash` of both drift prompts is the SHA-256, lowercase hexadecimal, of the UTF-8
+  bytes of `JSON.stringify(messages)`, the rule of `packages/core/src/explain/prompt.ts:95` (checked in
+  the code). Spec "Drift report", D3, D5, tasks 3.2a and 5.2b. R13 (A).
+
+### Improvable findings
+
+- Both flag events in the scenario "The document is sent numbered and as untrusted data" (point 3):
+  **fixed**. The THEN names `delimiter-spoof` for line 2 and `ignore-instructions` for line 3, both
+  wrapped with `docPath` `docs/pricing.md` and under evidence id `D1` (the `delimiter-spoof` rule was
+  checked at `sanitize.ts:29`). R15 (A).
+- "a run is short" in Risks (point 4): **fixed**. The text now says "a run makes at most 130 `answer`
+  calls plus their `verify` calls in one process". R15 (A).
+- Task 8.1 wording about exported helpers (point 6): **fixed**. It now says that `unfenced` is renamed
+  `unfenceModelOutput` and exported by task 2.1. R15 (A).
+- The `verificationContents` switch with several claims (point 8): **decided by the agent**. The option
+  is kept with its switch "after the first confrontation call" and is documented in task 1.1 as meant
+  for tests with one confronted claim. This is the simpler double, and every scenario that uses it has
+  one claim. R14 (A).
+
+### Linear
+
+- DIS-71 `[enhanced]` §3 "Confrontación" gains the note on `C1`/`D1` the audit asked for. The
+  `[original]` block is untouched. A Spanish comment summarises this round.
