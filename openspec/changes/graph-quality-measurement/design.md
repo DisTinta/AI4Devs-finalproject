@@ -55,8 +55,10 @@ seed loadable by both), `NULL`, `true`/`false` and numbers. Other tables and com
 header `-- analyzer-fingerprint: <value>` is kept. An unreadable seed is the error
 `seeds/graph-dump.sql: the file cannot be read`; a malformed line of those four tables is
 `seeds/graph-dump.sql:<line>: <reason>` (exit 1, nothing written). A `file`, `symbol` or `edge` row
-whose `project_id` or `file_id` names no `project` or `file` row read before it is a malformed line too
-(the same condition makes `seedProjects` throw, `parse-seed.ts:54`). *Alternative:* import `seedProjects` / `readStatements`
+whose `project_id` or `file_id` names no `project` or `file` row of the seed is a malformed line too, whatever
+the order of the rows (the same condition makes `seedProjects` throw, `parse-seed.ts:54`). An `edge` whose
+`source_symbol_id` or `target_symbol_id` names no `symbol` row is not an error (as `seedProjects`): it is in no
+scope, is never a hit or attributed, and is counted in `callsEdges`. *Alternative:* import `seedProjects` / `readStatements`
 from `packages/cli` — rejected: a `.mjs` in `scripts/` cannot import TypeScript or a workspace package
 (wiring test), and exporting the internal reader widens `packages/cli` for a script. Parity is guarded
 instead: the unit test compares the per-project edge count with `seedProjects(sql)` (TypeScript test
@@ -254,3 +256,24 @@ author.*
 | R2-I9 | The false-positive count is approximate in both directions; Risks and the report limitation say so (spec, Risks). | A |
 | R2-I10 | D8: a construction of `selection.json` without ids (`reexport` of `task-api`) prints a row of zeros. | A |
 | R2-I11 | The README link to `docs/measurements/graph-quality.md` is added in task 5.5, when the report exists, so `tests/unit/docs/guides.spec.ts` never goes red between 5.3 and 5.5. | A |
+
+*Agent's text, spec audit run 3 (2026-11-03): the improvable findings of `reports/2026-11-03-spec-audit.md` →
+run 3, taken by the agent during the apply step.*
+
+| Id | Decision | Destination |
+|---|---|---|
+| R3-I1 | The `.d.mts` signatures of `runMeasureGraph`, `checkAnnotations`, `readSeed`, `measure`, `serialize`, `formatRatio`, `formatAgreement` and `calledNames` are in `scripts/measure-graph.d.mts`, which is the typed contract of the tests. | A |
+| R3-I2 | An `edge` whose symbol endpoints name no `symbol` row is not an error (D2 text updated). | A |
+| R3-I3 | The referential check of D2 is independent of the row order (D2 text updated, implemented after reading all rows). | A |
+| R3-I4 | Each project of the JSON starts with `fixture` and `language` (spec "Measurement output and CLI" updated; the layout test asserts it). | A |
+
+*Agent's text, apply step (2026-11-03): decisions taken while implementing.*
+
+| Id | Decision | Destination |
+|---|---|---|
+| AP1 | `checkAnnotations(fixture, text)` takes the text of the file and returns the problems; the file-level read errors stay in the CLI. `readSeed(sql)` throws `seeds/graph-dump.sql:<line>: <reason>`; a project missing from the seed is reported by the CLI as `seeds/graph-dump.sql: the project <fixture> is not in the seed`. | A |
+| AP2 | An edge whose `source_file_id` or `target_file_id` names no `file` row is also a malformed line (it is a file endpoint, as for `seedProjects`). | A |
+| AP3 | The measured figures (acme-shop 24/31 coverage, 24/24 precision; task-api 26/26 and 26/26) equal the propose prototype, so the explanation paragraph **Por qué TypeScript no supera a PHP.** is not required and is not written (spec "A TypeScript figure below PHP is explained"). | D — accepted |
+| AP4 | The freeze tests of task 1.3 were written together with the freeze step, so they have no separate RED run; the step 7 report records it. | D — accepted |
+| AP5 | The byte-for-byte PowerShell check of D10 uses the SHA-256 of the JSON while the file is untracked; `git diff --exit-code` is applicable after the commit. | D — accepted |
+| AP6 | The seven acme-shop misses (`php-14`, `php-18`, `php-35`, `php-38`, `php-39`, `php-41`, `php-47`) are listed in the report; fixing the analyzer is a future improvement. | D — accepted |

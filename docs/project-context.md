@@ -1674,6 +1674,13 @@ services that must be started first, quirks of the local environment.
   `docs/measurements/annotation-agreement.md`. Regenerate only with
   `node scripts/annotation-agreement.mjs merge`, which changes the hashes and fails that test; never
   edit those files.
+- **`npm run measure:graph` measures Table 2** (DIS-79): `node scripts/measure-graph.mjs [--root <dir>]`
+  checks the nine SHA-256 of `docs/measurements/annotation-agreement.md` first (exit 1, nothing written,
+  on any mismatch), then reads `fixtures/annotations/*.callsites.json` and the `project`, `file`,
+  `symbol` and `edge` rows of `seeds/graph-dump.sql` (no database, network or model) and writes
+  `docs/measurements/graph-quality.json` (exit 0; exit 2 for a usage error). Gotcha: regenerating the
+  seed (`npm run seed:build`) makes `tests/unit/docs/graph-quality.spec.ts` fail until you re-run
+  `npm run measure:graph` and refresh Table 2 of `readme.md` §2.6 and `docs/measurements/graph-quality.md`.
 - **Calls inside method bodies are `exact` only when the receiver type is declared** (DIS-52). The
   PHP analyzer emits `calls` (`exact`, `php-treesitter-laravel`) from a method `Type::m` for
   `$this->p->m()` (property `p` of the same type, promoted or declared, with a single named type — not

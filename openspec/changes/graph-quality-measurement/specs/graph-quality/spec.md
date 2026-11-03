@@ -219,7 +219,7 @@ root and print one line per project on stdout, exactly
 with `<coverage>` and `<precision>` formatted as the cells of Table 2. The projects SHALL be the fixed
 list `acme-shop` then `task-api`, read from `fixtures/annotations/<fixture>.callsites.json`. The JSON
 SHALL hold `formatVersion` 1, the seed path and its `analyzer-fingerprint`, and per project, in that
-order, the measures of "Measures per project" plus `sites`: one entry per site, in the annotation
+order, its `fixture` and `language` (from the annotation file), the measures of "Measures per project" plus `sites`: one entry per site, in the annotation
 file's order, with its `id`, `call`, `site` (`file`, `line`), `expected`, `outcome`, the hit
 (`resolution`, `extractor`) or `null`, its attributed edges and its false-positive edges (each edge as
 target `file`, `symbol` and `resolution`, sorted by `file`, then `symbol`, then `resolution`). It SHALL

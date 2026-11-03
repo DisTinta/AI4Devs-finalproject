@@ -96,6 +96,7 @@
 80. [Pantalla 3 de impacto en la web (DIS-14)](#80-pantalla-3-de-impacto-en-la-web-dis-14)
 81. [Suite E2E con Playwright y job `e2e` en CI (DIS-75)](#81-suite-e2e-con-playwright-y-job-e2e-en-ci-dis-75)
 82. [Cobertura informativa y puerta de mutación (DIS-77)](#82-cobertura-informativa-y-puerta-de-mutación-dis-77)
+83. [Medición de la calidad del grafo (DIS-79)](#83-medición-de-la-calidad-del-grafo-dis-79)
 
 ---
 
@@ -5590,3 +5591,25 @@ cada test en rojo y completarlo (texto del agente).
 de la línea de comandos solo llega a la configuración raíz y no a las listas `exclude` de cada proyecto, así
 que los cuatro specs con presupuesto de tiempo seguían ejecutándose con cobertura; `vitest.config.ts` los
 excluye además cuando `--coverage` está en `process.argv`, con un test que lo comprueba (design D7, A9).
+
+---
+
+# 83. Medición de la calidad del grafo (DIS-79)
+
+### Prompt 1 — Paso de apply del cambio `graph-quality-measurement` en la ejecución autónoma
+
+Extracto literal del encargo que recibió el subagente:
+
+```
+Run /opsx:apply on change graph-quality-measurement: every task in TDD (failing test first, then implementation, in the layer order), marking tasks.md as you go, with the mandatory verification steps. Run the tests, lint and typecheck. Commit, push and open the PR to final-project-CRN with /pr-describe (write the "why" yourself and mark it as agent-written). Return pr.
+```
+
+**Por qué funcionó.** El `design.md` fijaba el orden de la ejecución, la forma del JSON, los formatos de las cifras y
+los casos de entrada de cada regla de emparejamiento, y la auditoría había cerrado los huecos, así que el agente
+escribió cada test en rojo con datos sintéticos y lo completó (texto del agente). Las cifras publicadas
+(24/31 y 26/26) coincidieron con las del prototipo de la propuesta.
+
+**Ajuste humano.** Ninguno: ejecución autónoma (texto del agente). Dos cosas no siguieron el plan al pie de la
+letra: los tests de congelación de la tarea 1.3 se escribieron junto con su implementación, sin una ejecución en
+rojo propia, y la comprobación byte a byte de PowerShell usó el SHA-256 del JSON porque el fichero aún no estaba
+versionado.
