@@ -192,7 +192,7 @@ anchored to symbols so it survives edits.
 | Q2 | (impacto) cambiar el cálculo de descuentos | direct: `DiscountService`, `PriceCalculator`; indirect (2 hops via Pricing facade): `OrderController`, `CheckoutController`, `RecalculateTotals`, `SendOrderConfirmation`; tests: `DiscountServiceTest`, `PriceCalculatorTest`, `OrderPricingTest`; related document `README.md`, current over the seed (DIS-94: it is the only document with a `describes` edge towards the report's code; `docs/pricing.md` has none, so its drift is Q5, DIS-71); history: co-change with `ShippingService` (PR #24/#33/#55) `[git]` | as listed |
 | Q3 | ¿Cómo se validan los cupones? | `CouponValidator::percentFor` — 0% if missing/unknown/inactive/expired | `CouponValidator::percentFor` |
 | Q4 | ¿Qué hace OrderObserver al crear un pedido? | dispatches `RecalculateTotals` job and fires `OrderPlaced` event | `OrderObserver::created` |
-| Q5 | ¿La documentación de precios coincide con el código? | **No** — `docs/pricing.md` says tax-before-discount and €50 free shipping; code does discount-before-tax and €75 (drift) | `docs/pricing.md` vs `PriceCalculator::compute`, `config/shop.php` |
+| Q5 | ¿La documentación de precios coincide con el código? | **No** — `docs/pricing.md` says tax-before-discount and €50 free shipping; code does discount-before-tax and €75 (drift). The core `drift` (DIS-71) finds these two contradictions with a scripted model; the CLI, the golden answer and the `query_log` row are DIS-73 | `docs/pricing.md` vs `PriceCalculator::compute`, `config/shop.php` |
 | Q6 (UNKNOWN) | ¿Cómo se gestionan los reembolsos de un pedido? | **UNKNOWN** — there is no refund logic in the repo | — (no evidence; must not fabricate) |
 
 **Golden answers (DIS-26).** Q1, Q3 and Q4 have golden answers in
@@ -204,7 +204,9 @@ which `tests/unit/seed/golden-questions.spec.ts` checks against this table:
 change a question here and there together, then regenerate. The others have
 none: Q2 is an impact question (CM-HU-16, not an `explain` answer); Q5 is the
 documentation-drift question, added with the drift story, and its terms anchor
-no symbol of the seed; Q6 answers `UNKNOWN` `no-anchor` before the cache is
+no symbol of the seed (the core `drift` of DIS-71 answers it with a scripted model in
+`tests/integration/drift/acme-shop.spec.ts`; the CLI command, the golden answer served in
+evaluation mode and the `query_log` row are DIS-73); Q6 answers `UNKNOWN` `no-anchor` before the cache is
 read, without a model and at zero cost.
 
 **Golden review (DIS-34, DIS-104, DIS-33, DIS-107, DIS-9, DIS-10, DIS-10 r2, DIS-42, DIS-42 r2, DIS-42 r3, DIS-110, DIS-110 r2).** Each entry's `reviews` lists who checked it

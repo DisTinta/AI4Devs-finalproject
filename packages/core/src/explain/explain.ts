@@ -372,7 +372,7 @@ async function answerQuestion(
   const events: ExplainEvent[] = [...sanitized.events, ...verified.events];
   if (verified.statements.length === 0) return { answer: unknown('broken-evidence', events) };
   const statements = verified.statements;
-  // No component produces contrary evidence until DIS-71.
+  // `drift` (DIS-71) finds contradictions but does not store them, so the signal stays 0.
   const answerConfidence = confidence(statements.map(toConfidenceStatement), { contradiction: false });
   const items = toClaimItems(
     { projectId, model: result.model, promptHash: prompt.promptHash, createdAt: startedAt.toISOString(), packSpans: spans },
