@@ -196,3 +196,172 @@ nothing in `tasks.md`.
 
 Every decision has a row in design.md → Follow-ups (P11–P14 and the "Audit" rows); none has
 destination C.
+
+---
+
+## Run 2 (2026-11-03)
+
+APPROVED
+
+**Questions for the author:** none. The scope conflict with the parent was settled in run 1: DIS-53 says the review is the author's work, and DIS-82 `[original]` records the author's decision of 2026-10-27 to hand it to agents. A comment on DIS-53 now says DIS-82 prevails. The agent's decisions P11–P14 answer earlier findings and contradict neither the ticket nor the project.
+
+Audit of `openspec/changes/answer-review` (DIS-82, parent DIS-53), run 2, 2026-11-03. I judged the change as it stands after correction round 1.
+
+Inputs read:
+- **The change:** proposal, design, both deltas, tasks, and the run 1 report with its resolution.
+- **The tickets:** DIS-82 (description and its 4 comments) and DIS-53 (description and its 2 comments), through Linear.
+- **The project:** `docs/base-standards.md`, `docs/AUTONOMOUS-RUN.md` (the `panel` and `ollama` rows).
+- **The code:**
+  - `.claude/workflows/autonomous-sdd.js` (`runPanel`, `COMMON`, `context`)
+  - `scripts/annotation-agreement.mjs` (exports)
+  - `tests/unit/docs/context-savings.spec.ts`
+- **Fixture layout:** `fixtures/*/tests/**`.
+- **Blindness check:** I ran the P1 pattern over the allowlist.
+
+## 1. Scope against the ticket
+
+Clean. Every artifact follows from the DIS-82 DoD, its procedure, the blindness note in `[original]` or the reality map. The run 1 additions do not widen the scope: P11–P14, the two new CLI scenarios, the criterion rule for files outside the allowlist, and the fixed report cell formats. The change does not touch Table 2, `measure-graph` or `fixtures/annotations/`.
+
+## 2. Inherited acceptance criteria
+
+Clean.
+- **AC1:** "Review agreement measures" and its two scenarios. The AC's "en orden de `questionId`" is relaxed by P14 / 5-I3: order is not checked, and agreement and merge follow the answer files. This is an acceptable agent decision; it rejects nothing the AC accepts.
+- **AC2:** "A declared forbidden source is rejected", the directory/glob scenario, "A reason without a valid citation is rejected", "An incomplete review output is rejected" (missing `model`, missing or extra `questionId`) and "A rejected review output writes no agreement file" (exit `1`).
+- **AC3:** the merge scenarios, plus "A failed merge writes no verdicts file" (exit `1`).
+- **AC4:** "The Correctas column agrees with the verdicts", together with the MODIFIED existing test.
+- **AC5:** "The recorded hashes match the frozen files", "A changed review file fails the freeze check", "hashes prints the eight files in order" and "An unknown command is a usage error".
+- **DoD:** the criterion is linked from every CSV row (`criterion` column). Each verdict cites `file:line`. Agreement is published next to Table 1.
+- **DIS-53 AC3**, as far as Table 1 goes: no cell reads `pendiente de DIS-82`, and the limitations wording is updated.
+
+## 3. Missing scenarios
+
+Clean. Every MUST clause now has a scenario: the resolution with `reviewer`/`model`, the whole-report wording check, `hashes` on a missing file, and `merge` exit `1`.
+
+## 4. Ambiguity
+
+Clean. A case-insensitive search of proposal, design, both deltas and tasks finds none of "fast", "easy", "secure", "efficient", "many", "appropriate" or "robust".
+
+## 5. Open decisions
+
+No blocking open decision is left.
+
+- **5-I1 (improvable): the citation rule accepts files the reviewers may not read.**
+  - **What the spec says:** "Review output validation" counts a citation as valid when `<path>` "names an existing file" of the fixture with a `.php`, `.ts` or `.json` ending.
+  - **What that accepts:** `tests/Feature/CheckoutTest.php`, `tests/unit/task.service.test.ts` (both exist: `fixtures/acme-shop/tests/**`, `fixtures/task-api/tests/**`) and any `node_modules/**/*.json` under `fixtures/task-api/`.
+  - **The conflict:** the Panel criterion and P2/P13 forbid reading those files ("that file is not read"). A reason whose only citation is a test file passes validation, although it shows a forbidden read.
+  - **Severity:** the behaviour is determinate (so not blocking) and follows the DIS-80 precedent. But it weakens D5.
+  - **Fix:** restrict a valid citation to the reviewer allowlist of that fixture. Extend the scenario "A reason without a valid citation is rejected" with "a file under the fixture's `tests/`". The test count does not change.
+
+## 6. Contradictions inside the change
+
+- **6-I1 (improvable): P9 and task 8.3 disagree on the `git log` evidence.**
+  - Design P9 gives `git log --format='%h %s' -- <path>`. Task 8.3 gives `git log --format='%h %ad %s' --date=iso -- <path>`.
+  - P9 says it goes in the step 8 report; task 8.3 says "recorded in the report" without naming which.
+  - **Fix:** align P9 with task 8.3 (the format with the date) and name the target in 8.3: "recorded in the step 8 report (task 8.5)". Neither report is in the hash table, so either target is safe after the freeze commit of task 6.4.
+- **6-I2 (improvable): stale numbering in design.md.** "## Decisions" says "P1–P10 are taken in this proposal", and the "## Follow-ups" intro says "(P1–P10)". The design now runs to P14. **Fix:** "P1–P14 (P11–P14 from the spec audit, correction round 1)".
+
+Everything else agrees across the proposal, the design and both deltas:
+- the output shapes and allowlists
+- the eight frozen files and their order
+- the CLI exit codes
+- the commit order
+- the README line format and its decimal rule
+- the report cell formats
+
+## 7. Contradictions with the project
+
+Clean.
+- `docs/base-standards.md`: Spanish documents are allowed by the project's precedent. Tasks name the one existing test that changes (rule 4 territory, explicit).
+- `docs/AUTONOMOUS-RUN.md`: the agent merges and writes the "why" (marked as its own), as §2 and the `panel` row (line 529) allow.
+- The MODIFIED blocks keep the main spec's content and change only the DIS-82 parts.
+- No ADR bears on the change.
+
+## 8. Contrast with the real code
+
+Every design claim checks out against the code:
+- **Exports:** `cohenKappa`, `roundRatio`, `sha256` and `checkFreeze` are exported (`scripts/annotation-agreement.mjs:274, 288, 439, 452`).
+- **The test that changes:** "The README Table 1 agrees with the measurement" (`tests/unit/docs/context-savings.spec.ts:102–115`) pins `'pendiente de DIS-82'` at line 109. That is the only edit needed.
+- **The test that stays:** "The report agrees with the measurement" (`:151–170`) checks only that `## Limitaciones` is not empty. It survives the §Limitaciones edit unchanged.
+- **The README limitations test:** it (`:127–144`) does not depend on the DIS-82 wording.
+- **Workflow blindness:**
+  - The panelist prompt (`.claude/workflows/autonomous-sdd.js:146–147`) carries the author's note only, with no model name.
+  - The resolver's step prompt (`COMMON`, `:62–74`) holds no generator model name, but it points to `docs/AUTONOMOUS-RUN.md` §6. This is why that file is on the resolver allowlist, as P1 accepts.
+  - The P1 pattern finds nothing in `tasks.md`, `docs/base-standards.md`, `fixtures/**` (outside `node_modules`), `questions.json` or `answers/*.json`.
+  - The only hits left are in the DIS-82 `[reality-map]` / `[enhanced]` sections (the DIS-81 link slug and the field names). Task 3.1 scrubs them before the panel, and task 3.2 checks the result.
+- **8-I1 (improvable):** task 6.1 says of `tests/unit/docs/context-savings.spec.ts` that "its other two tests are not edited", and design P8 says "The other two tests of that file are unchanged". The file has seven tests (`:28, 42, 46, 102, 117, 127, 151`); "two" counts only the other tests of `describe('Published Table 1')`. **Fix:** "the other six tests of that file are not edited". Task 7.1 already says this correctly.
+
+## 9. Task size
+
+Clean. Task 1 is now three red-green pairs (7, 7 and 5 tests) plus a refactor. Every other task fits one turn.
+
+## 10. Mandatory steps
+
+Clean.
+- Step 0 creates and checks the branch `feature/dis-82-answer-review` and records the baseline (0.4).
+- Steps 7–11 are present and labelled MANDATORY:
+  - post-state check in 8.3 and report in 8.5
+  - manual CLI tests on a scratchpad copy in 9.1–9.2, restoration in 9.3, report in 9.4
+  - E2E marked N/A with a reason in 10.1
+  - documentation in step 11
+- Pre-merge review (13) runs last. The archive commit comes before the merge.
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| Correctness criterion | The criterion defines the verdicts and names no model | 2.1, 2.2, 6.1 |
+| Review output validation | A complete review output is accepted | 1.1, 1.2 |
+| | An incomplete review output is rejected | 1.1, 1.2, 9.2 |
+| | A verdict outside the three values is rejected | 1.1, 1.2 |
+| | A reason without a valid citation is rejected | 1.1, 1.2, 9.2 |
+| | A declared forbidden source is rejected | 1.1, 1.2, 9.2 |
+| | A sourcesRead entry that is a directory or a glob is rejected | 1.1, 1.2 |
+| | A resolution with a source outside the resolver allowlist is rejected | 1.1, 1.2 |
+| Review agreement measures | Percent agreement and Cohen's kappa per project | 1.3, 1.4, 4.3 |
+| | Kappa is undefined when the expected agreement is 1 | 1.3, 1.4 |
+| Deterministic merge into the verdicts | Agreed answers take the common verdict | 1.3, 1.4, 5.1 |
+| | Disagreements take the resolution | 1.3, 1.4, 5.1 |
+| | A missing or extra resolution fails the merge | 1.3, 1.4, 9.2 |
+| | The merge is deterministic | 1.3, 1.4, 5.2 |
+| | A CSV field with a comma, a quote and a line break is quoted | 1.3, 1.4 |
+| Answer review CLI | An unknown command is a usage error | 1.5, 1.6, 9.2 |
+| | A rejected review output writes no agreement file | 1.5, 1.6, 9.2 |
+| | hashes prints the eight files in order | 1.5, 1.6, 9.1 |
+| | A failed merge writes no verdicts file | 1.5, 1.6, 9.2 |
+| | hashes fails on a missing frozen file | 1.5, 1.6, 9.2 |
+| Frozen verdicts and review report | The recorded hashes match the frozen files | 6.1, 6.2, 6.4, 8.3 |
+| | A changed review file fails the freeze check | 6.1 |
+| | The report states the method, the agreement and every disagreement | 6.1, 6.2 |
+| Published Table 1 (MODIFIED) | The README Table 1 agrees with the measurement | 6.1 (existing test edited), 7.1 |
+| | A negative savings is explained | 7.1 (unchanged) |
+| | The README limitations and verifier row are current | 7.1 (unchanged) |
+| Measurement report (MODIFIED) | The report agrees with the measurement | 7.1 (unchanged) |
+| | The measurement report links the answer review | 6.1, 6.3 |
+
+No empty row. There are 29 scenarios, which matches task 7.2: 19 in the script test, 6 in the new docs test and 4 existing.
+
+## Corrections to apply
+
+All improvable. None blocks the apply.
+
+### `openspec/changes/answer-review/specs/answer-review/spec.md`
+1. **"Review output validation" (5-I1):**
+   - Replace "is relative to the root of the answer's fixture (`fixtures/acme-shop/` or `fixtures/task-api/`) and names an existing file of it" with "is relative to the root of the answer's fixture (`fixtures/acme-shop/` or `fixtures/task-api/`) and names an existing file of it that is in the reviewer allowlist (under one of that fixture's allowed prefixes, or one of its allowed files)".
+   - In the scenario "A reason without a valid citation is rejected", extend the WHEN to: "…a file of the other fixture, a file under the fixture's `tests/`, line 0 or a line beyond the end of the file".
+
+### `openspec/changes/answer-review/tasks.md`
+1. **Panel → Output format (5-I1):** change "must name an existing `.php`, `.ts` or `.json` file of the answer's fixture" to "must name an existing `.php`, `.ts` or `.json` file of the answer's fixture from the allowlist (never its `tests/` or `node_modules/`)".
+2. **Task 6.1 (8-I1):** change "its other two tests are not edited" to "its other six tests are not edited".
+3. **Task 8.3 (6-I1):** change "recorded in the report" to "recorded in the step 8 report (task 8.5)".
+
+### `openspec/changes/answer-review/design.md`
+1. **"## Decisions" intro and "## Follow-ups" intro (6-I2):** replace "P1–P10" with "P1–P14 (P11–P14 from the spec audit, correction round 1)".
+2. **P8 (8-I1):** change "The other two tests of that file are unchanged" to "The other six tests of that file are unchanged".
+3. **P9 (6-I1):** change the format to `git log --format='%h %ad %s' --date=iso -- <path>` and say "recorded in the step 8 report".
+4. **Follow-ups:** add rows "Audit run 2 5-I1", "6-I1", "6-I2" and "8-I1", each with destination **A** (this change).
+
+### Linear
+- **DIS-82:** add a Spanish comment summarising run 2, for example: "*(Texto del agente, auditoría de spec, ronda 2, ejecución autónoma, 2026-11-03.)* Veredicto APPROVED, sin hallazgos bloqueantes. Cuatro mejoras aplicadas a los artefactos del cambio: las citas válidas se limitan a los ficheros permitidos del fixture (nunca `tests/` ni `node_modules/`), se alinea el formato de `git log` de P9 con la tarea 8.3, se actualiza la numeración P1–P14 y se corrige el número de tests no editados de `context-savings.spec.ts`."
+  - If 5-I1 is applied, the rewritten `[enhanced]` section of task 3.1 should state the same citation restriction.
+  - `[original]` is not touched.
+  - **DIS-53:** no change.
