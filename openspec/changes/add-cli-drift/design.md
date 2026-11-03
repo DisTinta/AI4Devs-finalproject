@@ -220,7 +220,7 @@ The tests of `drift.spec.ts` that script the clock are adjusted (tasks step 9).
 
 ### P6. Zero usage of a golden hit (propose)
 
-A hit's `usage` has every counter 0 (`generation` and `verification` too, `calls` and `cacheHits` 0)
+A hit's `usage` has every counter 0 (`generation` and `verification` too, `calls` and `cacheHits` 0, and `verification.latencyMs` 0)
 and the call's `latencyMs`; the stored response keeps no usage, as `explain`'s stored responses.
 
 ### P7. Stored drift report schema (propose)
@@ -338,4 +338,7 @@ All rows are the agent's text (autonomous run, 2026-11-03). No row has destinati
 | R2-I8 | (Audit run 2) The error line keeps the `details.path` of `SourceUnavailable` as `ask` gives it (a stored path, terminal-safe); only the message never holds the document path given; new throw in "Model, budget and source failures keep their code on the command line" (task 7.12). | A |
 | R2-I9 | (Audit run 2) `storedDriftReportSchema` requires at least one evidence per contradiction (task 1.6). | A |
 | R2-I10 | (Audit run 2) Task 8.5 runs over the harness transaction, as task 8.4. | A |
+| R3-I1 | (Audit run 3) The agent note of the `[enhanced]` text of DIS-73 says `LLM_MODE` does not exist: evaluation mode is not defining `LLM_BASE_URL` nor `LLM_API_KEY`. | A — done in Linear |
+| R3-I2 | (Audit run 3) `usage.verification.latencyMs` is 0 on a golden hit; only the top-level `latencyMs` is measured (spec "Golden drift report lookup", P6, task 1.4). | A |
+| R3-I3 | (Audit run 3) Task 13.4 gives the exact evaluation-mode command for `drift task-api`. | A |
 | R8-in | Inbound from DIS-71 (`add-drift-detection` Follow-ups E10 and R8): CLI, golden Q5, row, `withDailyBudget`, `readme.md`. Closed by E1, E3–E8, E12. | A |

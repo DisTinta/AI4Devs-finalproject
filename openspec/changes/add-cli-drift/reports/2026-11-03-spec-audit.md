@@ -893,3 +893,13 @@ Do not edit the `[original]` block.
 > - la nota del agente del texto enriquecido aclara que `LLM_MODE` no existe.
 >
 > No se crea ninguna issue nueva.
+
+## Resolution of run 3 (apply step, agent text)
+
+The three improvements of run 3 were applied at the start of the apply step, as corrections of the artifacts:
+
+- R3-I1: corrected in the Linear text of DIS-73 (agent note) and recorded in `design.md` Follow-ups.
+- R3-I2: corrected in the spec `drift-detection` ("Golden drift report lookup"), in `design.md` P6 and in task 1.4.
+- R3-I3: corrected in task 13.4.
+
+No finding was rejected. Destinations: all A.

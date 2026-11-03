@@ -174,8 +174,8 @@ record one hit of that entry at the clock's first read and answer
 `{ status: 'answered', projectId, commit, documents, events: [], usage, cacheHit: true }` (followed
 by the `query_not_logged` event of "Drift query log" when its row write is absorbed) with the
 stored `commit` and `documents`, a `usage` whose every token, cost and call counter (`generation` and
-`verification` included) is 0 and whose `latencyMs` (and only it) is the latency between the clock's
-first and last reads, without reading the index state, the project or any file and without calling
+`verification` included) is 0, whose `verification.latencyMs` is 0, and whose top-level `latencyMs` is the latency between the
+clock's first and last reads, without reading the index state, the project or any file and without calling
 the model. An entry whose response is not a stored drift report SHALL be a miss, with no event, and
 the call SHALL go on as without an entry. `drift` SHALL never save an answer cache entry: a golden
 drift report is only written by the seed load (`seed-load`). With `useCache: false` the lookup SHALL
