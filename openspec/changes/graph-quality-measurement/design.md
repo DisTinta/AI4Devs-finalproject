@@ -54,7 +54,9 @@ values are SQL string literals `'…'` (with `''` escapes) and `E'…'` (with `\
 seed loadable by both), `NULL`, `true`/`false` and numbers. Other tables and comments are skipped; the
 header `-- analyzer-fingerprint: <value>` is kept. An unreadable seed is the error
 `seeds/graph-dump.sql: the file cannot be read`; a malformed line of those four tables is
-`seeds/graph-dump.sql:<line>: <reason>` (exit 1, nothing written). *Alternative:* import `seedProjects` / `readStatements`
+`seeds/graph-dump.sql:<line>: <reason>` (exit 1, nothing written). A `file`, `symbol` or `edge` row
+whose `project_id` or `file_id` names no `project` or `file` row read before it is a malformed line too
+(the same condition makes `seedProjects` throw, `parse-seed.ts:54`). *Alternative:* import `seedProjects` / `readStatements`
 from `packages/cli` — rejected: a `.mjs` in `scripts/` cannot import TypeScript or a workspace package
 (wiring test), and exporting the internal reader widens `packages/cli` for a script. Parity is guarded
 instead: the unit test compares the per-project edge count with `seedProjects(sql)` (TypeScript test
@@ -75,10 +77,13 @@ code may import it).
    with Studly = camel case with its first letter upper-cased (`getShippingCountryAttribute`; the
    Laravel accessor the PHP analyzer targets, e.g. `Order::getSubtotalAttribute`). Checked on the
    frozen calls: `[OrderController::class, 'show']` → `show`, `TRANSITIONS[from].includes(` →
-   `includes`.
+   `includes`. An *attributed* edge is an edge of the scope whose target is the annotated target (a
+   hit) or whose target's last name segment (after the last `::`) is a called name (ticket M3, both
+   clauses), so `attributedEdges` always contains the site's hits.
 5. False positive: an attributed edge that is the hit of **no** site of the project, counted once per
-   project (a set of edge ids). This is criterion 3(e) of the ticket: two `new` on one line
-   (`task-api`) attribute each other's constructor edge, and neither is a false positive. Every hit
+   project (a set of edge ids). This is criterion 3(e) of the ticket: two `new` in one symbol
+   (`ts-21`, `ts-22` in `registerDb`, `src/plugins/db.ts:12-13` of `task-api`) attribute each other's
+   constructor edge, and neither is a false positive. Every hit
    edge of a site (not only the recorded one, 6) is in that set.
 6. The recorded hit: when several edges of the scope are hits (a method and its class both as
    sources, or an `exact` and a `heuristic` edge to one target), the site's `hit` is the one whose
@@ -98,7 +103,10 @@ in `scripts/annotation-agreement.mjs:274-277`, reimplemented because it is not e
 exports do not change); never from the float quotient. `null` when the denominator is 0.
 
 **D5 — Order of the run (ticket M5).** `runMeasureGraph`: parse arguments (exit 2) → read the report
-and `checkFreeze` (exit 1) → read and check the two annotation files (exit 1) → read the seed (exit 1
+and `checkFreeze` (exit 1; a problem about the report itself, an unreadable report or
+`the report records no SHA-256 hash`, is prefixed `docs/measurements/annotation-agreement.md: ` because
+`checkFreeze` does not name the report) → read and check the two annotation files (exit 1, also for a file that cannot be read or parsed as
+JSON) → read the seed (exit 1
 on an unreadable seed, a missing project or a malformed line) → `measure` → write the JSON → print the
 summary. The JSON is written only after everything succeeded, with `writeFileSync` of the full text (no
 partial file). The projects are the fixed list `acme-shop`, `task-api`, read from
@@ -121,7 +129,12 @@ of the sub-issue's AC 1. Key order fixed by construction; both edge lists sorted
 
 **D7 — Formatting for the README and the report (ticket M8).** `formatRatio(n, d)` →
 `77,4 % (24/31)`: the percentage rounded from the integers with the D4 formula on `100·n / d` with
-`k = 1`, decimal comma, a space before `%`; `no definida` when `d = 0`. `formatAgreement(language)` →
+`k = 1`, decimal comma, a space before `%`, the decimal always written (`formatRatio(26, 26)` →
+`100,0 % (26/26)`); `no definida` when `d = 0`. The agreement line keeps the opposite convention (no
+trailing `,0`) because it copies `agreement.json` as written there. The README intro predicate
+(spec "Published Table 2"): the first paragraph after `#### Mediciones que se publicarán` does not start
+with `*(pendiente`, contains `npm run measure:graph`, does not contain `Las dos tablas se rellenan`,
+and states that Table 1 is pending only through a sentence naming `DIS-81`. `formatAgreement(language)` →
 `` `acme-shop`: concordancia 100 % (50/50), kappa 1 ``: the `percent` and `kappa` of `agreement.json`
 as written there, with a decimal comma and no trailing `,0`, and `no definido` for a `null` kappa. Both
 formatters are exported from the script so the documentation test uses the same ones; the README and
@@ -129,7 +142,8 @@ the report are edited by the agent from the printed values, and the tests prove 
 
 **D8 — Report (ticket M6, M7).** `docs/measurements/graph-quality.md` is the agent's text, written once
 from the JSON; its three parsed sections (spec) are checked by `tests/unit/docs/graph-quality.spec.ts`.
-The construction breakdown joins `sites[].id` with `selection.json` rows (`construction`, `ids`). The
+The construction breakdown joins `sites[].id` with `selection.json` rows (`construction`, `ids`); a
+construction with no ids (the `reexport` row of `task-api`) prints a row of zeros. The
 report states that the apply agent ran it and annotated no site (M7), with the fixed sentence
 `La medición la ejecutó un agente que no anotó ningún sitio.` under `## Método`; the limitations go
 under `## Limitaciones`.
@@ -137,8 +151,9 @@ under `## Limitaciones`.
 **D9 — Tests.** `tests/unit/scripts/measure-graph.spec.ts`: the rules and measures on synthetic,
 in-memory inputs (one test per scenario of "Site matching and attribution", "Measures per project",
 "Annotation files are complete"), the seed reader against `seedProjects`, and the CLI on temporary
-copies under `os.tmpdir()` (freeze broken, missing report, missing project, malformed seed line, 49
-sites, unknown argument and `--root` without a value, two runs byte-identical), with `stdout`/`stderr`
+copies under `os.tmpdir()` (freeze broken, missing report, report without hashes, missing project,
+malformed seed line, missing seed, 49 sites, unknown argument, `--root` without a value and `--root`
+twice, two runs byte-identical), with `stdout`/`stderr`
 doubles. `tests/unit/docs/graph-quality.spec.ts`: committed JSON equals
 `serialize(measure(repository inputs))`; README Table 2, agreement lines, intro and the TypeScript
 paragraph rule; report sections. The
@@ -155,8 +170,9 @@ both shells' versions in the test and state report. No `$env:` variable is set; 
 
 ## Risks / Trade-offs
 
-- [Attribution by called name misses a wrong edge whose target has another name] → declared as a
-  limitation in the report; the count of false positives is a lower bound.
+- [Attribution by called name can miss a wrong edge whose target has another name, and can count as a
+  false positive a correct edge of an unannotated call with the same name in the same scope] →
+  declared as a limitation in the report; the false-positive count is approximate in both directions.
 - [A seed regenerated by an analyzer change makes the documentation test fail] → intended (spec
   "Committed measurement matches the repository"); the failure message names `npm run measure:graph`.
 - [The two seed readers could diverge] → the parity test with `seedProjects` (D2).
@@ -219,3 +235,22 @@ B = another existing ticket; C = the author (none in this change); D = accepted 
 | I9 | The spec quotes the README headers ``Aristas `exact` `` and ``Aristas `heuristic` ``. | A |
 | I10 | "Published Table 2" requires that the «Mediciones que se publicarán» intro no longer marks Table 2 as pending, asserted in the README scenario. | A |
 | I11 | Task 5.4 is split into a RED test task and the report-writing task. | A |
+
+*Agent's text, spec audit run 2 (2026-11-03): the findings of `reports/2026-11-03-spec-audit.md` →
+run 2, decided by the agent as lead engineer (correction round 2). Run 2 had no question for the
+author.*
+
+| Id | Decision | Destination |
+|---|---|---|
+| R2-B1 | The README intro rule is a testable predicate: the first paragraph after `#### Mediciones que se publicarán` does not start with `*(pendiente`, contains `npm run measure:graph`, does not contain `Las dos tablas se rellenan`, and names `DIS-81` for Table 1 (spec, D7, task 5.3). | A |
+| R2-I1 | An attributed edge is one reaching the annotated target or ending in a called name, both clauses of ticket M3 (spec, proposal, D3.4), so `attributedEdges` always lists the hits. | A |
+| R2-I2 | `--root a --root b` is part of the scenario "An unknown argument is a usage error" (task 1.1). | A |
+| R2-I3 | A problem about the agreement report itself is prefixed `docs/measurements/annotation-agreement.md: `; the no-hash case extends "The agreement report is missing" (spec, D5, task 1.3). | A |
+| R2-I4 | A missing seed gives `seeds/graph-dump.sql: the file cannot be read`, inside "A malformed seed line is an error"; the count stays 26 scenarios (spec, task 2.4). | A |
+| R2-I5 | Table 2 percentages always carry one decimal: `formatRatio(26, 26)` is `100,0 % (26/26)` (spec, D7, task 3.4). | A |
+| R2-I6 | An annotation file that cannot be read or parsed as JSON is a problem naming the file, exit 1 (spec, D5, task 2.1). | A |
+| R2-I7 | A `file`, `symbol` or `edge` row naming no `project` or `file` row is a malformed line (spec, D2, task 2.3). | A |
+| R2-I8 | D3.5 cites the real case: `ts-21` and `ts-22` are two `new` in one symbol (`registerDb`, lines 12-13), not on one line. | A |
+| R2-I9 | The false-positive count is approximate in both directions; Risks and the report limitation say so (spec, Risks). | A |
+| R2-I10 | D8: a construction of `selection.json` without ids (`reexport` of `task-api`) prints a row of zeros. | A |
+| R2-I11 | The README link to `docs/measurements/graph-quality.md` is added in task 5.5, when the report exists, so `tests/unit/docs/guides.spec.ts` never goes red between 5.3 and 5.5. | A |

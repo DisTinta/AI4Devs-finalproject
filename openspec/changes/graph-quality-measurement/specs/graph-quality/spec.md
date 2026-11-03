@@ -14,6 +14,9 @@ annotation files or any other input, compare every file listed in the `## Hashes
 the agreement script (`graph-annotations` → "Frozen annotations and agreement report"). When the report
 cannot be read, records no hash, or any listed file is unreadable or differs from its hash, the command
 SHALL exit with code 1, write one line per problem on stderr naming the file, and write no output file.
+A problem that concerns the report itself (the report cannot be read, or
+`the report records no SHA-256 hash`) SHALL be written prefixed
+`docs/measurements/annotation-agreement.md: `.
 
 #### Scenario: A frozen annotation file was modified
 
@@ -28,7 +31,9 @@ SHALL exit with code 1, write one line per problem on stderr naming the file, an
 
 - **GIVEN** a temporary copy without `docs/measurements/annotation-agreement.md`
 - **WHEN** the command runs with `--root <copy>`
-- **THEN** it exits with code 1, stderr names the report, and no output file is written
+- **THEN** it exits with code 1, stderr names the report, and no output file is written, and a copy
+  whose report has no `## Hashes SHA-256` row also exits with code 1 with one stderr line starting
+  `docs/measurements/annotation-agreement.md: ` and no output file
 
 ### Requirement: The graph is read from the seed
 
@@ -42,7 +47,9 @@ read as the CLI's seed parser reads them: `'…'` with `''`, `E'…'` with `\\` 
 `true`, `false` or a number. When `seeds/graph-dump.sql` cannot be read, or a line of the tables
 `project`, `file`, `symbol` or `edge` cannot be read with those values, the command SHALL exit with
 code 1, write one stderr line naming `seeds/graph-dump.sql` and, for a malformed line, its line number,
-and write no output file.
+and write no output file. An unreadable seed SHALL give the stderr line
+`seeds/graph-dump.sql: the file cannot be read`. A `file`, `symbol` or `edge` row that names no
+`project` or `file` row of the seed SHALL be a malformed line.
 
 #### Scenario: The seed reader agrees with the CLI's seed parser
 
@@ -62,13 +69,16 @@ and write no output file.
 - **GIVEN** a temporary copy whose seed has one `INSERT INTO edge` line truncated before `);`
 - **WHEN** the command runs with `--root <copy>`
 - **THEN** it exits with code 1, stderr has one line naming `seeds/graph-dump.sql` and the number of
-  that line, and `docs/measurements/graph-quality.json` does not exist in the copy
+  that line, and `docs/measurements/graph-quality.json` does not exist in the copy; and a copy without
+  `seeds/graph-dump.sql` exits with code 1 with the stderr line
+  `seeds/graph-dump.sql: the file cannot be read` and no output file
 
 ### Requirement: Annotation files are complete
 
 Each annotation file `fixtures/annotations/<fixture>.callsites.json` SHALL have `formatVersion` 1 and
 exactly 50 sites with distinct ids; otherwise the command SHALL exit with code 1, name the file and the
-problem on stderr, and write no output file.
+problem on stderr, and write no output file. An annotation file that cannot be read or parsed as JSON
+SHALL be a problem naming the file, with the same exit code.
 
 #### Scenario: An annotation file has 49 sites
 
@@ -91,8 +101,8 @@ replaced by a space; for `form: new` it SHALL be `__construct` (language `php`) 
 (language `typescript`); for `form: read` the called names SHALL be the property name, its camel-case
 form (split on `_`, the first part unchanged, every later part with its first letter upper-cased) and
 `get<Studly>Attribute`, where `<Studly>` is the camel-case form with its first letter upper-cased. An
-*attributed* edge SHALL be an edge of the scope whose target is a symbol whose last name segment (after
-the last `::`) is a called name of the site. The outcome of a site SHALL be `tp` when `expected` is not
+*attributed* edge SHALL be an edge of the scope whose target is the site's annotated target, or a
+symbol whose last name segment (after the last `::`) is a called name of the site. The outcome of a site SHALL be `tp` when `expected` is not
 `none` and it has a hit, `fn` when `expected` is not `none` and it has none, `fp` when `expected` is
 `none` and it has an attributed edge that is a false positive, and `tn` otherwise. A *false positive*
 SHALL be an attributed edge that is the hit of no site of the project; each false-positive edge SHALL
@@ -228,7 +238,8 @@ on stderr the usage line `Usage: node scripts/measure-graph.mjs [--root <dir>]`,
 
 #### Scenario: An unknown argument is a usage error
 
-- **WHEN** the command runs with `--verbose`, and again with `--root` and no value
+- **WHEN** the command runs with `--verbose`, again with `--root` and no value, and again with
+  `--root a --root b`
 - **THEN** each run exits with code 2, stderr holds `Usage: node scripts/measure-graph.mjs [--root <dir>]`,
   and no file is written
 
@@ -250,7 +261,8 @@ until the measurement is re-run.
 `readme.md` §2.6, Table 2 "Calidad del grafo por analizador", SHALL have one row per analyzer
 (`PHP/Laravel` for `acme-shop`, `TypeScript` for `task-api`) whose `Cobertura` and `Precisión` cells are
 written `<percent> % (<numerator>/<denominator>)` with one decimal and a decimal comma (for example
-`77,4 % (24/31)`), or `no definida` when the measure is `null`, and whose ``Aristas `exact` `` and
+`77,4 % (24/31)`; the decimal is always written, so 26 of 26 is `100,0 % (26/26)`), or `no definida`
+when the measure is `null`, and whose ``Aristas `exact` `` and
 ``Aristas `heuristic` `` cells are the `callsEdges` counts. Below the table, one line per sample project
 SHALL read `` `<fixture>`: concordancia <percent> % (<agreed>/<n>), kappa <kappa> `` with the values of
 `docs/measurements/annotation/agreement.json` written with a decimal comma and no trailing `,0`
@@ -258,15 +270,18 @@ SHALL read `` `<fixture>`: concordancia <percent> % (<agreed>/<n>), kappa <kappa
 and the text SHALL link `docs/measurements/graph-quality.md`. When the TypeScript coverage or precision
 is below the PHP one, the text below the table SHALL contain a paragraph starting
 `**Por qué TypeScript no supera a PHP.**` that explains it, and the figures SHALL NOT be adjusted
-(parent DIS-53). The introduction of «Mediciones que se publicarán» SHALL NOT mark Table 2 as pending.
+(parent DIS-53). The first paragraph after `#### Mediciones que se publicarán` SHALL NOT start with
+`*(pendiente`, SHALL contain `npm run measure:graph` and SHALL NOT contain `Las dos tablas se rellenan`;
+the pending state of Table 1 SHALL be stated in that paragraph only through a sentence naming `DIS-81`.
 
 #### Scenario: The README table agrees with the measurement
 
 - **GIVEN** the committed `graph-quality.json` and `agreement.json`
 - **WHEN** Table 2 of `readme.md` is parsed
 - **THEN** every cell equals the value formatted from the JSON, the text below the table holds the
-  agreement line of each project and a link to `docs/measurements/graph-quality.md`, and the
-  introduction of «Mediciones que se publicarán» does not say *(pendiente)* of Table 2
+  agreement line of each project and a link to `docs/measurements/graph-quality.md`, and the first
+  paragraph after `#### Mediciones que se publicarán` does not start with `*(pendiente`, contains
+  `npm run measure:graph`, does not contain `Las dos tablas se rellenan`, and names `DIS-81` for Table 1
 
 #### Scenario: A TypeScript figure below PHP is explained
 
@@ -281,7 +296,9 @@ is below the PHP one, the text below the table SHALL contain a paragraph startin
 `docs/measurements/graph-quality.md` SHALL state the method (the inputs, the freeze check, the seed as
 the graph and its `analyzer-fingerprint`, and that the measurement was run by an agent that annotated no
 site), the definitions of scope, hit, attribution and each measure, and the limitations (attribution by
-called name misses false positives with another name; annotation by agents of two different models of
+called name can miss a wrong edge whose target has another name, and can count as a false positive a
+correct edge of an unannotated call with the same name in the same scope, so the false-positive count is
+approximate in both directions; annotation by agents of two different models of
 one family, `claude-opus-5-5` and `claude-sonnet-5-5`, citing the agreement report; 50 sites per
 language in two sample repositories built on purpose; one run). It SHALL NOT describe the annotation as
 human or made by hand. It SHALL contain the headings `## Método` and `## Limitaciones`, and these

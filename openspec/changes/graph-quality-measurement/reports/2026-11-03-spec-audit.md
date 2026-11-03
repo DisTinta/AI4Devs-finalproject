@@ -445,3 +445,29 @@ No empty row. Docs-only tasks without a requirement are acceptable: 10.1 (row 29
   - `--root` repetido da código 2.
   - Un informe sin hashes, una semilla ausente o un fichero de anotación que no es JSON dan código 1 con el fichero nombrado."
 - **DIS-79**, a comment in Spanish, marked as the agent's text, summarizing run 2: one blocking finding (B1), corrected in the change, plus the improvable items applied. No new issue.
+
+---
+
+## Resolution of run 2
+
+*Agent's text, correction round 2 of the autonomous run (2026-11-03). Run 2 asked no question of the
+author; every finding is decided by the agent as lead engineer (`docs/AUTONOMOUS-RUN.md` §6) and
+recorded in `design.md` → Follow-ups, table "spec audit run 2", destination A. `openspec validate
+graph-quality-measurement --strict` passes; the spec keeps 10 requirements and 26 scenarios (the new
+cases extend existing scenarios), so tasks 6.2 and 11.8 are unchanged.*
+
+| Finding | Resolution | Where |
+|---|---|---|
+| B1 intro predicate not testable | Fixed: the first paragraph after `#### Mediciones que se publicarán` does not start with `*(pendiente`, contains `npm run measure:graph`, does not contain `Las dos tablas se rellenan`, and states Table 1 as pending only through a sentence naming `DIS-81`; the scenario "The README table agrees with the measurement" asserts the four conditions. | spec "Published Table 2"; design D7; tasks 5.3 (R2-B1) |
+| Improvable: attributed edge lacks the M3 target clause | Fixed: an attributed edge reaches the annotated target or ends in a called name. | spec "Site matching and attribution"; proposal; design D3.4 (R2-I1) |
+| Improvable: `--root` twice has no scenario | Fixed: added to the WHEN of "An unknown argument is a usage error". | spec; tasks 1.1 (R2-I2) |
+| Improvable: report with no hash, and the report prefix | Fixed: problems about the report itself are prefixed `docs/measurements/annotation-agreement.md: `; the no-hash case extends "The agreement report is missing". | spec "Freeze check before measuring"; design D5; tasks 1.3 (R2-I3) |
+| Improvable: unreadable seed has no scenario | Fixed: the exact line `seeds/graph-dump.sql: the file cannot be read` is in the requirement and in "A malformed seed line is an error". | spec; tasks 2.4 (R2-I4) |
+| Improvable: `formatRatio` for whole percentages | Fixed: always one decimal, `formatRatio(26, 26)` is `100,0 % (26/26)`; the agreement line keeps "no trailing `,0`" because it copies `agreement.json`. | spec "Published Table 2"; design D7; tasks 3.4 (R2-I5) |
+| Improvable: annotation file not valid JSON | Fixed: a file that cannot be read or parsed is a problem naming the file, exit 1. | spec "Annotation files are complete"; design D5; tasks 2.1 (R2-I6) |
+| Improvable: child rows of an unknown project | Fixed: a `file`, `symbol` or `edge` row naming no `project` or `file` row is a malformed line. | spec "The graph is read from the seed"; design D2; tasks 2.3 (R2-I7) |
+| Improvable: D3.5 "two `new` on one line" | Fixed: `ts-21` and `ts-22` are two `new` in one symbol (`registerDb`, `src/plugins/db.ts:12-13`), checked in `fixtures/annotations/task-api.callsites.json`. The synthetic scenario stays. | design D3.5 (R2-I8) |
+| Improvable: "lower bound" is false | Fixed: the false-positive count is approximate in both directions, in Risks and in the report limitation. | design Risks; spec "Measurement report" (R2-I9) |
+| Improvable: `reexport` row without ids | Fixed: D8 says it prints a row of zeros. | design D8 (R2-I10) |
+| Improvable: README link added before the report exists | Fixed: the link is added in 5.5, together with the report, so `tests/unit/docs/guides.spec.ts` never goes red; the link assertion of 5.3 stays red until then. | tasks 5.3, 5.5 (R2-I11) |
+| Linear `[enhanced]` and comment | Done: the run-2 decisions are appended to the `[enhanced]` part of DIS-79 (never `[original]`) and a Spanish comment summarises the round. No new issue. | Linear DIS-79 |

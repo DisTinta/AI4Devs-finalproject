@@ -25,8 +25,8 @@ TypeScript one.
 - **Matching and attribution rules** (ticket M3): only `calls` edges of the site's project count; a
   site's *scope* is the edges whose source is a symbol of `site.file` whose line range contains
   `site.line`, or the file `site.file` itself; a *hit* is an edge of the scope whose target is the
-  symbol `target.file` + `target.symbol`; an *attributed* edge is one of the scope whose target's last
-  name segment is the site's called name; a false positive is an attributed edge that is the hit of no
+  symbol `target.file` + `target.symbol`; an *attributed* edge is one of the scope whose target is the
+  annotated target or whose target's last name segment is the site's called name; a false positive is an attributed edge that is the hit of no
   site.
 - **Measures** per project: coverage = hits / positive sites; precision = hits / (hits + false
   positive edges); resolution agreement of the hits with `expected`; all `calls` edges by resolution;
