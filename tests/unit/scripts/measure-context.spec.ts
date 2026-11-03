@@ -271,6 +271,21 @@ describe('Freeze check before measuring', () => {
     expect(result.stderr).toContain(QUESTIONS);
     expect(result.fake.requests).toHaveLength(0);
   });
+
+  it('a question file named with a hash outside the hash table is still a problem (review finding)', async () => {
+    const root = makeCopy({
+      tamper: (copy) =>
+        writeFileSync(
+          join(copy, REPORT),
+          `## Hashes SHA-256\n\n| Fichero | SHA-256 |\n|---|---|\n| \`${SEED}\` | \`${sha256(readFileSync(join(copy, SEED)))}\` |\n\n## Método\n\n` +
+            `\`${QUESTIONS}\` tenía \`${sha256(readFileSync(join(copy, QUESTIONS)))}\`.\n`,
+        ),
+    });
+    const result = await run(root);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain(QUESTIONS);
+    expect(result.fake.requests).toHaveLength(0);
+  });
 });
 
 describe('The question set', () => {
@@ -545,6 +560,27 @@ describe('Asking each question', () => {
     }
   });
 
+  it('an UNKNOWN body without statements or evidence stops the run with a line, raw or live (review finding)', async () => {
+    const source = makeCopy();
+    await fullRun(source);
+    const root = makeCopy();
+    for (const file of filesUnder(source, RAW)) {
+      mkdirSync(dirname(join(root, file)), { recursive: true });
+      copyFileSync(join(source, file), join(root, file));
+    }
+    const path = `${RAW}/task-api/Q06.json`;
+    writeFileSync(join(root, path), JSON.stringify({ ...readJson(root, path), body: { answer: 'UNKNOWN', reason: 'no-anchor' } }));
+    const stored = await run(root);
+    expect(stored.code).toBe(1);
+    expect(stored.stderr).toContain(path);
+    for (const file of OUTPUT_FILES) expect(existsSync(join(root, file))).toBe(false);
+    const live = makeCopy();
+    const asked = await run(live, { handlers: { ask: () => ok({ answer: 'UNKNOWN', reason: 'no-anchor', statements: [null], evidence: [] }) } });
+    expect(asked.code).toBe(1);
+    expect(asked.stderr).toContain('acme-shop Q01');
+    expect(filesUnder(live, `${RAW}/acme-shop`)).toEqual([]);
+  });
+
   it('A resumed run skips the answered questions', async () => {
     const full = makeCopy();
     await fullRun(full);
@@ -626,6 +662,13 @@ describe('Tokenizer deviation sample', () => {
       .sort((a, b) => (a < b ? -1 : 1));
     expect(result.stderr).toContain(sample[2]!.replace(/^fixtures\//, ''));
     for (const file of OUTPUT_FILES) expect(existsSync(join(root, file))).toBe(false);
+  });
+
+  it('a failed generate answer names the repository-relative path of the file (review finding)', async () => {
+    const root = makeCopy();
+    const result = await run(root, { handlers: { generate: () => ok('error', 500) } });
+    expect(result.code).toBe(1);
+    expect(result.stderr).toMatch(/^measure:context: fixtures\/acme-shop\/[^:]+: /);
   });
 
   it('a generate answer of 0 tokens is malformed', async () => {
@@ -872,5 +915,22 @@ describe('Measurement outputs', () => {
       latency: { medianMs: 412_350, verifyMedianMs: 6000 },
     };
     expect(projectLine(base as never)).toBe('- `acme-shop`: 20 respondidas y 0 UNKNOWN; verificación 10,0 % de los tokens y 50,0 % del tiempo; coste de verificación n/a (0 USD con Ollama local); latencia mediana 412,4 s (verificación 6,0 s)');
+  });
+
+  it('formats a priced cost share from its integers, not from the rounded ratio (review finding)', () => {
+    const priced = {
+      fixture: 'acme-shop',
+      questions: 20,
+      answered: 20,
+      unknown: {},
+      inputTokens: 100,
+      outputTokens: 0,
+      latencyMs: 1000,
+      costUsd: 0.1,
+      verification: { inputTokens: 10, outputTokens: 0, latencyMs: 500, costUsd: 0.012345 },
+      shares: { cost: 0.1235 },
+      latency: { medianMs: 1000, verifyMedianMs: 500 },
+    };
+    expect(projectLine(priced as never)).toContain('coste de verificación 12,3 %;');
   });
 });

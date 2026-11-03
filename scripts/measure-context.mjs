@@ -180,9 +180,16 @@ export function formatSeconds(milliseconds) {
   return `${decimalComma(Math.floor((milliseconds + 50) / 100))} s`;
 }
 
-/** The cost share as the README writes it: a percentage, or `n/a (0 USD con Ollama local)` when `null`. */
-function formatCostShare(share) {
-  return share === null ? 'n/a (0 USD con Ollama local)' : `${decimalComma(Math.round(share * 1000))} %`;
+/**
+ * The cost share as the README writes it: `n/a (0 USD con Ollama local)` when the JSON's share is `null`, otherwise
+ * a percentage formatted from the summed costs in micro-dollars (integers), never from the rounded ratio.
+ *
+ * @param {any} project - One entry of the JSON's `projects`.
+ * @returns {string} The text.
+ */
+function formatCostShare(project) {
+  if (project.shares.cost === null) return 'n/a (0 USD con Ollama local)';
+  return formatPercent(Math.round(project.verification.costUsd * 1_000_000), Math.round(project.costUsd * 1_000_000));
 }
 
 /**
@@ -200,7 +207,7 @@ export function projectLine(project) {
   return (
     `- \`${project.fixture}\`: ${project.answered} respondidas y ${project.questions - project.answered} UNKNOWN${unknown}; ` +
     `verificación ${tokens} de los tokens y ${latency} del tiempo; ` +
-    `coste de verificación ${formatCostShare(project.shares.cost)}; ` +
+    `coste de verificación ${formatCostShare(project)}; ` +
     `latencia mediana ${formatSeconds(project.latency.medianMs)} (verificación ${formatSeconds(project.latency.verifyMedianMs)})`
   );
 }
@@ -229,6 +236,26 @@ function summaryLine(project) {
 // ---------------------------------------------------------------------------------------------------
 
 /**
+ * Whether the `## Hashes SHA-256` table of the report has a row for `path` with a SHA-256, read as `checkFreeze`
+ * reads that table; a mention of the file elsewhere in the report does not count.
+ *
+ * @param {string} report - The text of the savings report.
+ * @param {string} path - The repository-relative path.
+ * @returns {boolean} `true` when the table lists it.
+ */
+function hashTableLists(report, path) {
+  const lines = report.split('\n').map((line) => line.replace(/\r$/, ''));
+  const start = lines.findIndex((line) => line.trim() === '## Hashes SHA-256');
+  if (start < 0) return false;
+  const following = lines.slice(start + 1);
+  const end = following.findIndex((line) => line.startsWith('## '));
+  return (end < 0 ? following : following.slice(0, end))
+    .filter((line) => line.trim().startsWith('|'))
+    .map((line) => line.split('|').slice(1, -1).map((cell) => cell.trim().replace(/^`|`$/g, '')))
+    .some((cells) => cells[0] === path && /^[0-9a-f]{64}$/.test(cells[1] ?? ''));
+}
+
+/**
  * The problems of the freeze check (spec "Freeze check before measuring").
  *
  * @param {string} root - The repository root.
@@ -244,8 +271,7 @@ function freezeProblems(root) {
   const problems = checkFreeze(report, root).map((problem) =>
     problem === 'the report records no SHA-256 hash' ? `${REPORT}: ${problem}` : problem,
   );
-  const listed = report.split('\n').some((line) => line.includes(`${QUESTIONS}`) && /\b[0-9a-f]{64}\b/.test(line));
-  if (!listed && !problems.some((problem) => problem.startsWith(`${REPORT}:`))) {
+  if (!hashTableLists(report, QUESTIONS) &&!problems.some((problem) => problem.startsWith(`${REPORT}:`))) {
     problems.push(`${QUESTIONS}: the report lists no SHA-256 hash for this file`);
   }
   return problems;
@@ -420,11 +446,12 @@ function bodyProblem(body) {
   if (!isObject(body)) return 'the body is not a JSON object';
   if (body.answer === 'UNKNOWN') {
     if (body.reason === 'llm-required') return 'the API answered UNKNOWN llm-required: it is in evaluation mode, start it with LLM_BASE_URL set';
-    return typeof body.reason === 'string' ? null : 'the UNKNOWN body has no reason';
-  }
-  if (typeof body.answer !== 'string') return 'the body has no answer';
-  if (!Array.isArray(body.statements)) return 'the body has no statements';
+    if (typeof body.reason !== 'string') return 'the UNKNOWN body has no reason';
+  } else if (typeof body.answer !== 'string') return 'the body has no answer';
+  // The answer files are built from both lists, so an UNKNOWN body needs them as much as an answered one.
+  if (!Array.isArray(body.statements) || !body.statements.every(isObject)) return 'the body has no statements';
   if (!Array.isArray(body.evidence)) return 'the body has no evidence';
+  if (body.answer === 'UNKNOWN') return null;
   const usage = body.usage;
   if (!isObject(usage)) return 'usage is missing';
   for (const key of ['inputTokens', 'outputTokens', 'baselineTokens', 'latencyMs']) {
@@ -945,7 +972,7 @@ export async function runMeasureContext(args, { root = REPOSITORY_ROOT, env, dot
       count = undefined;
     }
     if (!Number.isInteger(count) || count <= 0) {
-      return fail(stderr, [`measure:context: ${entry.fixture}/${entry.path}: Ollama did not answer /api/generate with a positive prompt_eval_count`]);
+      return fail(stderr, [`measure:context: ${entry.file}: Ollama did not answer /api/generate with a positive prompt_eval_count`]);
     }
     counts.push({ file: entry.file, sha256: entry.sha, providerTokens: count });
     counts.sort((a, b) => byText(a.file, b.file));
