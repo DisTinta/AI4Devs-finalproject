@@ -1,0 +1,25 @@
+{
+  "projects": [
+    {
+      "fixture": "acme-shop",
+      "n": 20,
+      "agreed": 19,
+      "percent": 95,
+      "kappa": 0.908,
+      "disagreements": [
+        "Q06"
+      ]
+    },
+    {
+      "fixture": "task-api",
+      "n": 20,
+      "agreed": 18,
+      "percent": 90,
+      "kappa": 0.826,
+      "disagreements": [
+        "Q02",
+        "Q03"
+      ]
+    }
+  ]
+}
