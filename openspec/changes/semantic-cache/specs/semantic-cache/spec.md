@@ -100,7 +100,8 @@ any pack, completion or `query_log` row.
 #### Scenario: The threshold is inclusive at the boundary
 
 - **GIVEN** the entry of the first scenario with E1 the unit vector of the first component, and a live
-  model whose embedding of the rephrased key is the vector whose first five components are
+  scripted model that answers one statement citing the anchor span and accepts every verification,
+  whose embedding of the rephrased key is the vector whose first five components are
   `17, 10, 3, 1, 1` and whose other components are 0 (similarity exactly `17 / 20 = 0.85` with E1)
 - **WHEN** the rephrased question is explained, and again with an embedding whose first five
   components are `16.99, 10, 3, 1, 1` (similarity below 0.85)
@@ -118,7 +119,8 @@ any pack, completion or `query_log` row.
 
 - **GIVEN** two projects in the in-memory store whose graphs both anchor the price question; the first
   project with entries A (similarity 0.88 with the question's embedding) and B (similarity 0.95), and
-  the second project with an entry C of similarity 1
+  the second project with an entry C of similarity 1; none of A, B, C or D is stored under the
+  rephrased question's key
 - **WHEN** the rephrased price question is explained in the first project with a live model
 - **THEN** the answer is B's stored response; B's hit count is 1, and A's and C's are unchanged
 - **AND** explained in the second project after C is removed, with only an entry D that has no stored

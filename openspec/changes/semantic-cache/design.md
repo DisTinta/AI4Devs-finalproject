@@ -262,3 +262,13 @@ the author.*
 | I7 | Note appended to the `[enhanced]` part of DIS-67 (AC4 refined by S1; no `answer-cache` delta, S12; model change rule) | **A** — done in correction round 1 |
 | I8 | Expand → Contract exception stated in S6, confirmed by `/migration-review` | **A** — this change |
 | I10 | Similarity hit answer has exactly the keys of an exact-key hit | **A** — this change |
+
+Spec audit, run 2 (2026-11-03). *Agent's text: decided as lead engineer in correction round 2, without
+the author. The run asked no question for the author.*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| B7 | In `explain` scenarios a model "received" call is a completion (`answer`, `verify`); embedding requests count only where a scenario names them; "Query log" says "no completion was made"; the three "0 calls" scenarios keep their tests (7.3) | **A** — this change |
+| B8 | Manual plan 11.4/11.5 uses three recorded fresh questions (D₁ embed model empty, D₂ broken embed model, D₃ with `useCache: false` in the API) and keeps the rephrased question only for the evaluation run | **A** — this change |
+| I1 | "The threshold is inclusive at the boundary" names the live scripted model's completions | **A** — this change |
+| I2 | "The most similar entry of the project wins": no entry is stored under the rephrased question's key | **A** — this change |

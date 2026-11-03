@@ -58,7 +58,9 @@ up to step 7 (a cache hit included), one with the purpose `answer` at step 8, th
 one `answer` call per refreshed claim, each followed by its own `verify` calls): 0 with the purpose
 `verify` for `invalid-model-output`, `no-evidence` and `broken-evidence`. The model SHALL receive at
 most one embedding request per call, at step 3, in live mode only, and none for an invalid request,
-`no-anchor`, an exact cache hit or evaluation mode. The source reader SHALL
+`no-anchor`, an exact cache hit or evaluation mode. In the scenarios of `explain`, the calls or
+requests a model "received" are its completions (`answer` and `verify`); embedding requests are
+counted only where a scenario names them as embedding requests. The source reader SHALL
 receive no call for a cache hit (no pack is built). Otherwise it SHALL receive the pack's batched
 read and, for `broken-evidence` and an answer with statements only, the verification reads of step
 11 after the model (and, for an answered answer, those of each refresh at step 14);
@@ -619,7 +621,7 @@ latency of requirement "Answer usage":
   `invalid-model-output`, `no-evidence` and `broken-evidence`, the `answer` call; verification
   tokens, cost, calls and latency 0, since no semantic check ran);
   `baseline_tokens` the pack's (0 for `over-budget`), or none for `no-anchor` and `llm-required`,
-  which build no pack; every counter and cost 0 when no call was made;
+  which build no pack; every counter and cost 0 when no completion was made;
 - before propagating an error raised after at least one model call resolved (the verification reads,
   a `verify` call, the claim write other than `ClaimWriteFailed`, a failure of the stale claim
   refresh that propagates, the cache save other than

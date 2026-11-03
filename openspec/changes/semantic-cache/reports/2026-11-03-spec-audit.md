@@ -533,3 +533,16 @@ There are no holes in the table.
   > *Texto del agente (auditoría de spec, segunda ejecución, 2026-11-03).* Veredicto CHANGES REQUIRED con 2 bloqueantes nuevos; los 6 de la primera ejecución están resueltos. Se corrigen en el propio cambio `semantic-cache`:
   > - B7: en «Precedence and UNKNOWN answers» y «Query log», aclarar que las «llamadas» que recibe el modelo en los escenarios son completions; las peticiones de embedding solo cuentan donde un escenario las nombra (hoy tres escenarios sin cambios dicen «0 calls» aunque en vivo se pide un embedding).
   > - B8: la prueba manual 11.4/11.5 no puede dar lo que espera: la primera respuesta en vivo de la pregunta reformulada la guarda bajo su clave y las siguientes son aciertos exactos (sin evento y sin `llm-required`). Se usan preguntas nuevas registradas para cada caso degradado y `useCache: false` en la API.
+
+---
+
+## Resolution of run 2
+
+*Agent's text: correction round 2 of an autonomous run (2026-11-03), decided as lead engineer without the author. Run 2 had no question for the author. Each decision is in `design.md` → Follow-ups, table "Spec audit, run 2", with its destination; none has destination C. `openspec validate semantic-cache --strict` passes after the corrections. The suggested DIS-67 comment was posted with the decisions of this round.*
+
+| Finding | Resolution | Where |
+|---|---|---|
+| B7 | Fixed: "Precedence and UNKNOWN answers" now says that in the `explain` scenarios the calls or requests a model "received" are its completions (`answer` and `verify`), and embedding requests count only where a scenario names them; "Query log" says "every counter and cost 0 when no completion was made"; task 7.3 states that the three "0 calls" scenarios keep their tests because they count completions (`model.requests`) | explain delta; task 7.3 |
+| B8 | Fixed: 11.4 records three fresh anchored questions D₁, D₂, D₃ (keys absent from the 11.1 snapshot, from 11.3 and from each other); D₁ with `LLM_EMBED_MODEL` empty, D₂ with the broken embedding model (skip event), and the rephrased question only in evaluation mode (`UNKNOWN (llm-required)`, it has no entry after 11.3); 11.5 sends D₃ with `"useCache": false` to the API restarted with the broken embedding model and expects the `semantic_cache_skipped` line; the new entries are removed by the 11.7 rule | tasks 11.4, 11.5 |
+| I1 | Fixed: the GIVEN of "The threshold is inclusive at the boundary" names a live scripted model that answers one statement citing the anchor span and accepts every verification | semantic-cache delta |
+| I2 | Fixed: the GIVEN of "The most similar entry of the project wins" adds that none of A, B, C or D is stored under the rephrased question's key | semantic-cache delta |
