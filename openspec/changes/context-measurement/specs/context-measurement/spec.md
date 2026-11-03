@@ -13,8 +13,10 @@ its report from versioned raw data that anyone can re-aggregate.
 loading `.env` and reading `PORT`, and before reading any other input and before any network call, compare every file
 listed in the `## Hashes SHA-256` table of `docs/measurements/context-savings.md` with the SHA-256
 recorded there, with the same freeze check as `graph-annotations` → "Frozen annotations and agreement
-report". The table SHALL list `docs/measurements/context/questions.json`. When the report cannot be
-read, records no hash, or a listed file is unreadable or differs from its hash, the command SHALL exit
+report". The table SHALL list `docs/measurements/context/questions.json`; a table that does not list it
+SHALL be a problem naming `docs/measurements/context/questions.json`, even when every listed file
+matches its hash. When the report cannot be read, records no hash, does not list the question file, or
+a listed file is unreadable or differs from its hash, the command SHALL exit
 with code 1, write one stderr line per problem naming the file, send no request and write nothing. A
 problem about the report itself SHALL be written prefixed `docs/measurements/context-savings.md: `.
 
@@ -38,10 +40,12 @@ problem about the report itself SHALL be written prefixed `docs/measurements/con
 
 `docs/measurements/context/questions.json` SHALL have `formatVersion` 1 and, for each sample project in
 the order `acme-shop`, `task-api`, exactly 20 questions with the ids `Q01` to `Q20` in that order, each
-with a `question` of 5 to 500 Unicode code points that is not only whitespace and an `expected` of
-`answer` or `unknown` declared before the run, and at least two questions with `expected` `unknown`.
-The command SHALL check the shape, the ids, the lengths, the `expected` values and the count of
-`unknown`; any other shape SHALL make it exit with code 1, naming the file and the problem on stderr,
+with a `question` of 5 to 500 UTF-16 code units (JavaScript `length`, as the `z.string().min(5).max(500)`
+of `askBodySchema` in `packages/api/src/schemas/ask.ts`) that is not only whitespace and holds no
+U+0000, unique within its project after trimming, and an `expected` of `answer` or `unknown` declared
+before the run, and at least two questions with `expected` `unknown`. The command SHALL check the
+shape, the ids, the lengths, the U+0000 rule, the uniqueness of the trimmed texts per project, the
+`expected` values and the count of `unknown`; any other shape SHALL make it exit with code 1, naming the file and the problem on stderr,
 before any request. Each project SHALL also hold the exact texts of its golden questions; that rule SHALL
 be checked by `tests/unit/docs/context-savings.spec.ts` against `GOLDEN_PROJECTS` of
 `packages/cli/src/cache/demo-questions.ts`, not by the command (a `scripts/*.mjs` cannot import
@@ -148,10 +152,23 @@ CSV column `verifyCacheHits` and summed per project, and the report and the READ
 state that a verification answered from that cache costs no token. The command SHALL exit with code 1,
 keeping the responses already written and writing no output of the requirement "Measurement outputs",
 when the API cannot be reached or its body cannot be read as JSON, the status is not `200`, the body is
-an `UNKNOWN` with reason `llm-required`, an answered body has `usage.cacheHit` `true` or lacks a usage
-field, or a raw response on disk names another question text than the question file. A new run SHALL
-skip every question that already has a raw response. "No output" means the files of "Measurement
-outputs"; the raw responses are kept so a run can resume.
+an `UNKNOWN` with reason `llm-required`, or an answered body has `usage.cacheHit` `true` or lacks a
+usage field. A new run SHALL skip every question that already has a raw response. "No output" means the
+files of "Measurement outputs"; the raw responses are kept so a run can resume.
+
+After `raw/run.json` is checked and before the first ask or generate request, the command SHALL read
+and validate every file under `docs/measurements/context/raw/`. Each of these SHALL make the command
+exit with code 1 with one stderr line naming the file (its path from the root, for example
+`docs/measurements/context/raw/task-api/Q05.json`), send no ask or generate request and write no output
+of "Measurement outputs": a raw response or `raw/tokenizer.json` that cannot be read or parsed as JSON;
+a raw response without `formatVersion` 1, a `fixture` and `questionId` equal to its path, a `question`,
+a `receivedAt` or a `body`; a `raw/tokenizer.json` without `formatVersion` 1 or with a count lacking a
+`file`, a `sha256` or a positive integer `providerTokens`; a file under `raw/` other than `run.json`,
+`tokenizer.json` and `<fixture>/<id>.json` of a question of the question file (for example
+`raw/acme-shop/Q21.json`); a count for a file that is not in the sample of "Tokenizer deviation sample";
+a count whose `sha256` differs from the current SHA-256 of its file (the count is not redone, so a
+changed seed or fixture cannot be hidden); and a raw response whose `question` differs from the
+question file's text for that id (a stale raw response).
 
 #### Scenario: Every question is sent without the cache
 
@@ -210,9 +227,22 @@ outputs"; the raw responses are kept so a run can resume.
 - **THEN** it exits with code 1, stderr names `docs/measurements/context/raw/acme-shop/Q01.json`, and no
   question was sent
 
+#### Scenario: Unusable raw data stops the run before any question
+
+- **GIVEN** a copy whose `raw/task-api/Q05.json` is truncated (not valid JSON); then a copy whose
+  `raw/tokenizer.json` holds a count with another `sha256` than its file's current SHA-256; then a copy
+  holding `raw/acme-shop/Q21.json`; each with a valid `raw/run.json` and with `raw/task-api/Q03.json`
+  missing
+- **WHEN** the command runs on each
+- **THEN** each exits with code 1, stderr names the file (`docs/measurements/context/raw/task-api/Q05.json`,
+  `docs/measurements/context/raw/tokenizer.json` and the counted fixture path,
+  `docs/measurements/context/raw/acme-shop/Q21.json`), no ask or generate request was sent, and no file
+  of the measurement outputs exists
+
 #### Scenario: A resumed run skips the answered questions
 
-- **GIVEN** a copy that already holds the raw responses of the 20 `acme-shop` questions
+- **GIVEN** a copy holding `raw/run.json` and the raw responses of the 20 `acme-shop` questions of a full
+  run made with the same injected clock
 - **WHEN** the command runs with a fake API
 - **THEN** it sends only the 20 `task-api` questions and the outputs are identical to those of a run
   that sent all 40
@@ -231,8 +261,10 @@ malformed row SHALL make it exit with code 1 with the stderr line
 `num_predict` 1, print one stdout line starting `tokenizer <fixture>/<path>: `, and record its
 `prompt_eval_count` in `docs/measurements/context/raw/tokenizer.json` at once. The estimate of a file
 SHALL be the local one, its Unicode code points divided by 4 rounded up, equal to the product's
-`estimateTokens`. A failed Ollama answer, or one without an integer `prompt_eval_count`, SHALL make the
-command exit with code 1 naming the file, keeping the counts already written.
+`estimateTokens`. A failed Ollama answer, or one without a positive integer `prompt_eval_count` (0
+included), SHALL make the command exit with code 1 naming the file, keeping the counts already written.
+The counts already recorded are validated before any request by the raw-data check of "Asking each
+question"; a count whose `sha256` differs from its file is never redone.
 
 #### Scenario: The local estimate equals the product's
 
@@ -285,8 +317,11 @@ reason. The verification share of tokens SHALL be
 `latencyMs` < 10 000; `maxCallsPerAnswer` the largest `verification.calls` of one answered row (`null`
 when n is 0); and `verification.cacheHits` the sum of `verifyCacheHits`. The tokenizer deviation SHALL
 be `Σ estimate / Σ provider − 1` over the sample, with the minimum and maximum per-file deviation (ties
-by path order). Every ratio SHALL be computed from integers, and a ratio with a zero denominator is
-`null`. Ratios written in the JSON SHALL be rounded to four decimals half away from zero from the
+by path order). Every ratio except the cost share (a quotient of the summed `costUsd` numbers) SHALL be
+computed from integers, and a ratio with a zero denominator is `null`. In the JSON,
+`expectedUnknown.declared` SHALL be the number of the project's questions with `expected` `unknown`,
+`expectedUnknown.answeredUnknown` the number of those whose response is `UNKNOWN`, and `run` SHALL hold
+`firstReceivedAt` and `lastReceivedAt`, the earliest and latest `receivedAt` of the raw responses. Ratios written in the JSON SHALL be rounded to four decimals half away from zero from the
 integer numerator and denominator (as `graph-quality` → "Measures per project"); the JSON SHALL hold,
 per project, Σ `latencyMs` and Σ `verification.latencyMs`, and for `tokenizer.min` and `tokenizer.max`
 the file's `estimated` and `provider` counts; every figure of the README and the report SHALL be
@@ -427,9 +462,11 @@ starting with `-` (hyphen-minus) and a non-negative one without sign (`88,3 %`, 
 «Ahorro» of a project is below 0, the text below Table 1 SHALL contain a paragraph starting
 `**Por qué CODEMIND envía más tokens que el contexto bruto.**` that explains it, the figures SHALL NOT
 be adjusted, and the §0.3 sentence of `readme.md` SHALL NOT contain
-`reduce coste y latencia de forma medida` and SHALL link Table 1; when no «Ahorro» is below 0, that
-paragraph SHALL be absent and the §0.3 sentence is left as it is. Its caption SHALL NOT say
-`revisión manual`. Below the table, one line per project SHALL give its answered and `UNKNOWN` counts,
+`reduce coste y latencia de forma medida` and SHALL link Table 1 with the anchor `(#26-tests)`; when no
+«Ahorro» is below 0, that paragraph SHALL be absent and the §0.3 sentence is left as it is. Its caption
+SHALL NOT say `revisión manual` and SHALL NOT contain `~` (the set is exactly
+`20 preguntas por repositorio`). The first paragraph after `#### Mediciones que se publicarán` SHALL
+contain `npm run measure:context` and SHALL NOT contain `sigue pendiente`. Below the table, one line per project SHALL give its answered and `UNKNOWN` counts,
 the verification share of tokens and latency, the cost share and the median latency, and one line SHALL
 give the tokenizer deviation, all formatted from the JSON's integers, with a link to
 `docs/measurements/context-savings.md`. The limitations paragraph SHALL NOT say the questions were asked
@@ -453,15 +490,17 @@ agents of different models (DIS-80). The review table row «Medir el verificador
 - **WHEN** the «Ahorro» of each project is read
 - **THEN** if either is below 0, the README text below Table 1 holds the paragraph starting
   `**Por qué CODEMIND envía más tokens que el contexto bruto.**` and the §0.3 sentence does not contain
-  `reduce coste y latencia de forma medida` and links Table 1; otherwise the paragraph is absent
+  `reduce coste y latencia de forma medida` and links `(#26-tests)`; otherwise the paragraph is absent
 
 #### Scenario: The README limitations and verifier row are current
 
 - **GIVEN** `readme.md`
-- **WHEN** the Table 1 caption, the limitations paragraph, the review-table row «Medir el verificador»
-  and the §3.2 `baseline_tokens` paragraph are read
+- **WHEN** the first paragraph after `#### Mediciones que se publicarán`, the Table 1 caption, the
+  limitations paragraph, the review-table row «Medir el verificador» and the §3.2 `baseline_tokens`
+  paragraph are read
 - **THEN** none says the author asked the questions or that the verifier measurement is `Previsto`,
-  the caption does not contain `revisión manual`, the limitations name PH-16, PH-27, the verification
+  the first paragraph contains `npm run measure:context` and not `sigue pendiente`, the caption
+  contains neither `revisión manual` nor `~`, the limitations name PH-16, PH-27, the verification
   cache, the small sample repositories and the two independent annotating agents, and the §3.2
   paragraph holds the formatted aggregate deviation
 
@@ -471,7 +510,9 @@ agents of different models (DIS-80). The review table row «Medir el verificador
 `## Método` (the inputs, the freeze check, the live checks, `useCache: false`, the raw data, the agent
 who wrote the questions, and the sentence `Las preguntas se escribieron y congelaron antes de ver
 ninguna respuesta.`), `## Entorno` (date, Ollama version, model and digest, verification model, whether
-Ollama ran on CPU or GPU and that processor's model name, the `LLM_TIMEOUT_MS` used), `## Resultados`
+Ollama ran on CPU or GPU and that processor's model name, the `LLM_TIMEOUT_MS` used, the Ollama
+context length used (`OLLAMA_CONTEXT_LENGTH=16384`), and that Ollama's log showed no
+`truncating input prompt` during the published run), `## Resultados`
 with the Table 1 figures, `## Verificador` (shares, median latency against the 10 s criterion of the
 README, the largest number of verification calls of one answer against `MAX_VERIFY_CALLS_PER_ANSWER`,
 the verification cache hits, with the agent's conclusion on that constant), `## Desviación del
@@ -486,4 +527,5 @@ the JSON's, formatted from its integers.
 - **WHEN** the report is parsed
 - **THEN** every section is present, the figures of `## Resultados`, `## Verificador` and
   `## Desviación del estimador` equal the formatted JSON values, `## Entorno` names the JSON's Ollama
-  version and model digest, and `## Método` holds the freeze sentence
+  version and model digest and contains `OLLAMA_CONTEXT_LENGTH=16384` and `truncating input prompt`,
+  and `## Método` holds the freeze sentence

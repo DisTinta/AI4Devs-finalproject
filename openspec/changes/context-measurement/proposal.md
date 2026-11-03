@@ -27,7 +27,10 @@ moved here from DIS-79. Without it the README cannot back its savings claim, nor
   run with exit 1. Each received response is kept as raw evidence under
   `docs/measurements/context/raw/`, so a run on a CPU (5–10 minutes per question on this machine, 598 s measured in DIS-42) can resume.
   The API's per-process verification cache, which `useCache: false` does not bypass, is recorded per
-  answer (`verifyCacheHits`) and declared as a limitation.
+  answer (`verifyCacheHits`) and declared as a limitation. Unusable or stale raw data (unparsable,
+  incomplete, unknown question or file, a count whose file hash changed) stops the run before any
+  question. Ollama is served by the agent with `OLLAMA_CONTEXT_LENGTH=16384` (gotcha DIS-72), its log is
+  checked for `truncating input prompt`, and both are recorded in the report.
 - **Tokenizer deviation (PH-16).** For every non-redacted file of the two projects listed in
   `seeds/graph-dump.sql` (89 of 91; its bytes checked against the seed's `content_hash`), the local
   estimate against Ollama's `prompt_eval_count` of the raw text: files, aggregate deviation, minimum
@@ -46,7 +49,8 @@ moved here from DIS-79. Without it the README cannot back its savings claim, nor
   limitations). `readme.md`: Table 1 filled except «Correctas (de 20)» («pendiente de DIS-82»), its
   caption and the limitations paragraph rewritten (questions written by an agent and frozen; one run;
   local 7.6B model; measured deviation, PH-16; verification ratio, PH-27; verification cache; and,
-  kept, the small sample repositories and the two-agent annotation of Table 2), the review-table row «Medir
+  kept, the small sample repositories and the two-agent annotation of Table 2), the shared §2.6
+  introduction saying both tables are measured, the review-table row «Medir
   el verificador» to applied, the §3.2 `baseline_tokens` paragraph with the measured deviation, the
   `scripts/` line of the tree. When a project's «Ahorro» is negative, a paragraph
   «Por qué CODEMIND envía más tokens que el contexto bruto.» below Table 1 explains it, and the §0.3

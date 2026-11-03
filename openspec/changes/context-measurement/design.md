@@ -120,8 +120,15 @@ exit 1 naming `docs/measurements/context/raw/run.json` instead of rewriting it, 
 agent's decision: a rewrite would let a deleted `run.json` hide a change of model); `<fixture>/<id>.json` `{ formatVersion: 1, fixture, questionId, question,
 receivedAt, status: 200, body }`; `tokenizer.json` `{ formatVersion: 1, counts: [ { file, sha256,
 providerTokens } ] }` (rewritten whole after each count, sorted by file). Writes use `writeFileSync` of
-the full text. A raw response whose `question` differs from the question file exits 1 (stale raw).
-The final outputs are written only when nothing is missing, after building all their texts in memory.
+the full text. *Raw-data integrity (spec audit run 3, B1, agent's decision):* right after `run.json`
+and before the first request, every file under `raw/` is read and validated: JSON that parses, the
+required fields above (a raw response's `fixture` and `questionId` equal to its path; each count with
+`file`, `sha256` and a positive integer `providerTokens`), a known question id or sample file, no other
+file, each count's `sha256` equal to its file's current hash, and each raw response's `question` equal
+to the question file (stale raw). Any failure exits 1 naming the file, before any ask or generate
+request. A count with another `sha256` is not redone: a silent recount would hide that the seed or a
+fixture changed after the count. *Alternative:* validate lazily when a file is reached — rejected: a
+stale `Q20` would only stop the run after `Q03` had been sent, hours in. The final outputs are written only when nothing is missing, after building all their texts in memory.
 *Alternative:* one in-process run writing only the final files — rejected: on a CPU it takes hours, a
 dropped connection or a stopped process would lose everything, and the apply agent's tool calls are
 bounded to 10 minutes.
@@ -135,7 +142,8 @@ with no `project` row exits 1 naming the fixture and `seeds/graph-dump.sql`; `re
 rows with `content_hash` and `redacted`) and the sample files' hashes → `LLM_BASE_URL` set → `LLM_MODEL`
 set and not blank → `GET /health` (unreachable: `measure:context: the API is not reachable at
 http://127.0.0.1:<port> (start it with npm run up)`, as `scripts/demo-ask.mjs:155`) →
-Ollama `GET /api/version` and `GET /api/tags` → `raw/run.json` → missing questions in file order →
+Ollama `GET /api/version` and `GET /api/tags` → `raw/run.json` → every raw file read and validated
+(D7; exit 1 naming the file) → missing questions in file order →
 missing counts in path order → `build` → write the outputs → summary. The Ollama origin is
 `LLM_BASE_URL` trimmed, without a trailing `/`, then without a trailing `/v1`. The API origin is
 `http://127.0.0.1:<PORT>` with `PORT` read by `apiPort` of `demo-ask.mjs` (exported, D9) at the step
@@ -166,14 +174,18 @@ audit run 2). `send` is injected as in `runDemoAsk`:
 **D10 — Output layouts.** CSV: the header of the spec (with `verifyCacheHits` after `verifyCalls`),
 values as `String(n)`, booleans `true` / `false`, empty cells for an `UNKNOWN`'s usage, a field quoted
 when it holds `,`, `"`, CR or LF (inner `"` doubled), LF line ends and a final LF. JSON:
-`{ formatVersion: 1, run: <run.json without formatVersion, plus questionsSha256 and the first and last
-receivedAt>, projects: [ { fixture, questions, answered, unknown: { <reason>: n } (reasons sorted),
+`{ formatVersion: 1, run: <run.json without formatVersion, plus questionsSha256, firstReceivedAt and
+lastReceivedAt (the earliest and latest receivedAt of the raw responses)>, projects: [ { fixture, questions, answered, unknown: { <reason>: n } (reasons sorted),
 baselineTokens, inputTokens, outputTokens, savingsPct, latencyMs, generation: { inputTokens,
 outputTokens }, verification: { calls, cacheHits, inputTokens, outputTokens, costUsd, latencyMs,
 maxCallsPerAnswer }, costUsd, shares: { tokens, latency, cost }, latency: { medianMs, verifyMedianMs,
 under10s }, expectedUnknown: { declared, answeredUnknown } } ], tokenizer: { model, files, excluded:
 [paths], estimated, provider, deviation, min: { file, estimated, provider, deviation }, max: { file,
-estimated, provider, deviation } } }`, where `latencyMs` is Σ `latencyMs` of the answered rows. Ratios
+estimated, provider, deviation } } }`, where `latencyMs` is Σ `latencyMs` of the answered rows,
+`expectedUnknown.declared` the number of questions with `expected: "unknown"` and
+`expectedUnknown.answeredUnknown` the number of those whose response is `UNKNOWN` (spec audit run 3).
+Every ratio is computed from integers except the cost share, a quotient of the summed `costUsd`
+numbers (`null` at a total cost of 0, which is always the case with Ollama). Ratios
 are numbers rounded to four decimals half away from zero from the integer numerator and denominator,
 with the `roundRatio` exported from `scripts/annotation-agreement.mjs` (D9), `null` on a zero
 denominator. Boundary rules (spec audit B4, agent's decision): `savingsPct` is `null` when
@@ -209,6 +221,18 @@ measure is written `no definido`.
 **D12 — Model (ticket D8).** `qwen2.5-coder:latest` local for the answer and the verification
 (`LLM_MODEL_VERIFY` empty). The script records the model of its own environment; the apply agent
 starts the API and the script with the same `LLM_*` values on the command line, and the report says so.
+*Ollama context length (spec audit run 3, B2, agent's decision):* Ollama is served by the agent with
+`OLLAMA_CONTEXT_LENGTH=16384` after recording whether the tray app or an `ollama.exe` was running and
+stopping the tray app and every `ollama.exe` / `llama-server` (`docs/project-context.md` → Gotcha
+DIS-72): with the default context Ollama cuts `explain`'s 5–7k-token prompt, which gives an
+all-`UNKNOWN` Table 1 or truncated `prompt_tokens` that understate «CODEMIND». The OpenAI-compatible
+route takes no `num_ctx` and the script cannot see the server's setting, so the apply logs Ollama to the
+scratchpad, records its `inference compute … library=` line, checks the log for
+`truncating input prompt` on every wait (on a hit: stop, delete that launch's raw responses, re-launch;
+the frozen questions are never edited), and the report's `## Entorno` records the context length and
+the clean log. At the end the agent stops its own `ollama.exe` and restores the Ollama state it
+recorded. *Alternative:* reuse whatever Ollama is running — rejected: a tray app with the default
+context would bias the published figure silently.
 
 **D13 — Verifier (Entrega 1 review note, moved from DIS-79).** The JSON and the report give per project
 the verifier's share of the latency, the median latency of an answer and of its verification against
@@ -331,3 +355,24 @@ taken by the agent as lead engineer on the question and findings of audit run 2:
   `run.json` exits 1 rather than rewriting it; `LLM_MODEL_VERIFY` unset or blank falls back to
   `LLM_MODEL`; `PORT` is checked right after `.env`; GET requests send `body: ''`; the "no variable
   value" rule excepts `PORT`; the seed's unreadable-file line is attributed to the command. **A**.
+
+*(Agent's text, correction round 3 of the spec audit of DIS-81, autonomous run, 2026-11-03.)* Decisions
+taken by the agent as lead engineer on the findings of audit run 3 (it asked no question of the author):
+
+- **P32 (audit run 3, B1)** — raw-data integrity on resume: after `raw/run.json` and before any ask or
+  generate request, every file under `raw/` is read and validated (JSON, required fields, a known
+  question id or sample file, no stray file, each count's `sha256` equal to its file's current hash, no
+  stale question text); any failure exits 1 naming the file. A count with a changed `sha256` exits 1
+  rather than being recounted, so a seed or fixture change cannot be hidden (D7, D8; new scenario
+  "Unusable raw data stops the run before any question", task 5.4). **A**.
+- **P33 (audit run 3, B2)** — Ollama context length: the agent serves Ollama with
+  `OLLAMA_CONTEXT_LENGTH=16384` after stopping the tray app and every `ollama.exe` / `llama-server`,
+  checks its log for `truncating input prompt` during the run, records both in `## Entorno`, and
+  restores the Ollama state recorded before (D12; tasks 7.3, 7.4b, 7.8, 7.9, 10.3). **A**.
+- **P34 (audit run 3, improvable)** — the shared §2.6 intro must contain `npm run measure:context` and
+  not `sigue pendiente`; the Table 1 caption drops `~`; the §0.3 link is `(#26-tests)`; a freeze table
+  without the `questions.json` row is a problem; question lengths in UTF-16 code units with no U+0000 and
+  trimmed texts unique per project, as `askBodySchema`; `prompt_eval_count` must be a positive integer;
+  the cost share is the one ratio not from integers; `expectedUnknown` and `run.firstReceivedAt` /
+  `run.lastReceivedAt` defined (D10); the resumed-run scenario holds `raw/run.json` and the same clock.
+  **A**.

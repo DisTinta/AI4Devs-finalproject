@@ -996,3 +996,79 @@ All 41 current scenarios and the two `graph-quality` scenarios map to tasks. The
 ### Linear DIS-53
 
 No edit.
+
+---
+
+## Resolution of run 3
+
+*(Agent's text, correction round 3, autonomous run, 2026-11-03.)* Run 3 asked no question of the author.
+The agent settled both blocking findings as lead engineer. The decisions are in `design.md` → Follow-ups
+P32–P34, with their destinations; none is C. `openspec validate context-measurement --strict` passes
+after the edits. The spec now has 11 requirements and 42 scenarios.
+
+### Blocking findings
+
+- **B1 (raw-data integrity on resume)** — fixed (P32, **A**). "Asking each question" gains a pre-check
+  that runs after `raw/run.json` and before any ask or generate request. It reads and validates every
+  file under `docs/measurements/context/raw/` and exits 1 naming the file, sending nothing, on any of
+  these:
+  - (a) unparsable JSON, or a missing required field (a raw response's `fixture` and `questionId` must
+    equal its path; a count needs a positive integer `providerTokens`);
+  - (b) a count whose `sha256` differs from the file's current hash. The command does not recount, so a
+    seed change cannot be hidden;
+  - (c) a stray file, a question id outside the question file, or a count outside the sample;
+  - a stale question text.
+
+  The stale-question rule moved into this pre-check, which settles (d): no lazy check.
+
+  Other edits:
+  - "Tokenizer deviation sample" refers to the pre-check.
+  - New scenario "Unusable raw data stops the run before any question". It uses `Q05`, `tokenizer.json`
+    and `Q21`, with `Q03` missing, so the order is observable.
+  - D7 and D8 add the step, with the rejected alternative (lazy validation).
+  - New task 5.4b. Proposal updated.
+- **B2 (Ollama context length)** — fixed (P33, **A**).
+  - D12 states the decision, citing Gotcha DIS-72 of `docs/project-context.md` as its source.
+  - Task 7.3 records the tray-app / `ollama.exe` state, stops the tray app and every `ollama.exe` /
+    `llama-server`, starts `OLLAMA_CONTEXT_LENGTH=16384 ollama serve` detached with its log in the
+    scratchpad, and records the `library=` line.
+  - Task 7.4b searches the log for `truncating input prompt` on every wait. On a hit it deletes that
+    launch's raw responses and re-launches, never editing the frozen questions.
+  - Tasks 7.9 and 10.3 stop the agent's `ollama.exe` and restore the recorded state.
+  - "Measurement report" → `## Entorno` and its scenario now require `OLLAMA_CONTEXT_LENGTH=16384` and
+    the clean-log statement. Task 7.8 and the proposal are updated.
+
+### Improvable findings
+
+All fixed (P34, **A**) unless noted.
+
+- **Shared §2.6 intro** — "Published Table 1": the first paragraph after
+  `#### Mediciones que se publicarán` contains `npm run measure:context` and not `sigue pendiente`.
+  Added to the scenario "The README limitations and verifier row are current" and to task 7.6b.
+- **Freeze table without the `questions.json` row** — it is now a problem naming the file, even when
+  every listed file matches its hash. The case is tested in task 2.3, not 3.1, because the freeze is
+  implemented in 2.3. No new scenario: one rule of an existing requirement, tested as a case.
+- **Caption `~`** — the caption SHALL NOT contain `~` (`20 preguntas por repositorio`). Added to the
+  scenario and to task 7.6b.
+- **§0.3 link target** — pinned to `(#26-tests)` in the requirement, in the scenario "A negative savings
+  is explained" and in task 7.6a.
+- **Question length unit** — 5 to 500 UTF-16 code units, no U+0000, as `askBodySchema` (checked at
+  `packages/api/src/schemas/ask.ts:35-42`). Task 3.1 adds a 251-astral-character case (501 units, under
+  500 code points) and a U+0000 case.
+- **Positive provider count** — `prompt_eval_count` must be a positive integer (0 included in the
+  failures), in the spec and task 5.3. The raw-data pre-check requires a positive `providerTokens`.
+- **`expectedUnknown` and `run` keys** — defined in "Aggregation rules" and D10:
+  - `declared` and `answeredUnknown`;
+  - `firstReceivedAt` and `lastReceivedAt`.
+- **Duplicate question texts** — trimmed texts unique per project, in the spec and task 3.1.
+- **Cost share from floats** — "Every ratio except the cost share (a quotient of the summed `costUsd`
+  numbers)" in the spec and D10.
+- **Resumed-run scenario** — its GIVEN now holds `raw/run.json` and a full run's raw responses made with
+  the same injected clock (spec and task 5.4).
+- **Mandatory steps, Ollama state** — recorded in 7.3 and restored in 7.9 and 10.3 (with B2).
+- **Scenario counts** — 41 changed to 42 in tasks 8.2 and 13.8. Task 12.3 now cites P16–P34.
+
+### Linear
+
+- DIS-81: a Spanish comment summarises the decisions of this round, marked as the agent's text.
+- DIS-53: no edit, as the audit asked.
