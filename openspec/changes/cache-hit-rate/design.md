@@ -323,3 +323,14 @@ lead engineer in an autonomous run, without the author.*
 | P1 | The scratch databases `codemind_dis69` (steps 13 and 14, re-seeded instead of re-created) and `codemind_dis69_test` (integration specs) are not dropped: the kit's destructive-command hook denies `DROP DATABASE` and an autonomous run cannot confirm it; the hook is not worked around. They are local, isolated and hold only the synthetic seed; the shared database was never touched | **D** — accepted |
 | P2 | Stryker survivors of `hit-rate.ts`, `routes/ask.ts` and `cache-embed.ts` killed with new tests below the scenarios; the rest (entry-point guards, `DEFAULT_REPO_ROOT`, a `join(', ')` separator with at most one prior file, an `instanceof CliError` branch `toAskFailure` also covers) are equivalent or already present in `cache-build.ts` | **D** — accepted |
 | P3 | `usage.projectCache` appears only in the captures of `docs/DEMO.md` made in this change; the older captured responses of the guide are not retaken (they predate it, and the guide says so) | **D** — accepted |
+
+Pre-merge review (`reports/2026-11-04-show-spec-working.md`, `…-verify-against-spec.md`,
+`…-adversarial-review.md`; verdict PASS). *Agent's text: findings resolved by the agent as lead engineer
+in an autonomous run, without the author.*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| V1 | "The usage carries the project's cache hit rate over the seed" asserted only `usage.cacheHit`; the test now also asserts the zero tokens, cost, `generation` and `verification` of a cache hit for the three answers, as the scenario states | **A** — this change |
+| V2 | The OpenAPI document renders `maximum: 9007199254740991` on the two counts (`z.int()`, as every integer of the document); the scenario fixes type and minimum, the `::int` cast bounds the values (R2); not added to the spec | **D** — accepted |
+| V3 | No test pins that the counts are read after the events are written to the request log; the order has no visible effect on the response and the code reads after the event loop | **D** — accepted |
+| V4 | The read is not transactional with the use case's `query_log` write: two concurrent requests on one project may each count the other's row; the spec only requires the current call's row, which holds | **D** — accepted |

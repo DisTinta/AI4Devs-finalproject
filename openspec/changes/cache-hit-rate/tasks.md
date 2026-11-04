@@ -126,10 +126,10 @@ Order note: this group runs before group 12 (and not after group 14, as `docs/op
 ## 16. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
 - [x] 16.1 Open the PR against `final-project-CRN`; DIS-69 to In Review with a Spanish comment linking it and the change
-- [ ] 16.2 CI green: wait in the foreground with `gh pr checks <n> --watch --interval 60`, repeated until no check is pending; confirm the new spec files ran and passed, the `verify` job is green (seed fingerprints) and the mutation job is ≥ 80; link the run in an addendum to the step 12 report
-- [ ] 16.3 `/show-spec-working` (may reuse the step 13 and 14 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
-- [ ] 16.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
-- [ ] 16.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
-- [ ] 16.6 Fix every finding in this change (TDD for behaviour), each with an A/B/C/D destination in `design.md` → Follow-ups (no destination C); re-run what each fix invalidates (a fix touching a seed fingerprint input repeats 9.1); commit to the same PR; re-run a check whose findings led to non-trivial fixes until no Blocker or Major
+- [x] 16.2 CI green: wait in the foreground with `gh pr checks <n> --watch --interval 60`, repeated until no check is pending; confirm the new spec files ran and passed, the `verify` job is green (seed fingerprints) and the mutation job is ≥ 80; link the run in an addendum to the step 12 report
+- [x] 16.3 `/show-spec-working` (may reuse the step 13 and 14 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
+- [x] 16.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
+- [x] 16.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
+- [x] 16.6 Fix every finding in this change (TDD for behaviour), each with an A/B/C/D destination in `design.md` → Follow-ups (no destination C); re-run what each fix invalidates (a fix touching a seed fingerprint input repeats 9.1); commit to the same PR; re-run a check whose findings led to non-trivial fixes until no Blocker or Major
 - [ ] 16.7 The main specs `openspec/specs/semantic-cache`, `graph-store`, `http-ask`, `ask-page`, `cli-projects`, `golden-answers` and `seed-load` are synced only by `/opsx:archive` of this change's deltas (no direct edit planned, design S14); run `/opsx:archive` and commit it to the same PR
 - [ ] 16.8 Merge (`gh pr merge <n> --merge`, through the merge gate) only after the 16.7 archive commit and with CI green; the agent merges only in an autonomous run (`KIT_AUTONOMOUS_RUN=1`, `docs/AUTONOMOUS-RUN.md` §5); otherwise the author merges

@@ -105,3 +105,11 @@ No ADR is needed (11.4): the decisions are local and reversible (design S1 to S1
 ## Outcome
 - Status: PASS
 - Blocking issues: none
+
+## Addendum — CI of PR #108 (task 16.2)
+
+*Agent's text.* CI of PR #108 at `6ec37eb`, all green: `e2e`, `frontend`, `mutation` (50m24s, score at or
+above the break threshold of 80), `quality`, `scope`, `secrets` and `verify` (seed fingerprints), in run
+https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/41851993503. The pre-merge review then
+strengthened one integration test (`design.md` → Follow-ups, V1); the CI of that commit is recorded on
+the PR.

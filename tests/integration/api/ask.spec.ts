@@ -203,6 +203,16 @@ describeWithDatabase('POST /api/projects/{projectId}/ask over the seed (integrat
       // Assert
       expect([first.statusCode, second.statusCode, other.statusCode]).toEqual([200, 200, 200]);
       for (const response of [first, second, other]) expect(response.json().usage.cacheHit).toBe(true);
+      // Every other key of `usage` is the usage of a cache hit, unchanged (adversarial review, DIS-69).
+      for (const response of [first, second, other]) {
+        expect(response.json().usage).toMatchObject({
+          inputTokens: 0,
+          outputTokens: 0,
+          costUsd: 0,
+          generation: { inputTokens: 0, outputTokens: 0, costUsd: 0 },
+          verification: { calls: 0, cacheHits: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, latencyMs: 0 },
+        });
+      }
       expect(first.json().usage.projectCache).toEqual({ queries: 1, cacheHits: 1, hitRatePct: 100 });
       expect(second.json().usage.projectCache).toEqual({ queries: 2, cacheHits: 2, hitRatePct: 100 });
       expect(other.json().usage.projectCache).toEqual({ queries: 1, cacheHits: 1, hitRatePct: 100 });
