@@ -125,7 +125,7 @@ Order note: this group runs before group 12 (and not after group 14, as `docs/op
 
 ## 16. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 16.1 Open the PR against `final-project-CRN`; DIS-69 to In Review with a Spanish comment linking it and the change
+- [x] 16.1 Open the PR against `final-project-CRN`; DIS-69 to In Review with a Spanish comment linking it and the change
 - [ ] 16.2 CI green: wait in the foreground with `gh pr checks <n> --watch --interval 60`, repeated until no check is pending; confirm the new spec files ran and passed, the `verify` job is green (seed fingerprints) and the mutation job is ≥ 80; link the run in an addendum to the step 12 report
 - [ ] 16.3 `/show-spec-working` (may reuse the step 13 and 14 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
 - [ ] 16.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
