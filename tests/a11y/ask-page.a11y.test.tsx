@@ -51,6 +51,7 @@ const ANSWERED = {
     cacheHit: false,
     generation: { inputTokens: 3000, outputTokens: 600, costUsd: 0.01 },
     verification: { calls: 2, cacheHits: 0, inputTokens: 1000, outputTokens: 212, costUsd: 0.004, latencyMs: 700 },
+    projectCache: { queries: 10, cacheHits: 4, hitRatePct: 40 },
   },
 };
 

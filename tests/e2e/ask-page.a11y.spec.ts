@@ -101,6 +101,7 @@ test('A mocked answer with a long path does not overflow', async ({ page }) => {
       cacheHit: false,
       generation: { inputTokens: 1000, outputTokens: 80, costUsd: 0.003 },
       verification: { calls: 1, cacheHits: 0, inputTokens: 200, outputTokens: 10, costUsd: 0.001, latencyMs: 100 },
+      projectCache: { queries: 10, cacheHits: 4, hitRatePct: 40 },
     },
   };
   await page.route('**/api/projects/*/ask', (route) => route.fulfill({ status: 200, contentType: 'application/json', json: body }));

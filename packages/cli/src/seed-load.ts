@@ -232,7 +232,10 @@ async function saveGoldenAnswers(store: Pick<StorePort, 'saveCacheEntry'>, seed:
   const ids = new Map(seedProjects(seed.sql).map((project) => [project.name, project.id]));
   for (const file of golden) {
     const projectId = ids.get(file.project)!;
-    for (const entry of file.entries) await store.saveCacheEntry(projectId, entry.questionNormalized, entry.response);
+    for (const entry of file.entries) {
+      // The entry's vector goes with it, so a rephrased question can hit it by similarity (DIS-69 design S9).
+      await store.saveCacheEntry(projectId, entry.questionNormalized, entry.response, entry.questionEmbedding ?? undefined);
+    }
   }
 }
 

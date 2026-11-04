@@ -314,3 +314,12 @@ as lead engineer in an autonomous run, without the author; the run had no questi
 | B1 | S9's four-argument call is kept; task 7.5 names the edit of the two expected-saves assertions of `tests/unit/cli/seed-load.spec.ts` (golden saves gain `entry.questionEmbedding ?? undefined`, drift saves keep three elements), and 10.2 lists it. Rejected alternative: a three-argument call when the vector is `null`, because it adds a branch only to keep a test's shape | **A** — this change |
 | I1 | The RED of the usable-vector assertion of `golden-coherence.spec.ts` moves to a new task 9.2b, before `cache:embed` (9.3); 9.4 is its GREEN step and 9.1 no longer cites a check that did not exist yet | **A** — this change |
 | I2 | Task 4.4 saves the golden answers with `entry.questionEmbedding ?? undefined` as the seed load does (S9) | **A** — this change |
+
+Apply step (`reports/2026-11-04-12-test-and-state-verification.md`, `…-13-…`, `…-14-…`). *Agent's text: decided as
+lead engineer in an autonomous run, without the author.*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| P1 | The scratch databases `codemind_dis69` (steps 13 and 14, re-seeded instead of re-created) and `codemind_dis69_test` (integration specs) are not dropped: the kit's destructive-command hook denies `DROP DATABASE` and an autonomous run cannot confirm it; the hook is not worked around. They are local, isolated and hold only the synthetic seed; the shared database was never touched | **D** — accepted |
+| P2 | Stryker survivors of `hit-rate.ts`, `routes/ask.ts` and `cache-embed.ts` killed with new tests below the scenarios; the rest (entry-point guards, `DEFAULT_REPO_ROOT`, a `join(', ')` separator with at most one prior file, an `instanceof CliError` branch `toAskFailure` also covers) are equivalent or already present in `cache-build.ts` | **D** — accepted |
+| P3 | `usage.projectCache` appears only in the captures of `docs/DEMO.md` made in this change; the older captured responses of the guide are not retaken (they predate it, and the guide says so) | **D** — accepted |

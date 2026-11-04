@@ -217,9 +217,15 @@ npm run cli -- projects
 > codemind@0.0.1 cli
 > tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts projects
 
-acme-shop  a794456d-6d1b-5b55-a360-13fec83dc7bc  php/laravel  174 nodes · 170 edges  2024-05-06T09:31:00.000Z sample
-task-api  fba8e26b-1fb4-5b74-8352-d5d71ded7fe8  typescript/fastify  102 nodes · 100 edges  2024-09-02T13:07:00.000Z sample
+acme-shop  a794456d-6d1b-5b55-a360-13fec83dc7bc  php/laravel  174 nodes · 170 edges  2024-05-06T09:31:00.000Z  cache 0/0 sample
+task-api  fba8e26b-1fb4-5b74-8352-d5d71ded7fe8  typescript/fastify  102 nodes · 100 edges  2024-09-02T13:07:00.000Z  cache 0/0 sample
 ```
+
+El campo `cache <aciertos>/<consultas> (<tasa>%)` (DIS-69) cuenta las consultas `explain` del proyecto y las
+que salieron de la caché; con la base recién sembrada es `cache 0/0`. Tras tres veces la pregunta del paso 1
+y una pregunta con ancla que no está en la caché (`UNKNOWN (llm-required)`), la línea de acme-shop acaba en
+`cache 3/4 (75%) sample` (captura de Git Bash sobre una base de prueba, también con `pwsh` 7.6.9 y Windows
+PowerShell 5.1.26100.9818; `impact` no cuenta).
 
 ## Paso 1 — Preguntar cómo se calcula el precio final
 
@@ -529,10 +535,21 @@ HTTP 200
       "outputTokens": 0,
       "costUsd": 0,
       "latencyMs": 0
+    },
+    "projectCache": {
+      "queries": 2,
+      "cacheHits": 2,
+      "hitRatePct": 100
     }
   }
 }
 ```
+
+`usage.projectCache` (DIS-69) es la tasa de aciertos de caché del proyecto, leída después de la llamada:
+aquí, la segunda consulta de un proyecto recién sembrado. En la web, es la línea «Caché del proyecto: 100 %
+de aciertos (2 de 2 consultas)» bajo la línea de base del panel de uso. Las demás respuestas de esta guía
+se capturaron antes de DIS-69 y no muestran `projectCache`; hoy lo llevan todas las respuestas con
+afirmaciones.
 
 Una variante que solo cambia mayúsculas, tildes y puntuación. **No** es una reformulación: tiene la
 misma clave normalizada, así que es la misma entrada de la caché (DIS-21):
@@ -576,10 +593,16 @@ HTTP 200
 }
 ```
 
-> **Acierto por similitud (DIS-67, PH-05).** `readme.md` §1.3 pide *reformular* la pregunta y obtener
-> un acierto de caché por similitud. Existe solo en modo vivo con `LLM_EMBED_MODEL=nomic-embed-text`
-> (Ollama, 768 dimensiones, 0 $): se responde la pregunta original en vivo (se guarda con el vector de
-> su clave) y después una reformulación cercana, como «¿Cómo se calcula el precio total de un pedido?»
+> **Acierto por similitud (DIS-67, PH-05; vectores sembrados, DIS-69).** `readme.md` §1.3 pide *reformular*
+> la pregunta y obtener un acierto de caché por similitud. Existe solo en modo vivo con
+> `LLM_EMBED_MODEL=nomic-embed-text` (Ollama, 768 dimensiones, 0 $). Desde DIS-69 las respuestas *golden*
+> sembradas llevan ya el vector de su pregunta, así que no hace falta responder antes en vivo: con la semilla
+> cargada, la reformulación «¿Cómo se calcula el precio total de un pedido?» se sirve desde la entrada de
+> `Q1` (`npm run cli -- ask acme-shop "¿Cómo se calcula el precio total de un pedido?"` con
+> `LLM_BASE_URL=http://localhost:11434/v1 LLM_MODEL=qwen2.5-coder LLM_EMBED_MODEL=nomic-embed-text`: en
+> `query_log`, `cache_hit` verdadero y 0 tokens; capturado en Git Bash, `pwsh` 7.6.9 y Windows PowerShell
+> 5.1.26100.9818). Sin la semilla, se responde la pregunta original en vivo (se guarda con el vector de
+> su clave) y después una reformulación cercana, como la anterior
 > (similitud medida 0,926 con `nomic-embed-text`), sale con `cacheHit: true` y `costUsd: 0`, sin llamada
 > al modelo de respuesta. El umbral es 0,85: «Explícame el cálculo del precio final» (0,832) no lo
 > alcanza, y una pregunta con la misma estructura y otro sustantivo («…el envío de un pedido», 0,875)

@@ -1,6 +1,13 @@
 import type { FastifyInstance } from 'fastify';
-import { createInMemoryVerificationCache, explain as coreExplain } from '@codemind/core';
-import type { explain, ExplainAnswer, InvalidExplainRequest, LlmUnavailable, SourceUnavailable } from '@codemind/core';
+import { cacheHitRate, createInMemoryVerificationCache, explain as coreExplain } from '@codemind/core';
+import type {
+  explain,
+  ExplainAnswer,
+  InvalidExplainRequest,
+  LlmUnavailable,
+  ProjectCacheHitRate,
+  SourceUnavailable,
+} from '@codemind/core';
 import { DOMAIN_ERRORS } from '../plugins/error-handler.js';
 import type { DomainErrorMapping, DomainErrorTable } from '../plugins/error-handler.js';
 import { askBodySchema, askParamsSchema, askResponseSchema } from '../schemas/ask.js';
@@ -64,18 +71,21 @@ export interface AskRouteOptions {
  * only for `llm-required`, its message; an answered question gets public evidence ids `ev-1`, `ev-2`…
  * in evidence order, `path` published as `file`, and only the fields of `readme.md` §4. A statement
  * citing an id absent from the evidence breaks the use case's contract: it throws, never drops nor
- * invents an id.
+ * invents an id. The project's cache hit rate (DIS-69) joins the usage as `projectCache`.
  *
  * @param answer The answer of `explain`.
+ * @param projectCache The project's cache hit rate, read after the call: required for an answered
+ *   question (its absence is a route defect and throws), ignored for an `UNKNOWN`.
  * @returns The `200` body.
  */
-export function toPublicAnswer(answer: ExplainAnswer): AskResponse {
+export function toPublicAnswer(answer: ExplainAnswer, projectCache?: ProjectCacheHitRate): AskResponse {
   if (answer.kind === 'unknown') {
     const { reason, message } = answer;
     // The route enforces "message only for llm-required" itself, whatever the use case sends.
     const sendsMessage = reason === 'llm-required' && message !== undefined;
     return { answer: 'UNKNOWN', reason, ...(sendsMessage && { message }), statements: [], evidence: [] };
   }
+  if (projectCache === undefined) throw new Error('an answered answer needs the project cache hit rate');
   const publicIds = new Map(answer.evidence.map((entry, i) => [entry.id, `ev-${i + 1}`]));
   const publicId = (id: string): string => {
     const found = publicIds.get(id);
@@ -111,6 +121,7 @@ export function toPublicAnswer(answer: ExplainAnswer): AskResponse {
       cacheHit: usage.cacheHit,
       generation: { ...usage.generation },
       verification: { ...usage.verification },
+      projectCache: { ...projectCache },
     },
   };
 }
@@ -150,6 +161,10 @@ export function registerAskRoute(app: FastifyInstance, options: AskRouteOptions 
     // A broken citation is a system failure (DIS-68); every other event is information. Events hold
     // codes, ids, paths and lines only, never the question nor a span's text (design U5).
     for (const event of explained.events) request.log[event.type === 'evidence_broken' ? 'error' : 'info']({ ...event }, 'explain event');
-    return toPublicAnswer(explained);
+    // The hit rate is read after the call was logged, so it counts this call; only an answered
+    // question shows it. A `ProjectNotFound` here keeps the table's 404, any other failure is a 500.
+    const projectCache =
+      explained.kind === 'unknown' ? undefined : cacheHitRate(await app.deps.store.countExplainQueries(project.id));
+    return toPublicAnswer(explained, projectCache);
   });
 }

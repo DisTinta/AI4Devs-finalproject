@@ -181,7 +181,10 @@ export async function runCacheBuild(argv: string[], deps: CacheBuildDeps): Promi
       for (const id of projectPlan.asked) regenerated.set(id, await answerOne(id, plan, projectPlan, deps, now));
       const entries = project.questions.flatMap(({ id, question }): GoldenEntry[] => {
         const response = regenerated.get(id);
-        if (response !== undefined) return [{ id, question, questionNormalized: normalizeQuestion(question), response, reviews: [] }];
+        // A regenerated entry has no vector: `cache:embed` fills it (DIS-69 design S8).
+        if (response !== undefined) {
+          return [{ id, question, questionNormalized: normalizeQuestion(question), questionEmbedding: null, response, reviews: [] }];
+        }
         return projectPlan.kept.filter((entry) => entry.id === id);
       });
       const file: GoldenFile = {

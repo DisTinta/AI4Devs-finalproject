@@ -12,6 +12,7 @@ function questionsOf(project: string): readonly GoldenQuestion[] {
   return golden.questions;
 }
 import { cachedAnswer } from './cached-answer';
+import { embeddingVector } from './embedding-vector';
 
 // Factory of golden file values (DIS-26 design C9, `backend-standards.md` §7): each call returns a
 // fresh object, so no test can change what another one reads. The value is a valid golden file of
@@ -28,6 +29,17 @@ export const GOLDEN_CONTRACT_FINGERPRINT = `sha256:${'b'.repeat(64)}`;
 export const GOLDEN_ANSWER_FINGERPRINT = `sha256:${'c'.repeat(64)}`;
 
 /**
+ * A usable vector of `EMBEDDING_DIMENSIONS` components for a golden entry (DIS-69): a first component of
+ * `seed` and a second of 1, the rest 0. Pass it as `questionEmbedding` in the overrides of
+ * {@link goldenEntry}; entries have `null` by default.
+ *
+ * @param seed The first component, non-zero by default.
+ */
+export function goldenVector(seed = 1): number[] {
+  return embeddingVector(seed, 1);
+}
+
+/**
  * One golden entry of the golden question `id` of `project` with `cachedAnswer()` and no review, with
  * `overrides` applied on top (shallow).
  *
@@ -42,6 +54,7 @@ export function goldenEntry(id: string, overrides: Partial<GoldenEntry> = {}, pr
     id,
     question: golden.question,
     questionNormalized: normalizeQuestion(golden.question),
+    questionEmbedding: null,
     response: cachedAnswer(),
     reviews: [],
     ...overrides,

@@ -430,7 +430,8 @@ describe('runSeedLoad', () => {
     // Assert
     expect(exit).toBe(0);
     expect(log).toEqual(['load', 'store', 'save', 'save', 'save', 'commit', 'release']);
-    expect(saves).toEqual(file.entries.map((entry) => [ACME_ID, entry.questionNormalized, entry.response]));
+    // The golden saves pass the vector as a fourth argument (DIS-69 design S9).
+    expect(saves).toEqual(file.entries.map((entry) => [ACME_ID, entry.questionNormalized, entry.response, entry.questionEmbedding ?? undefined]));
   });
 
   it('builds no cache store when there is no golden file', async () => {
@@ -526,7 +527,7 @@ describe('runSeedLoad', () => {
     // Assert
     expect(exit).toBe(0);
     expect(saves).toEqual([
-      ...golden.entries.map((entry) => [ACME_ID, entry.questionNormalized, entry.response]),
+      ...golden.entries.map((entry) => [ACME_ID, entry.questionNormalized, entry.response, entry.questionEmbedding ?? undefined]),
       [ACME_ID, 'drift:', driftFile.entries[0]!.response],
     ]);
     expect(log.slice(-2)).toEqual(['commit', 'release']);

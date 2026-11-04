@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { checkGoldenFile, readGoldenFile, renderGoldenFile } from '../../../packages/cli/src/cache/golden-file';
 import { cachedAnswer, cachedNoEvidence } from '../../support/cached-answer';
-import { goldenEntry, goldenFile } from '../../support/golden-file';
+import { embeddingVector } from '../../support/embedding-vector';
+import { goldenEntry, goldenFile, goldenVector } from '../../support/golden-file';
 
 // Spec: openspec/changes/golden-cache-build/specs/golden-answers/spec.md → "Golden file format". Each
 // `it` named after a scenario is that scenario; the others are extra cases.
@@ -23,8 +24,11 @@ function reversedKeys(value: unknown): unknown {
 describe('golden file render', () => {
   it('The canonical render is stable', () => {
     // Arrange
+    // The first entry has a usable vector (DIS-69), the others `null`.
     const value = goldenFile({
-      entries: goldenFile().entries.map((entry, i) => (i === 0 ? { ...entry, reviews: [{ by: 'author', date: '2026-10-17' }] } : entry)),
+      entries: goldenFile().entries.map((entry, i) =>
+        i === 0 ? { ...entry, reviews: [{ by: 'author', date: '2026-10-17' }], questionEmbedding: goldenVector() } : entry,
+      ),
     });
 
     // Act
@@ -40,6 +44,12 @@ describe('golden file render', () => {
     expect(first.endsWith('}\n')).toBe(true);
     expect(first.endsWith('\n\n')).toBe(false);
     expect(first.split('\n')[1]).toBe('  "format": 1,');
+    // In every entry `questionEmbedding` comes right after `questionNormalized` and right before `response`.
+    const keysOfEntries = (JSON.parse(first) as { entries: Record<string, unknown>[] }).entries.map((entry) => Object.keys(entry));
+    for (const keys of keysOfEntries) {
+      expect(keys.indexOf('questionEmbedding')).toBe(keys.indexOf('questionNormalized') + 1);
+      expect(keys.indexOf('response')).toBe(keys.indexOf('questionEmbedding') + 1);
+    }
   });
 
   it('refuses to render a value that is not a golden file', () => {
@@ -76,6 +86,10 @@ describe('golden file check', () => {
       withFirstEntry((entry) => void (entry.id = 'X1')),
       withFirstEntry((entry) => void (entry.reviews = [{ by: 'author', date: '2026-13-01' }])),
       withFirstEntry((entry) => void delete entry.reviews),
+      withFirstEntry((entry) => void delete entry.questionEmbedding),
+      withFirstEntry((entry) => void (entry.questionEmbedding = goldenVector().slice(1))),
+      withFirstEntry((entry) => void (entry.questionEmbedding = ['1', ...goldenVector().slice(1)])),
+      withFirstEntry((entry) => void (entry.questionEmbedding = embeddingVector())),
     ];
 
     // Act

@@ -1,6 +1,6 @@
 import type { ClientBase } from 'pg';
 import { describe, expect, it } from 'vitest';
-import type { Project } from '@codemind/core';
+import type { ExplainQueryCounts, Project } from '@codemind/core';
 import type { OpenTransaction } from '../../../packages/cli/src/compose-index';
 import { formatProjectLine, runProjectsCommand } from '../../../packages/cli/src/commands/projects';
 
@@ -20,6 +20,10 @@ interface FakeOptions {
   env?: Record<string, string | undefined>;
   projects?: Project[];
   listError?: Error;
+  /** The explain query counts the read answers per project id; zeros when absent (DIS-69). */
+  counts?: Record<string, ExplainQueryCounts>;
+  /** The project whose count read rejects (DIS-69). */
+  countFailsFor?: string;
   /** Use the real default transaction factory instead of the fake. */
   realFactory?: boolean;
 }
@@ -46,6 +50,11 @@ async function run(argv: string[], options: FakeOptions = {}): Promise<Run> {
       log.push('list');
       if (options.listError) throw options.listError;
       return options.projects ?? [];
+    },
+    countExplainQueries: async (_client, projectId) => {
+      log.push('count');
+      if (options.countFailsFor === projectId) throw new Error('boom at /secret/path');
+      return options.counts?.[projectId] ?? { queries: 0, cacheHits: 0 };
     },
   });
   return { exit, stdout, stderr, stderrLines: stderr.split('\n').filter((line) => line !== ''), log };
@@ -127,10 +136,10 @@ describe('runProjectsCommand', () => {
     expect(result.exit).toBe(0);
     expect(result.stderr).toBe('');
     expect(result.stdout).toBe(
-      'acme-shop  a794456d-6d1b-5b55-a360-13fec83dc7bc  php/laravel  174 nodes · 170 edges  2024-05-06T09:31:00.000Z sample\n' +
-        'mine  00000000-0000-4000-8000-000000000001  php/-  0 nodes · 0 edges  not indexed\n',
+      'acme-shop  a794456d-6d1b-5b55-a360-13fec83dc7bc  php/laravel  174 nodes · 170 edges  2024-05-06T09:31:00.000Z  cache 0/0 sample\n' +
+        'mine  00000000-0000-4000-8000-000000000001  php/-  0 nodes · 0 edges  not indexed  cache 0/0\n',
     );
-    expect(result.log).toEqual(['open', 'list', 'rollback', 'release']);
+    expect(result.log).toEqual(['open', 'list', 'count', 'count', 'rollback', 'release']);
   });
 
   it('names the missing variable, strips the parser prefix from usage errors, and describes the command', async () => {
@@ -158,7 +167,31 @@ describe('runProjectsCommand', () => {
     expect(result.stderr).not.toContain('/secret/path');
     expect(result.log).toEqual(['open', 'list', 'rollback', 'release']);
   });
+
+  // DIS-69 (change cache-hit-rate, specs/cli-projects/spec.md → "Project listing").
+  it('A failing count read is an unexpected error', async () => {
+    // Arrange
+    const first = project({ name: 'a', id: '00000000-0000-4000-8000-000000000001' });
+    const second = project({ name: 'b', id: '00000000-0000-4000-8000-000000000002' });
+
+    // Act
+    const failing = await run(['projects'], { projects: [first, second], countFailsFor: second.id });
+    const empty = await run(['projects'], { projects: [], countFailsFor: first.id });
+
+    // Assert
+    expect(failing.exit).toBe(1);
+    expect(errorOf(failing)).toEqual({ code: 'INTERNAL', message: 'unexpected error; nothing was changed', details: {} });
+    expect(failing.stderr).not.toContain('/secret/path');
+    expect(failing.log).toEqual(['open', 'list', 'count', 'count', 'rollback', 'release']);
+    expect(empty.exit).toBe(0);
+    expect(empty.stdout).toBe('no projects\n');
+    expect(empty.stderr).toBe('');
+    expect(empty.log).toEqual(['open', 'list', 'rollback', 'release']);
+  });
 });
+
+/** The counts of a project without `explain` queries. */
+const NO_QUERIES: ExplainQueryCounts = { queries: 0, cacheHits: 0 };
 
 describe('formatProjectLine', () => {
   it('escapes a name, language or framework holding a control or a terminal-unsafe character, and only those', () => {
@@ -166,30 +199,59 @@ describe('formatProjectLine', () => {
     const ESC = String.fromCharCode(27);
     const line = formatProjectLine(
       project({ name: `two${NL}lines`, framework: `x${ESC}[31m` as Project['framework'], language: 'php' }),
+      NO_QUERIES,
     );
 
     expect(line).toBe(
-      `${JSON.stringify(`two${NL}lines`)}  00000000-0000-4000-8000-000000000001  php/${JSON.stringify(`x${ESC}[31m`)}  0 nodes · 0 edges  not indexed`,
+      `${JSON.stringify(`two${NL}lines`)}  00000000-0000-4000-8000-000000000001  php/${JSON.stringify(`x${ESC}[31m`)}  0 nodes · 0 edges  not indexed  cache 0/0`,
     );
     expect(line).not.toContain(NL);
     expect(line).not.toContain(ESC);
   });
 
   it('prints printable values as they are, spaces and non-ASCII letters included', () => {
-    expect(formatProjectLine(project({ name: 'my shop ñ', framework: 'laravel' }))).toBe(
-      'my shop ñ  00000000-0000-4000-8000-000000000001  php/laravel  0 nodes · 0 edges  not indexed',
+    expect(formatProjectLine(project({ name: 'my shop ñ', framework: 'laravel' }), NO_QUERIES)).toBe(
+      'my shop ñ  00000000-0000-4000-8000-000000000001  php/laravel  0 nodes · 0 edges  not indexed  cache 0/0',
     );
   });
 
   it('fills the template with two spaces between fields', () => {
-    expect(formatProjectLine(project({ framework: 'fastify', nodeCount: 3, edgeCount: 2, indexedAt: new Date('2025-02-03T04:05:06.007Z') }))).toBe(
-      'mine  00000000-0000-4000-8000-000000000001  php/fastify  3 nodes · 2 edges  2025-02-03T04:05:06.007Z',
-    );
+    expect(
+      formatProjectLine(project({ framework: 'fastify', nodeCount: 3, edgeCount: 2, indexedAt: new Date('2025-02-03T04:05:06.007Z') }), NO_QUERIES),
+    ).toBe('mine  00000000-0000-4000-8000-000000000001  php/fastify  3 nodes · 2 edges  2025-02-03T04:05:06.007Z  cache 0/0');
   });
 
   it('marks a sample, writes - without framework and not indexed without indexedAt', () => {
-    expect(formatProjectLine(project({ isSample: true }))).toBe(
-      'mine  00000000-0000-4000-8000-000000000001  php/-  0 nodes · 0 edges  not indexed sample',
+    expect(formatProjectLine(project({ isSample: true }), NO_QUERIES)).toBe(
+      'mine  00000000-0000-4000-8000-000000000001  php/-  0 nodes · 0 edges  not indexed  cache 0/0 sample',
     );
+  });
+
+  // DIS-69 (change cache-hit-rate, specs/cli-projects/spec.md → "Project listing").
+  it('The cache field writes the hit rate with at most one decimal', () => {
+    // Arrange: (queries, cache hits)
+    const pairs: Array<[number, number]> = [
+      [3, 1],
+      [2, 1],
+      [16, 1],
+      [5, 5],
+      [1, 0],
+      [0, 0],
+    ];
+
+    // Act
+    const caches = pairs.map(([queries, cacheHits]) =>
+      formatProjectLine(project({ isSample: true }), { queries, cacheHits }).split('  ').pop(),
+    );
+
+    // Assert
+    expect(caches).toEqual([
+      'cache 1/3 (33.3%) sample',
+      'cache 1/2 (50%) sample',
+      'cache 1/16 (6.3%) sample',
+      'cache 5/5 (100%) sample',
+      'cache 0/1 (0%) sample',
+      'cache 0/0 sample',
+    ]);
   });
 });

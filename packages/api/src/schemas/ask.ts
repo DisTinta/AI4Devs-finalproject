@@ -55,7 +55,11 @@ export const askBodySchema = z.strictObject({
 /** The body of `POST /api/projects/{projectId}/ask`. */
 export type AskBody = z.infer<typeof askBodySchema>;
 
-/** The usage of an answered question (`readme.md` §4): exactly the fields of core's `AnswerUsage`. */
+/**
+ * The usage of an answered question (`readme.md` §4): the fields of core's `AnswerUsage` plus the
+ * project's cache hit rate (DIS-69), `projectCache`: the counts of the project's `explain` queries
+ * (including this call whenever the use case logged it) and `hitRatePct`, `null` without queries.
+ */
 export const askUsageSchema = z.object({
   inputTokens: z.int(),
   outputTokens: z.int(),
@@ -73,6 +77,11 @@ export const askUsageSchema = z.object({
     outputTokens: z.int(),
     costUsd: z.number(),
     latencyMs: z.int(),
+  }),
+  projectCache: z.strictObject({
+    queries: z.int().min(0),
+    cacheHits: z.int().min(0),
+    hitRatePct: z.number().min(0).max(100).nullable(),
   }),
 });
 

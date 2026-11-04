@@ -20,6 +20,8 @@ import { inOwnSnapshot } from '../helpers/snapshot';
 // integration-test-races design D2, D8); inside the snapshot they are invisible.
 
 const SEED = readFileSync(resolve('seeds/graph-dump.sql'), 'utf8');
+/** The seed's id of acme-shop. */
+const ACME_SHOP_ID = 'a794456d-6d1b-5b55-a360-13fec83dc7bc';
 
 function savepointTransaction(client: Client, log: string[]): OpenTransaction {
   return async () => {
@@ -77,6 +79,26 @@ describeWithDatabase('projects (integration)', () => {
       const freshId = await store.createProject({ name: unique('fresh'), rootPath: '/repos/fresh', language: 'typescript' });
       const indexedProject = await store.getProject(indexedId);
       const freshProjectName = (await store.getProject(freshId)).name;
+      // DIS-69: acme-shop's 10 explain rows (4 cache hits) and 2 impact rows (cache hits that never count).
+      const logRow = (capability: 'explain' | 'impact', cacheHit: boolean) =>
+        store.saveQueryLog({
+          projectId: ACME_SHOP_ID,
+          question: '¿Cómo se calcula el precio final de un pedido?',
+          capability,
+          inputTokens: 0,
+          outputTokens: 0,
+          baselineTokens: null,
+          costUsd: 0,
+          latencyMs: 1,
+          cacheHit,
+          verifyInputTokens: 0,
+          verifyOutputTokens: 0,
+          verifyCostUsd: 0,
+          verifyCalls: 0,
+          verifyLatencyMs: null,
+        });
+      for (let i = 0; i < 10; i += 1) await logRow('explain', i < 4);
+      for (let i = 0; i < 2; i += 1) await logRow('impact', true);
       const counts = await tableCounts(client);
 
       // Act
@@ -97,13 +119,13 @@ describeWithDatabase('projects (integration)', () => {
     expect(result.exit).toBe(0);
     expect(result.stderr).toBe('');
     const expected = new Map([
-      ['acme-shop', 'acme-shop  a794456d-6d1b-5b55-a360-13fec83dc7bc  php/laravel  174 nodes · 170 edges  2024-05-06T09:31:00.000Z sample'],
-      ['task-api', 'task-api  fba8e26b-1fb4-5b74-8352-d5d71ded7fe8  typescript/fastify  102 nodes · 100 edges  2024-09-02T13:07:00.000Z sample'],
+      ['acme-shop', `acme-shop  ${ACME_SHOP_ID}  php/laravel  174 nodes · 170 edges  2024-05-06T09:31:00.000Z  cache 4/10 (40%) sample`],
+      ['task-api', 'task-api  fba8e26b-1fb4-5b74-8352-d5d71ded7fe8  typescript/fastify  102 nodes · 100 edges  2024-09-02T13:07:00.000Z  cache 0/0 sample'],
       [
         indexedName,
-        `${indexedName}  ${indexed}  php/laravel  ${stored.nodeCount} nodes · ${stored.edgeCount} edges  ${stored.indexedAt?.toISOString()}`,
+        `${indexedName}  ${indexed}  php/laravel  ${stored.nodeCount} nodes · ${stored.edgeCount} edges  ${stored.indexedAt?.toISOString()}  cache 0/0`,
       ],
-      [freshName, `${freshName}  ${fresh}  typescript/-  0 nodes · 0 edges  not indexed`],
+      [freshName, `${freshName}  ${fresh}  typescript/-  0 nodes · 0 edges  not indexed  cache 0/0`],
     ]);
     const names = [...expected.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
     expect(result.stdout).toBe(names.map((name) => `${expected.get(name)}\n`).join(''));

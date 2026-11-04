@@ -13,7 +13,7 @@ import type {
 } from '../knowledge/graph-read.js';
 import type { NewProject, Project } from '../knowledge/project.js';
 import type { CacheEntry, SimilarCacheEntry } from '../knowledge/cache-entry.js';
-import type { QueryLogEntry } from '../knowledge/query-log.js';
+import type { ExplainQueryCounts, QueryLogEntry } from '../knowledge/query-log.js';
 import type { ClaimItem, ClaimRefresh, ClaimSpan, SavedClaim, StoredClaim } from '../knowledge/stored-claim.js';
 
 /**
@@ -232,6 +232,19 @@ export interface StorePort {
    *   savepoint on a caller-owned transaction, propagates unchanged.
    */
   saveQueryLog(entry: QueryLogEntry): Promise<void>;
+
+  /**
+   * Counts the project's `explain` queries (DIS-69 design S2): `queries`, the `query_log` rows of the
+   * project with capability `explain`, and `cacheHits`, those with the cache flag `true`, both integers
+   * from 0; rows of other capabilities and of other projects never count, and a project without rows
+   * resolves with `{ queries: 0, cacheHits: 0 }`. Checks, in this order: `projectId` well formed
+   * (before any statement); then the project exists, told apart from one without rows by the same
+   * statement, which starts from the project row. One parameterised statement. Never writes; on a
+   * caller-owned transaction it reads inside it and neither commits nor rolls it back.
+   *
+   * @throws ProjectNotFound when `projectId` is malformed (before any statement) or names no project.
+   */
+  countExplainQueries(projectId: string): Promise<ExplainQueryCounts>;
 
   /**
    * Finds the project's answer cache entry under `questionNormalized` (DIS-21 design C3): its id and

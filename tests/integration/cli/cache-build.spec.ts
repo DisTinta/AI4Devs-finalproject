@@ -13,6 +13,7 @@ import { answerFingerprint } from '../../../packages/cli/src/cache/answer-finger
 import { GOLDEN_PROJECTS } from '../../../packages/cli/src/cache/demo-questions';
 import { checkGoldenFile, renderGoldenFile } from '../../../packages/cli/src/cache/golden-file';
 import type { GoldenFile } from '../../../packages/cli/src/cache/golden-file';
+import { goldenVector } from '../../support/golden-file';
 import type { OpenTransaction } from '../../../packages/cli/src/compose-index';
 import { createScriptedLlm, modelOutput, promptView } from '../../support/scripted-llm';
 import type { PromptView, Script, ScriptedLlm } from '../../support/scripted-llm';
@@ -337,6 +338,8 @@ describeWithDatabase('cache build (integration)', () => {
       expect(first.exit).toBe(0);
       const reviewed = JSON.parse(readFileSync(output, 'utf8')) as GoldenFile;
       reviewed.entries[0].reviews = [{ by: 'author', date: '2026-10-17' }];
+      // DIS-69: every entry (Q1, Q3, Q4) holds a usable vector.
+      reviewed.entries.forEach((entry, i) => void (entry.questionEmbedding = goldenVector(i + 1)));
       writeFileSync(output, renderGoldenFile(reviewed));
 
       // Act
@@ -356,12 +359,16 @@ describeWithDatabase('cache build (integration)', () => {
       expect(after.entries[2]).toEqual(reviewed.entries[2]);
       expect(after.entries[1].reviews).toEqual([]);
       expect(JSON.stringify(after.entries[1].response)).toContain('Los cupones se validan en CouponValidator.');
+      // Q1's and Q4's vectors are kept, the regenerated Q3 has none (DIS-69 design S8).
+      expect(after.entries.map((entry) => entry.questionEmbedding)).toEqual([goldenVector(1), null, goldenVector(3)]);
 
       // And a run without arguments regenerates the three, every `reviews` empty.
       const full = await build(db(), { output });
       expect(full.exit).toBe(0);
       expect(askedIds(full.model)).toEqual(['Q1', 'Q3', 'Q4']);
-      expect((JSON.parse(readFileSync(output, 'utf8')) as GoldenFile).entries.map((entry) => entry.reviews)).toEqual([[], [], []]);
+      const rebuilt = JSON.parse(readFileSync(output, 'utf8')) as GoldenFile;
+      expect(rebuilt.entries.map((entry) => entry.reviews)).toEqual([[], [], []]);
+      expect(rebuilt.entries.map((entry) => entry.questionEmbedding)).toEqual([null, null, null]);
     },
     TIMEOUT_MS * 2,
   );

@@ -10,6 +10,8 @@ import { createPostgresStore, loadSeed } from '@codemind/adapter-store-postgres'
 import { normalizeQuestion, withDailyBudget } from '@codemind/core';
 import type { LlmPort, StorePort } from '@codemind/core';
 import { buildApp } from '../../../packages/api/src/app';
+import { readGoldenFile } from '../../../packages/cli/src/cache/golden-file';
+import type { GoldenFile } from '../../../packages/cli/src/cache/golden-file';
 import { seedProjects } from '../../../packages/cli/src/seed/parse-seed';
 import { describeWithDatabase, useTransactionPerTest } from '../helpers/db';
 import { cachedAnswer } from '../../support/cached-answer';
@@ -127,6 +129,8 @@ describeWithDatabase('POST /api/projects/{projectId}/ask over the seed (integrat
       const model = calculatorModel();
       const target = await appOver(store, model.llm);
       const before = await claimCount();
+      const logged = await db().query<{ n: number }>('SELECT count(*)::int AS n FROM query_log WHERE project_id = $1', [projectId]);
+      expect(logged.rows[0]!.n).toBe(0);
 
       // Act
       const response = await target.inject({ method: 'POST', url: `/api/projects/${projectId}/ask`, payload: { question: Q1 } });
@@ -152,9 +156,11 @@ describeWithDatabase('POST /api/projects/{projectId}/ask over the seed (integrat
         'inputTokens',
         'latencyMs',
         'outputTokens',
+        'projectCache',
         'savingsPct',
         'verification',
       ]);
+      expect(body.usage.projectCache).toEqual({ queries: 1, cacheHits: 0, hitRatePct: 0 });
       expect(Object.keys(body.usage.generation).sort()).toEqual(['costUsd', 'inputTokens', 'outputTokens']);
       expect(Object.keys(body.usage.verification).sort()).toEqual(['cacheHits', 'calls', 'costUsd', 'inputTokens', 'latencyMs', 'outputTokens']);
       expect(response.body).not.toMatch(UUID);
@@ -162,6 +168,45 @@ describeWithDatabase('POST /api/projects/{projectId}/ask over the seed (integrat
         expect(response.body).not.toContain(`"${key}"`);
       }
       expect((await claimCount()) - before).toBe(1);
+    },
+    TIMEOUT_MS,
+  );
+
+  // DIS-69 (change cache-hit-rate), requirement "Ask answered response".
+  it(
+    "The usage carries the project's cache hit rate over the seed",
+    async () => {
+      // Arrange: the golden answers of both projects saved as the seed load saves them
+      const { store, projectId } = await seeded();
+      const taskApi = (await store.listProjects()).find((p) => p.name === 'task-api')!.id;
+      const goldenOf = (name: string): GoldenFile => {
+        const read = readGoldenFile(resolve(`seeds/cache/${name}.json`));
+        if (!read.ok) throw new Error(`cannot read the golden file of ${name}`);
+        return read.value as GoldenFile;
+      };
+      const golden = { 'acme-shop': goldenOf('acme-shop'), 'task-api': goldenOf('task-api') };
+      for (const [name, id] of [['acme-shop', projectId], ['task-api', taskApi]] as const) {
+        for (const entry of golden[name].entries) {
+          await store.saveCacheEntry(id, entry.questionNormalized, entry.response, entry.questionEmbedding ?? undefined);
+        }
+      }
+      const evaluation = createScriptedLlm('evaluation');
+      const target = await appOver(store, evaluation.llm);
+      const send = (id: string, question: string) =>
+        target.inject({ method: 'POST', url: `/api/projects/${id}/ask`, payload: { question } });
+
+      // Act
+      const first = await send(projectId, Q1);
+      const second = await send(projectId, Q1);
+      const other = await send(taskApi, golden['task-api'].entries[0]!.question);
+
+      // Assert
+      expect([first.statusCode, second.statusCode, other.statusCode]).toEqual([200, 200, 200]);
+      for (const response of [first, second, other]) expect(response.json().usage.cacheHit).toBe(true);
+      expect(first.json().usage.projectCache).toEqual({ queries: 1, cacheHits: 1, hitRatePct: 100 });
+      expect(second.json().usage.projectCache).toEqual({ queries: 2, cacheHits: 2, hitRatePct: 100 });
+      expect(other.json().usage.projectCache).toEqual({ queries: 1, cacheHits: 1, hitRatePct: 100 });
+      expect(evaluation.requests).toHaveLength(0);
     },
     TIMEOUT_MS,
   );
