@@ -1264,3 +1264,14 @@ The table has no empty rows.
   >
   > - B1: la tarea 10.9 solo comprueba `seeds/graph-dump.sql`, pero `npm run seed:build` también reescribe `packages/web/src/data/sample-projects.ts`. Además, deja sin decidir si `npm run verify` se ejecuta en local, lo que exigiría `db:seed` sobre la base compartida y desharía la restauración de la prueba manual. Se corrige así: `git status --porcelain` vacío tras `seed:build` (si no, se restauran los dos ficheros y se para); la evidencia de `verify` es el job de CI del PR #105 o una base de datos temporal, nunca un `db:seed` sobre la base local compartida.
   > - Mejoras: I1, la tarea 10.10 vuelve a comprobar los indicadores de 0.3; I2, en la tarea 4.7, E tiene exactamente el instante de creación de D.
+
+## Resolution of run 2 (2026-11-04)
+
+Correction round 2 of the relaunch. *Agent's text: decided as lead engineer in an autonomous run, without the author.* The run had no questions for the author. Every decision is recorded in `design.md` → Follow-ups, table "Relaunch of the autonomous run (2026-11-04)", rows "Run 2 · B1", "Run 2 · I1" and "Run 2 · I2"; none has destination C. `openspec validate semantic-cache --strict` passes. Tasks 4.7, 10.9 and 10.10 remain open and are executed after an approving audit.
+
+| Finding | Resolution |
+|---|---|
+| B1 | Fixed. Task 10.9 now names both tracked files `npm run seed:build` rewrites, checks `git status --porcelain` is empty and otherwise restores both files and stops; the `verify` evidence is the CI `verify` job of PR #105 on the head commit, and a local run is allowed only against a scratch database created and dropped for it, never with `db:seed` on the shared local database; the addendum of 10.10 records the evidence used |
+| I1 | Fixed. Task 10.10 re-checks the 0.3 indicators (`project`, `cache_entry`, `query_log` counts and `question_embedding IS NOT NULL` count as in 10.1) and the absence of `.stryker-tmp/`, and restores and documents any difference |
+| I2 | Fixed. Task 4.7 seeds E after D with D's embedding and exactly D's creation instant |
+| Linear | The comment of this round is posted on DIS-67 (in Spanish); the `[original]` and `[enhanced]` blocks are not touched |
