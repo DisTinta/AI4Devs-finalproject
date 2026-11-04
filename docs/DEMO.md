@@ -26,6 +26,7 @@ se escribe con `'--'` entre comillas o con `npm.cmd`; los de esta guía sin opci
 | Base de datos | una base de datos nueva y vacía (ver el paso 0) |
 | Respuestas golden (pasos 1, 2 y 5; web, puntos 8 y 9) | recapturadas el 2026-10-27 en la rama `feature/dis-104-answer-language` (Git Bash, modo evaluación, base de datos local recién sembrada con `npm run db:seed`), porque DIS-104 regeneró las respuestas golden: la salida de `ask` del paso 1, los recuentos y latencias de `demo:ask` de los pasos 1 y 5 y el valor de confianza de la web. El resto de la guía es de la captura de 2026-10-20. El 2026-10-28 DIS-107 volvió a regenerar las respuestas golden (corrección del analizador de TypeScript) después de esa captura de DIS-104: la salida de `ask` de los pasos 1 y 6 se recapturó ese día en Git Bash, pero los recuentos y latencias de `demo:ask` de los pasos 1 y 5, el valor de confianza de la web y las capturas de pantalla siguen siendo los de DIS-104 y no se han vuelto a tomar |
 | Paso 4 (`impact`, DIS-90) | 2026-10-30, commit `66411f6` (`final-project-CRN`), copia de trabajo del repositorio con la base de datos local sembrada, modo evaluación. Ejecutado por el agente en PowerShell 7.6.9 y en Windows PowerShell 5.1 (`powershell.exe -NoProfile`): las dos salidas son idénticas entre sí y a la pegada, que es la de Git Bash, y el comando termina con código `0`. Las comillas de la pregunta funcionan igual en las dos versiones de PowerShell. DIS-94 añadió las secciones `DOCUMENTACIÓN` e `HISTORIAL`: recapturado el 2026-11-02 sobre el commit `a7fb8d8` (rama `feature/dis-94-impact-history-docs`) en Git Bash, PowerShell 7.6.9 y Windows PowerShell 5.1, con las tres salidas idénticas y código `0` |
+| Paso 7 (`drift`, DIS-73) | 2026-11-03, rama `feature/dis-73-cli-drift-golden`, copia de trabajo con la base de datos local sembrada con `npm run db:seed`. Ejecutado por el agente en PowerShell 7.6.9 (`pwsh -NoProfile`) y en Windows PowerShell 5.1.26100 (`powershell.exe -NoProfile`) con la forma `--env-file` del paso, porque el `.env` de la máquina configura Ollama: las dos salidas son idénticas entre sí y a la pegada, y el comando termina con código `0`; con el mismo fichero, `drift acme-shop --doc docs/pricing.md` imprimió `UNKNOWN (llm-required)`, lo que prueba que las variables `LLM_*` llegaron vacías. En Git Bash se ejecutó además `LLM_BASE_URL= LLM_API_KEY= npm run cli -- drift acme-shop`, con la misma salida |
 | `Probar con un modelo real` | 2026-10-20, rama `feature/DIS-103-real-model-clean-clone` clonada en una carpeta nueva, Git Bash: Ollama 0.40.5 **solo en CPU**, `qwen2.5-coder`, `OLLAMA_CONTEXT_LENGTH=16384`, `LLM_TIMEOUT_MS=1200000`. Duraciones medidas: CLI 8 min 28 s; API 300,9 s (pregunta repetida con la caché desactivada); web en Chromium 597,7 s (otra pregunta, «¿Qué hace ShippingService?»). La salida de la CLI pegada en esa sección es de otra captura, la de DIS-104 (2026-10-26, rama `feature/dis-104-answer-language`, Git Bash, Ollama 0.40.11 solo en CPU con `OLLAMA_CONTEXT_LENGTH=16384`, `qwen2.5-coder`, `LLM_TIMEOUT_MS=1200000`, primera llamada tras `npm run db:seed`, así que no salió de la caché): 598 s, con la salida de error mezclada como en las anteriores |
 
 Los únicos cambios hechos a la salida pegada:
@@ -628,6 +629,103 @@ UNKNOWN (no-anchor)
 
 Una pregunta libre en vivo sobre `task-api` necesita su historial de Git: `npm run up` lo construye
 (ver [El historial de `acme-shop` y de `task-api`](#el-historial-de-acme-shop-y-de-task-api)).
+
+## Paso 7 — Comprobar si la documentación contradice el código (`drift`)
+
+`drift` (F6, DIS-73) lee los documentos guardados de un proyecto, extrae lo que afirman sobre el
+comportamiento del sistema y busca las afirmaciones que el código, los tests o la configuración
+contradicen. Imprime un bloque por documento, con la cita del documento y las citas de código de cada
+contradicción, y cada ejecución deja una fila `drift` en `query_log`. En modo evaluación imprime el
+informe *golden* versionado en `seeds/drift/acme-shop.json` (que `npm run db:seed` carga en la
+caché con la clave `drift:`), sin llamar a ningún modelo y a coste 0. Con un `.env` copiado de
+`.env.example` (todas las variables `LLM_*` vacías) el comando es este:
+
+```shell
+npm run cli -- drift acme-shop
+```
+
+Si tu `.env` configura un modelo, el informe *golden* sale igual (la caché se consulta también en
+modo live), pero para comprobar que el modo evaluación no llama a ningún modelo hay que vaciar
+`LLM_BASE_URL` y `LLM_API_KEY` en ese comando. En PowerShell no sirve `$env:LLM_BASE_URL=''`:
+asignar una cadena vacía borra la variable y el precarga de `.env` la vuelve a rellenar. La forma que
+funciona en las dos terminales es la opción `--env-file` de Node con un fichero de dos líneas
+(`LLM_BASE_URL=` y `LLM_API_KEY=`), que pone las dos variables a cadena vacía antes de que cargue
+`.env`, donde una variable ya definida gana:
+
+```shell
+npx tsx --env-file=<fichero> --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts drift acme-shop
+```
+
+El informe golden de acme-shop se generó con `npm run drift:build` y un modelo local pequeño
+(`qwen2.5-coder`), y **no está revisado** (`reviews: []`): una de sus dos contradicciones es un falso
+positivo del modelo (ver `fixtures/README.md`). Salida del comando, con el comando terminado en código
+`0`:
+
+```text
+README.md: 1 claims checked, 0 omitted, 0 dropped, 1 contradictions
+1. [INFERENCE] The final price of an order is computed by the `App\Services\PriceCalculator::compute()` method.
+   claim: The final price of an order is computed by the `App\Services\PriceCalculator::compute()` method.
+   doc: README.md:9-9 (cited)
+      The core question the code answers is **"how is the final price of an order
+   code: app/Services/PriceCalculator.php:16-44 (cited)
+      class PriceCalculator
+      {
+          public function __construct(
+              private readonly DiscountService $discounts,
+              private readonly TaxService $taxes,
+      … (+24 lines)
+
+docs/pricing.md: 2 claims checked, 0 omitted, 0 dropped, 1 contradictions
+1. [INFERENCE] Orders over €50.00 do not ship for free, instead, there is a minimum threshold for free shipping.
+   claim: Orders over €50.00 ship for free.
+   doc: docs/pricing.md:31-31 (cited)
+      A flat per-country fee applies. **Orders over €50.00 ship for free.**
+   code: tests/Unit/ShippingServiceTest.php:19-27 (entailed)
+          public function test_free_above_threshold(): void
+          {
+              config(['shop.free_shipping_threshold' => 75.00]);
+              $order = new Order(['shipping_country' => 'ES']);
+
+      … (+4 lines)
+   code: app/Services/ShippingService.php:16-35 (entailed)
+      class ShippingService
+      {
+          public function __construct(private readonly CarrierGateway $carrier)
+          {
+          }
+      … (+15 lines)
+   code: tests/Unit/DiscountServiceTest.php:44-56 (cited)
+          public function test_volume_bonus_applies_above_five_lines(): void
+          {
+              Event::fake();
+              $coupons = Mockery::mock(CouponValidator::class);
+              $coupons->shouldReceive('percentFor')->andReturn(0.0);
+      … (+8 lines)
+   code: tests/Unit/DiscountServiceTest.php:70-81 (cited)
+          public function test_total_discount_is_capped_at_thirty_percent(): void
+          {
+              Event::fake();
+              $coupons = Mockery::mock(CouponValidator::class);
+              $coupons->shouldReceive('percentFor')->andReturn(25.0);
+      … (+7 lines)
+   code: tests/Unit/PriceCalculatorTest.php:29-56 (cited)
+          public function test_discount_is_applied_before_tax(): void
+          {
+              $subtotal = Money::fromCents(10000);   // €100.00
+              $discount = Money::fromCents(1000);    // €10.00
+              $discountedBase = Money::fromCents(9000);
+      … (+23 lines)
+
+note: golden report (answer cache)
+```
+
+Un proyecto sin informe *golden* (`drift task-api`) o un documento concreto (`--doc docs/pricing.md`,
+clave `drift:docs/pricing.md`) responde en modo evaluación:
+
+```text
+UNKNOWN (llm-required)
+evaluation mode (cache-only): set LLM_* to enable drift
+```
 
 ## Comprobar la instalación
 

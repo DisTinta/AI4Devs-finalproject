@@ -350,12 +350,13 @@ task-api: 28 commits, 3 authors -> <repo>\fixtures\task-api\.git
 
 #### El mismo flujo por CLI
 
-Sin necesidad de abrir la web (`projects`, `ask` e `impact` leen `DATABASE_URL` de `.env`):
+Sin necesidad de abrir la web (`projects`, `ask`, `impact` y `drift` leen `DATABASE_URL` de `.env`):
 
 ```shell
 npm run cli -- projects
 npm run cli -- ask acme-shop "¿Cómo se calcula el precio final de un pedido?"
 npm run cli -- impact acme-shop "cambiar los descuentos de DiscountService"
+npm run cli -- drift acme-shop
 npm run cli -- ask task-api "¿Cómo valida taskRoutes las peticiones entrantes?"
 ```
 
@@ -505,7 +506,7 @@ Las semillas se regeneran con `npm run seed:build`, que indexa los dos repositor
 flowchart TB
     subgraph client["Cliente"]
         WEB["Web · React 18 + Vite<br/>3 pantallas"]
-        CLI["CLI · commander<br/>index · ask · impact · projects<br/>drift · previsto F6"]
+        CLI["CLI · commander<br/>index · ask · impact · projects · drift"]
     end
 
     subgraph api["API · Node 22 + Fastify"]
@@ -585,7 +586,7 @@ flowchart TB
 
 | Componente | Tecnología | Responsabilidad |
 |---|---|---|
-| CLI | TypeScript + `commander` | `index`, `ask`, `impact`, `projects`; `drift` **previsto** (F6) |
+| CLI | TypeScript + `commander` | `index`, `ask`, `impact`, `projects`, `drift` (F6, DIS-73) |
 | API | Node 22 + **Fastify** 5 + Zod | `POST /api/projects/{projectId}/ask`, `POST /api/projects/{projectId}/impact` y `GET /health`, validación por esquema, OpenAPI generado en `/docs` (DIS-76, DIS-78, DIS-95) |
 | Web | React 18 + TypeScript + **Vite** + Tailwind | Andamiaje, rutas y cliente tipado (DIS-58); selección de proyecto (DIS-60) y consulta con panel de uso y estados (DIS-65, DIS-66); impacto en la Entrega 3 |
 | Orquestador | TypeScript | Clasifica intención, coordina el bucle, aplica política de seguridad |
@@ -602,7 +603,7 @@ flowchart TB
 
 **Nota sobre los embeddings (estado en la Entrega 2).** El esquema reserva columnas `vector(1536)` en `FILE`, `SYMBOL` y `CACHE_ENTRY`, con sus índices HNSW ([3.2](#32-descripción-de-entidades-principales) → Índices), y `LlmPort` declara `embed()` (`packages/core/src/ports/LlmPort.ts:18`). Pero hoy **nada escribe ni lee esos vectores**: ningún caso de uso llama a `embed()`, que solo se reenvía en los envoltorios de medición (`packages/core/src/explain/usage-meter.ts:62`) y de presupuesto (`packages/core/src/llm/budget.ts:62`); el almacén no escribe nunca `embedding` (`packages/adapters/store-postgres/src/queries.ts:36-39`), y el anclaje de la pregunta es léxico, sin embeddings (`packages/core/src/context/anchor.ts`). Se deja como nota y no como ADR porque hoy no se elige entre alternativas, solo se constata el estado. La decisión real —si se separa un `EmbeddingPort` y qué modelo de 1536 dimensiones se usa— la tomará DIS-46 (caché por similitud, CM-HU-19), con su propio ADR.
 
-**Sobre `drift`.** Es el comando de la funcionalidad F6, que es *should-have* y vive en la reserva del calendario: puede no entrar en esta versión. Aparece ya en el diagrama, en la CLI y en el enum `capability` de `QUERY_LOG` porque el punto de extensión conviene diseñarlo ahora —añadir un valor a un enum con datos dentro es una migración, no un cambio de código— pero se documenta como **previsto, no entregado**. La distinción no es cosmética: un README que anuncia un comando que el código no tiene es exactamente la divergencia entre documentación y código que F6 existe para detectar.
+**Sobre `drift`.** Es el comando de la funcionalidad F6, que era *should-have* y vivía en la reserva del calendario. Desde DIS-73 está **entregado**: `codemind drift <proyecto> [--doc <ruta>]` imprime, por documento, las afirmaciones que el código contradice, con la cita de los dos lados, y cada ejecución deja una fila `drift` en `QUERY_LOG`. Sin `LLM_*` (modo evaluación) imprime el informe *golden* versionado en `seeds/drift/acme-shop.json` (que `npm run db:seed` carga y `npm run drift:build` regenera con un modelo real). La distinción entre lo previsto y lo entregado no era cosmética: un README que anuncia un comando que el código no tiene es exactamente la divergencia entre documentación y código que F6 existe para detectar.
 
 **Por qué Fastify y no NestJS.** Con dos o tres endpoints y el dominio ya aislado en `packages/core`, la estructura de módulos y la inyección de dependencias de NestJS resuelven un problema que este proyecto no tiene. Fastify aporta validación por esquema y generación de OpenAPI, que es exactamente lo que se necesita.
 
@@ -633,7 +634,7 @@ AI4Devs-finalproject/
 │   │   └── git/                    #   historial y lectura del árbol con simple-git
 │   │
 │   ├── api/                        # Fastify: /ask, /health, /docs, errores, límite por IP
-│   ├── cli/                        # projects · index · ask · impact · db:seed · cache:build · verify
+│   ├── cli/                        # projects · index · ask · impact · drift · db:seed · cache:build · drift:build · verify
 │   └── web/                        # React + Vite + Tailwind: rutas, cliente tipado, Pantallas 1 y 2
 │
 ├── fixtures/                       # los 2 repositorios de muestra
@@ -1031,7 +1032,7 @@ erDiagram
         uuid id PK
         uuid project_id FK "not null, on delete cascade"
         text question "not null"
-        text capability "enum: explain, impact, drift — not null, drift previsto (F6)"
+        text capability "enum: explain, impact, drift — not null, drift (F6, DIS-73)"
         int input_tokens
         int output_tokens
         int baseline_tokens "coste que habría tenido el contexto bruto"
