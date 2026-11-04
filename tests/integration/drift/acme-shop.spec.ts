@@ -16,7 +16,7 @@ import { claimsOutput, createDriftLlm, verdictOutput } from '../../support/drift
 import type { ConfrontationView } from '../../support/drift-doubles';
 
 // Spec: openspec/changes/add-drift-detection/specs/drift-detection/spec.md (DIS-71), requirement "Drift
-// over the indexed acme-shop". As tests/integration/explain/explain.spec.ts: `fixtures/acme-shop` is
+// over the indexed acme-shop" (DIS-73 adds the cache flag and the query log row of the run). As tests/integration/explain/explain.spec.ts: `fixtures/acme-shop` is
 // copied (without `.git`) under a temporary directory, its history built there with `buildOne`, indexed
 // with the real adapters inside the harness transaction (a savepoint the harness rolls back) and read
 // through the real git source tree and the real Postgres store. The model is the scripted drift double
@@ -71,7 +71,7 @@ describeWithDatabase('drift over the indexed acme-shop (DIS-71)', () => {
   const db = useTransactionPerTest();
 
   /** Indexes the copy of acme-shop and runs `drift` with the scripted model; returns the report and the contexts. */
-  async function run(): Promise<{ report: Extract<DriftReport, { status: 'answered' }>; contexts: Map<string, string[]> }> {
+  async function run(): Promise<{ report: Extract<DriftReport, { status: 'answered' }>; contexts: Map<string, string[]>; projectId: string }> {
     let stdout = '';
     const exit = await runIndexCommand(['index', 'acme-shop', '--name', unique('acme-shop'), '--language', 'php'], {
       env: { ALLOWED_REPOS_DIR: T, AUTHOR_HASH_SALT: 'test-salt', DATABASE_URL: 'postgres://injected-transaction' },
@@ -115,14 +115,24 @@ describeWithDatabase('drift over the indexed acme-shop (DIS-71)', () => {
       { projectId },
     );
     if (report.status !== 'answered') throw new Error(`expected an answered report, got ${JSON.stringify(report)}`);
-    return { report, contexts };
+    return { report, contexts, projectId };
+  }
+
+  /** The assertions of DIS-73: a live report is not a cache hit and left one `drift` row. */
+  async function expectLiveRow(report: { cacheHit: boolean }, projectId: string): Promise<void> {
+    expect(report.cacheHit).toBe(false);
+    const { rows } = await db().query<{ capability: string; cache_hit: boolean }>(
+      'SELECT capability, cache_hit FROM query_log WHERE project_id = $1',
+      [projectId],
+    );
+    expect(rows).toEqual([{ capability: 'drift', cache_hit: false }]);
   }
 
   it(
     'The two planted contradictions of the pricing document are found',
     async () => {
       // Act
-      const { report, contexts } = await run();
+      const { report, contexts, projectId } = await run();
 
       // Assert
       const entry = report.documents.find((document) => document.path === PRICING)!;
@@ -145,6 +155,7 @@ describeWithDatabase('drift over the indexed acme-shop (DIS-71)', () => {
         expect(driftProvenanceSchema.safeParse(contradiction.provenance).success).toBe(true);
         for (const evidence of contradiction.evidence) expect(['entailed', 'cited']).toContain(evidence.verification);
       }
+      await expectLiveRow(report, projectId);
       // The real context of each claim, for the report of step 9.
       expect([...contexts.keys()].sort()).toHaveLength(3);
     },
@@ -155,12 +166,13 @@ describeWithDatabase('drift over the indexed acme-shop (DIS-71)', () => {
     'A claim the code confirms is not a contradiction',
     async () => {
       // Act
-      const { report } = await run();
+      const { report, projectId } = await run();
 
       // Assert
       const entry = report.documents.find((document) => document.path === PRICING)!;
       expect(entry.contradictions.filter((c) => c.claim.startLine >= 21 && c.claim.endLine <= 27)).toEqual([]);
       for (const document of report.documents.filter((d) => d.path !== PRICING)) expect(document.contradictions).toEqual([]);
+      await expectLiveRow(report, projectId);
     },
     TIMEOUT_MS,
   );

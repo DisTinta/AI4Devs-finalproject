@@ -15,6 +15,7 @@ import type {
   VerificationCache,
 } from '@codemind/core';
 import { createInMemoryStore } from './in-memory-store';
+import type { CacheCallFailures } from './in-memory-store';
 import { createInMemorySourceTree } from './in-memory-source-tree';
 import type { SourceContents } from './in-memory-source-tree';
 import { SCRIPTED_MODEL, verifyView } from './scripted-llm';
@@ -198,6 +199,12 @@ export interface DriftDepsOptions extends DriftLlmOptions {
    * double only under its join to `WORKSPACE`, so a read at the unjoined path finds no repository.
    */
   rootPath?: string;
+  /** Answer cache entries to seed under the project: the key to the stored response (DIS-73). */
+  cacheEntries?: Readonly<Record<string, unknown>>;
+  /** Called by each `saveQueryLog` that passes its checks; a value other than `undefined` is thrown (DIS-73). */
+  failQueryLogWrite?: () => unknown;
+  /** Failures of the answer cache calls, as the in-memory store's own option (DIS-73). */
+  failCacheCall?: CacheCallFailures;
 }
 
 /** A symbol of `path` (a method of three lines from `startLine`, or the given lines). */
@@ -234,7 +241,12 @@ export function driftDeps(options: DriftDepsOptions) {
   const readRoot = isAbsolute(rootPath) ? rootPath : join(WORKSPACE, rootPath);
   const loaded = createInMemoryStore({
     projects: [{ project: { name: 'drift-project', rootPath, language: 'php' }, graph }],
+    ...(options.failQueryLogWrite !== undefined && { failQueryLogWrite: options.failQueryLogWrite }),
+    ...(options.failCacheCall !== undefined && { failCacheCall: options.failCacheCall }),
   });
+  for (const [key, response] of Object.entries(options.cacheEntries ?? {})) {
+    loaded.seedCacheEntry({ projectId: loaded.projectIds[0]!, key, response });
+  }
   const contents = Object.fromEntries(options.files.map((f) => [f.path, f.content]));
   const tree: SourceContents = { [readRoot]: { [COMMIT]: contents } };
   let confrontationCalls = 0;
@@ -322,4 +334,45 @@ export function claimsOutput(claims: Array<{ text: string; startLine: number; en
 /** The JSON of a confrontation output. */
 export function verdictOutput(verdict: 'contradicted' | 'consistent' | 'unrelated', statement: string, evidenceIds: string[]): string {
   return JSON.stringify({ verdict, statement, evidenceIds });
+}
+
+/** A stored drift report (the part of a drift report a golden entry keeps): one document, one contradiction. */
+export function goldenDriftReport(): { commit: string; documents: Array<Record<string, unknown>> } {
+  return {
+    commit: COMMIT,
+    documents: [
+      {
+        path: 'docs/pricing.md',
+        claimsChecked: 1,
+        omittedClaims: 0,
+        droppedClaims: 0,
+        contradictions: [
+          {
+            claim: {
+              text: 'The calculator computes the price',
+              path: 'docs/pricing.md',
+              startLine: 11,
+              endLine: 17,
+              excerpt: 'pricing 11\npricing 12',
+              verification: 'cited',
+            },
+            statement: 'The calculator applies the discount first',
+            evidence: [
+              { path: 'app/Calc.php', startLine: 25, endLine: 35, fileKind: 'source', excerpt: 'calc 25\ncalc 26', verification: 'entailed' },
+            ],
+            type: 'INFERENCE',
+            provenance: {
+              model: SCRIPTED_MODEL,
+              promptHash: 'a'.repeat(64),
+              inputSpans: [
+                { path: 'docs/pricing.md', startLine: 11, endLine: 17 },
+                { path: 'app/Calc.php', startLine: 25, endLine: 35 },
+              ],
+              createdAt: '2026-11-03T10:00:00.000Z',
+            },
+          },
+        ],
+      },
+    ],
+  };
 }

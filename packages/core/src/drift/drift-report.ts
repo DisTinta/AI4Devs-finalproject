@@ -3,6 +3,7 @@ import type { StatementVerification } from '../explain/claim-items.js';
 import type {
   EntailmentUnverifiedEvent,
   EvidenceBrokenEvent,
+  QueryNotLoggedEvent,
   SanitizationEvent,
 } from '../explain/explain-event.js';
 import type { GenerationUsage } from '../explain/explain-answer.js';
@@ -163,8 +164,11 @@ export interface DriftClaimSkippedEvent {
   subcode: SchemaViolationSubcode;
 }
 
-/** An event of a drift report. */
-export type DriftEvent = DriftCheckEvent | DriftDocSkippedEvent | DriftClaimSkippedEvent;
+/**
+ * An event of a drift report: a check event, a skip, or (last, at most once, DIS-73) the `query_not_logged`
+ * event of an answered report whose `query_log` row could not be written.
+ */
+export type DriftEvent = DriftCheckEvent | DriftDocSkippedEvent | DriftClaimSkippedEvent | QueryNotLoggedEvent;
 
 /** What a drift run cost: every `answer` call (generation) and every `verify` call (verification). */
 export interface DriftUsage {
@@ -192,10 +196,12 @@ export interface AnsweredDrift {
   commit: string;
   /** One entry per checked document, in byte order of the paths. */
   documents: DriftDocument[];
-  /** The events, document by document, then the `limit` skips. */
+  /** The events, document by document, then the `limit` skips, then `query_not_logged` when it applies. */
   events: DriftEvent[];
   /** What the run cost. */
   usage: DriftUsage;
+  /** `true` only for a golden report answered from the answer cache (DIS-73); `false` for a run with the model. */
+  cacheHit: boolean;
 }
 
 /** The report of `drift`. */

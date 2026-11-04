@@ -8,6 +8,8 @@ import { createPostgresStore, loadSeed } from '@codemind/adapter-store-postgres'
 import type { LoadedSample, SeedToLoad } from '@codemind/adapter-store-postgres';
 import { checkGoldenFile, readGoldenFile } from './cache/golden-file.js';
 import type { GoldenFile } from './cache/golden-file.js';
+import { checkDriftGoldenFile, readDriftGoldenFile } from './cache/drift-golden-file.js';
+import type { DriftGoldenFile } from './cache/drift-golden-file.js';
 import { CliError, DatabaseUnavailable, defaultOpenTransaction } from './compose-index.js';
 import type { Environment, IndexTransaction, OpenTransaction } from './compose-index.js';
 import type { TextSink } from './logger.js';
@@ -47,6 +49,8 @@ export interface SeedLoadDeps {
   load?: (client: ClientBase, seed: SeedToLoad) => Promise<LoadedSample[]>;
   /** Directory of the golden files (DIS-26). Defaults to `<repoRoot>/seeds/cache`. */
   cacheDir?: string;
+  /** Directory of the golden drift files (DIS-73). Defaults to `<repoRoot>/seeds/drift`. */
+  driftDir?: string;
   /** Builds the store the golden answers are saved through. Defaults to `createPostgresStore` of the store adapter. */
   cacheStore?: (connection: { transaction: ClientBase }) => Pick<StorePort, 'saveCacheEntry'>;
 }
@@ -55,7 +59,8 @@ export interface SeedLoadDeps {
  * Runs `npm run db:seed` (DIS-92): checks `DATABASE_URL` and the seed file before connecting, then in
  * one transaction replaces the sample projects with the seed's, saves the golden answers of
  * `seeds/cache/*.json` (DIS-26, checked before connecting too) as answer cache entries of the sample
- * projects, and commits. On success stdout gets
+ * projects, then the golden drift reports of `seeds/drift/*.json` (DIS-73, checked before connecting
+ * too) under their keys, and commits. On success stdout gets
  * `1 project loaded` (or `N projects loaded`) and one line per sample project, and stderr nothing; on
  * failure stdout gets nothing and stderr exactly one `{"error":{…}}` line, and the database is left
  * unchanged (unless the commit itself failed, which is reported as uncertain).
@@ -71,10 +76,15 @@ export async function runSeedLoad(deps: SeedLoadDeps): Promise<number> {
     const seedPath = deps.seedPath ?? join(repoRoot, 'seeds', 'graph-dump.sql');
     const seed = readSeed(seedPath, displayPath(repoRoot, seedPath));
     const golden = readGoldenFiles(deps.cacheDir ?? join(repoRoot, 'seeds', 'cache'), seed.projectNames, repoRoot);
+    const goldenDrift = readDriftGoldenFiles(deps.driftDir ?? join(repoRoot, 'seeds', 'drift'), seed.projectNames, repoRoot);
 
     const loaded = await inTransaction(deps.openTransaction ?? defaultOpenTransaction(databaseUrl), async (client) => {
       const samples = await (deps.load ?? loadSeed)(client, seed);
-      if (golden.length > 0) await saveGoldenAnswers((deps.cacheStore ?? createPostgresStore)({ transaction: client }), seed, golden);
+      if (golden.length > 0 || goldenDrift.length > 0) {
+        const store = (deps.cacheStore ?? createPostgresStore)({ transaction: client });
+        await saveGoldenAnswers(store, seed, golden);
+        await saveGoldenDrift(store, seed, goldenDrift);
+      }
       return samples;
     });
     deps.stdout.write(summary(loaded));
@@ -171,6 +181,50 @@ export function readGoldenFiles(cacheDir: string, seedProjectNames: readonly str
     }
     return file;
   });
+}
+
+/**
+ * Reads and checks every golden drift file directly in `driftDir` whose name ends in `.json`, in name
+ * order (code-unit order), before any connection (DIS-73 design D7). A missing directory means no golden
+ * drift report. The fingerprints are not checked: the coherence test of the versioned file does.
+ *
+ * @param driftDir The directory of the golden drift files.
+ * @param seedProjectNames The names of the seed's projects.
+ * @param repoRoot The repository root, for the displayed path.
+ * @returns The golden drift files, checked.
+ * @throws CliError `INVALID_SEED` with the reason `cache` and the file, for the first file that is not
+ *   a loadable golden drift file.
+ */
+export function readDriftGoldenFiles(driftDir: string, seedProjectNames: readonly string[], repoRoot: string): DriftGoldenFile[] {
+  let names: string[];
+  try {
+    names = readdirSync(driftDir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
+      .map((entry) => entry.name)
+      .sort();
+  } catch (error) {
+    if ((error as { code?: unknown }).code === 'ENOENT') return [];
+    throw error;
+  }
+  return names.map((name) => {
+    const path = join(driftDir, name);
+    const read = readDriftGoldenFile(path);
+    const file = read.ok ? checkDriftGoldenFile(read.value, { seedProjectNames, fileName: name }) : undefined;
+    if (file === undefined) {
+      const shown = displayPath(repoRoot, path);
+      throw new CliError('INVALID_SEED', 1, `${shown} is not a loadable codemind golden file`, { reason: 'cache', file: shown });
+    }
+    return file;
+  });
+}
+
+/** Saves every golden drift entry as an answer cache entry of the seed project its file names, under its key (DIS-73 design D7). */
+async function saveGoldenDrift(store: Pick<StorePort, 'saveCacheEntry'>, seed: SeedToLoad, golden: DriftGoldenFile[]): Promise<void> {
+  const ids = new Map(seedProjects(seed.sql).map((project) => [project.name, project.id]));
+  for (const file of golden) {
+    const projectId = ids.get(file.project)!;
+    for (const entry of file.entries) await store.saveCacheEntry(projectId, entry.key, entry.response);
+  }
 }
 
 /** Saves every golden entry as an answer cache entry of the seed project its file names (DIS-26 design C6). */

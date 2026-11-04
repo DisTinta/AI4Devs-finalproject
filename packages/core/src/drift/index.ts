@@ -1,4 +1,6 @@
 export * from './drift-request.js';
+export * from './drift-cache.js';
+export * from './query-log.js';
 // `UNSTORED_FILE_ID` stays module-internal (design D13, Follow-up R9).
 export {
   DRIFT_UNKNOWN_REASONS,

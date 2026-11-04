@@ -19,7 +19,7 @@ import { claimsOutput, COMMIT, driftDeps, methodAt, NOW, numberedLines, rejectio
 import type { DriftFile } from '../../support/drift-doubles';
 import { SCRIPTED_MODEL } from '../../support/scripted-llm';
 
-// Spec: openspec/changes/add-drift-detection/specs/drift-detection/spec.md (DIS-71). Each test named
+// Spec: openspec/changes/add-drift-detection/specs/drift-detection/spec.md (DIS-71), changed by DIS-73 (openspec/changes/add-cli-drift). Each test named
 // after a scenario is that scenario. The store and the source tree are the in-memory doubles, the model
 // is the scripted double of tests/support/drift-doubles.ts.
 
@@ -57,6 +57,7 @@ describe('Requirement: Drift request', () => {
       [{ projectId: d.projectId, docPath: 'docs/a\u0000.md' }, 'docPath'],
       [{ projectId: d.projectId, tokenBudget: TOKEN_BUDGET_MIN - 1 }, 'tokenBudget'],
       [{ projectId: d.projectId, tokenBudget: 1000.5 }, 'tokenBudget'],
+      [{ projectId: d.projectId, useCache: 'no' }, 'useCache'],
       [{ projectId: d.projectId, question: 'x' }, 'request'],
     ];
 
@@ -137,11 +138,31 @@ describe('Requirement: Unknown drift answers', () => {
     const d = driftDeps({ files: [PRICING_FILE], mode: 'evaluation', extract: NEVER, confront: NEVER });
 
     // Act
+    const report = await drift(d.deps, { projectId: d.projectId, useCache: false });
+
+    // Assert
+    expect(report).toEqual({ status: 'unknown', reason: 'llm-required' });
+    expect(d.storeCalls()).toBe(1);
+    expect(d.loaded.calls.saveQueryLog).toBe(1);
+    expect(d.sourceCalls).toEqual({ readFileAt: 0, readFilesAt: 0 });
+    expect(d.model.requests).toHaveLength(0);
+  });
+
+  it('Evaluation mode without a golden report answers llm-required without reading the project', async () => {
+    // Arrange
+    const d = driftDeps({ files: [PRICING_FILE], mode: 'evaluation', extract: NEVER, confront: NEVER });
+
+    // Act
     const report = await drift(d.deps, { projectId: d.projectId });
 
     // Assert
     expect(report).toEqual({ status: 'unknown', reason: 'llm-required' });
-    expect(d.storeCalls()).toBe(0);
+    expect(d.loaded.calls.findCacheEntry).toBe(1);
+    expect(d.loaded.calls.saveQueryLog).toBe(1);
+    expect(d.loaded.queryLog()[0]!.question).toBe('drift:');
+    expect(d.storeCalls()).toBe(2);
+    expect(d.indexStateReads.count).toBe(0);
+    expect(d.loaded.calls.getProject).toBe(0);
     expect(d.sourceCalls).toEqual({ readFileAt: 0, readFilesAt: 0 });
     expect(d.model.requests).toHaveLength(0);
   });
@@ -407,7 +428,7 @@ describe('Requirement: Drift report', () => {
     const report = answered(await drift(d.deps, { projectId: d.projectId }));
 
     // Assert
-    expect(report).toMatchObject({ status: 'answered', projectId: d.projectId, commit: COMMIT });
+    expect(report).toMatchObject({ status: 'answered', projectId: d.projectId, commit: COMMIT, cacheHit: false });
     const [document] = report.documents;
     expect(document).toMatchObject({ path: PRICING, claimsChecked: 1, omittedClaims: 0, droppedClaims: 0 });
     expect(document!.contradictions).toHaveLength(1);
@@ -590,11 +611,11 @@ describe('Requirement: Drift failures, logging and writes', () => {
     expect(d.loaded.calls).toMatchObject({
       saveClaims: 0,
       refreshClaim: 0,
-      saveQueryLog: 0,
+      saveQueryLog: 1,
       saveCacheEntry: 0,
       touchCacheEntry: 0,
     });
-    expect(d.writeCalls()).toBe(0);
+    expect(d.writeCalls()).toBe(1);
     for (const spy of spies) expect(spy).not.toHaveBeenCalled();
   });
 });
