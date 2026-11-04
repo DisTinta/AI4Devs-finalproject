@@ -82,10 +82,14 @@ invalidates the cache (F1).
 **S3 — The route reads the counts, not the use case.** In `registerAskRoute`, after `explain` returned
 and its events were logged, and only when `explained.kind !== 'unknown'`, the route calls
 `app.deps.store.countExplainQueries(project.id)` and `cacheHitRate(...)`, and passes the result to
-`toPublicAnswer(explained, projectCache)`, whose second parameter is used only for an answered answer.
-The route holds no SQL (it satisfies `GUARD_DB_IN_HTTP`); `explain` stays untouched, so neither the
-golden answer fingerprint nor the stored response changes. A rejection of the read propagates to the
-error handler: `500 INTERNAL` (no domain mapping). `askUsageSchema` gains `projectCache:
+`toPublicAnswer(answer: ExplainAnswer, projectCache?: ProjectCacheHitRate): AskResponse`. For an
+answered answer the parameter is required at runtime: its absence throws
+`Error('an answered answer needs the project cache hit rate')` (a route defect, `500`); it is ignored
+for `UNKNOWN`. The route holds no SQL (it satisfies `GUARD_DB_IN_HTTP`); `explain` stays untouched, so
+neither the golden answer fingerprint nor the stored response changes. A rejection of the read
+propagates to the error handler: a `ProjectNotFound` (the project was deleted between `explain` and
+the read) keeps the table's `404 PROJECT_NOT_FOUND` (`ASK_DOMAIN_ERRORS`); any other error is
+`500 INTERNAL`. `askUsageSchema` gains `projectCache:
 z.strictObject({ queries: z.int().min(0), cacheHits: z.int().min(0), hitRatePct: z.number().min(0).max(100).nullable() })`
 and its TSDoc changes from "exactly the fields of core's `AnswerUsage`" to "the fields of core's
 `AnswerUsage` plus the project's cache hit rate". *Alternative rejected:* adding the field to core's
@@ -126,7 +130,8 @@ project names as the seed's) → per project, `llm.embed([questionNormalized])` 
 `usableVector` (an unusable result becomes `new LlmUnavailable('invalid-response')`) → render with the
 vectors replaced → `writeAtomically` → the line. Failures map with `toFailure` of `commands/ask.ts` for
 `LlmUnavailable`; `INVALID_SEED` reuses the `db:seed` message. The default request function (not
-`longFetch`) and `LLM_TIMEOUT_MS` apply: an embedding is short. No database, no budget meter. Script in
+`longFetch`) and `LLM_TIMEOUT_MS` apply: each request embeds one golden question (< 200 characters)
+and is bounded by `LLM_TIMEOUT_MS`. No database, no budget meter. Script in
 `package.json`: `"cache:embed": "tsx --import=./scripts/load-env.mjs --tsconfig
 packages/cli/tsconfig.run.json packages/cli/src/cache-embed.ts"`.
 
@@ -139,13 +144,18 @@ already cannot complete (DIS-67 E2).
 **S9 — `db:seed` passes the vector.** `saveGoldenAnswers` calls `saveCacheEntry(projectId,
 entry.questionNormalized, entry.response, entry.questionEmbedding ?? undefined)`; the drift entries are
 saved as today. The similarity lookup then treats a golden entry like any live entry; evaluation mode
-never embeds (PH-04), so the vectors change nothing without `LLM_EMBED_MODEL`.
+never embeds (PH-04), so the vectors change nothing without `LLM_EMBED_MODEL`. pgvector stores
+single-precision components: the versioned double-precision vectors are rounded on load, which keeps
+the cosine similarity of a key with its own stored vector ≈ 1; the `seed-load` scenario that compares
+a stored vector uses small integer components, exact in single precision.
 
 **S10 — The versioned vectors come from a live `cache:embed` run.** With Ollama and
 `nomic-embed-text` (768) at `http://localhost:11434/v1`, the agent runs `cache:embed` once; the diff
 of `seeds/cache/*.json` must only add the `questionEmbedding` lines (checked by the coherence test and
 by a scripted comparison with the previous files with the key removed). No golden response or review
-changes, so the DIS-110 r2 signatures stay valid and no panel round is needed (F6). If Ollama or the
+changes, so the DIS-110 r2 signatures stay valid and no panel round is needed (F6); the
+`golden-answers` delta states this as the MODIFIED requirement "Signatures of the reviewed golden
+answers" (audit B1). If Ollama or the
 model is unavailable, the ticket stops cleanly: the coherence requirement cannot be met with invented
 vectors.
 
@@ -153,11 +163,17 @@ vectors.
 `npm run seed:build`, then the same `seed.analyzerFingerprint` in `seeds/cache/acme-shop.json`,
 `seeds/cache/task-api.json`, `seeds/drift/acme-shop.json` and `docs/measurements/graph-quality.json`
 (header fingerprint lines only); no `cache:build`. `seeds/graph-dump.sql` rows must not change.
+ADR `docs/adr/20261017-stale-fingerprint-fails-verify.md` asks for `seed:build` then `cache:build`;
+`cache:build` is skipped because the seed rows do not change (checked in 9.1) and no
+`ANSWER_FINGERPRINT_FILES` input changes, so a rebuild would answer over the same seed (precedent
+DIS-67 E1). The ADR is not amended.
 
 **S12 — Demo rephrasing.** The ticket's AC5 names «Explícame el cálculo del precio final», which
 measured 0.8321 with `nomic-embed-text` in DIS-67 (below 0.85); the demo and the manual check use
 «¿Cómo se calcula el precio total de un pedido?» (0.9260). The spec scenario of `seed-load` uses a
-scripted embedding, so it does not depend on the measured value.
+scripted embedding, so it does not depend on the measured value. The agent accepted the replacement
+(audit run 1, Q1) and rewrote AC5 of the `[enhanced]` part of DIS-69 accordingly; the `[original]`
+part is not touched.
 
 **S13 — Manual checks on a scratch database.** The live checks (`db:seed` with vectors, the similarity
 hit over the seeded golden entry, `projects`, the API) run against a scratch database
@@ -178,15 +194,20 @@ Main specs change only through `/opsx:archive` of these deltas; no direct edit o
   Accepted (D).
 - **R2 — Counts above 2³¹ − 1 fail the `::int` cast.** → Far beyond the project's volumes; the error
   surfaces as `500`/`INTERNAL`, not a wrong figure. Accepted (D).
-- **R3 — The vectors belong to `nomic-embed-text`.** Another 768-dimension embedding model makes the
-  seeded vectors incomparable, as DIS-67 R2 says for live entries. → `.env.example` and `readme.md`
-  name the model of the versioned vectors; rerun `cache:embed` after a model change. Accepted (D).
+- **R3 — The vectors belong to `nomic-embed-text`.** A different 768-dimension embedding model makes
+  the seeded vectors incomparable, as DIS-67 R2 says for live entries. → `.env.example` and
+  `readme.md` name the model of the versioned vectors. Per ADR `20261103-embeddings-stay-on-llm-port.md`
+  and the DIS-46 non-goal, the operator invalidates the cache on a model change; no stored entry is
+  re-embedded. Changing the reference model of the versioned files is a new change that reruns
+  `cache:embed` on the files and reseeds. The golden file does not record the embedding model, so
+  `db:seed` cannot detect a mismatch. Accepted (D).
 - **R4 — A `cache:build` leaves `null` vectors.** → The coherence test fails with the entry id until
   `npm run cache:embed` runs; `docs/project-context.md` states the order. Accepted (D).
 - **R5 — Larger golden files** (about 770 more lines per entry). → Plain JSON, still reviewed as text;
   accepted (D).
 - **R6 — One more statement per answered `/ask` and per listed project (F10).** → Indexed by
-  `project_id`; negligible at the project's volumes. Accepted (D).
+  `project_id` (`query_log_project_id_idx`): one indexed `count` over one project's `query_log` rows;
+  the row count and the latency measured in step 13 are recorded in its report. Accepted (D).
 - **R7 — A `query_not_logged` call is not counted.** → The spec says the counts include the current
   call "whenever the use case wrote it"; the event already reports the missing row. Accepted (D).
 
@@ -207,7 +228,7 @@ findings here. No line has destination C.
 |---|---|---|
 | F1 | Metric over the project's `explain` rows of `query_log`, since always, exact and similarity hits together; one decimal; `null` without queries | **A** — this change |
 | F2 | New read `countExplainQueries` + pure `cacheHitRate`; `ProjectNotFound` for unknown projects | **A** — this change |
-| F3 | `usage.projectCache` in the HTTP answer only, read after the call; not in core's `AnswerUsage`; a failing read answers `500` | **A** — this change |
+| F3 | `usage.projectCache` in the HTTP answer only, read after the call; not in core's `AnswerUsage`; a failing read answers `500` (`404` for a `ProjectNotFound`, audit B2) | **A** — this change |
 | F4 | Web line «Caché del proyecto: …» in `UsagePanel`; «sin consultas» with `null` | **A** — this change |
 | F5 | CLI field `cache h/q (p%)` / `cache 0/0` in each `projects` line | **A** — this change |
 | F6 | Mandatory `questionEmbedding`; versioned `nomic-embed-text` vectors from the new `cache:embed`; no golden regenerated, no new review | **A** — this change |
@@ -228,13 +249,36 @@ findings here. No line has destination C.
 | S9 | `db:seed` passes the vector to `saveCacheEntry` | **A** — this change |
 | S10 | Versioned vectors produced by a live `cache:embed` with `nomic-embed-text`; stop cleanly without it | **A** — this change |
 | S11 | Seed fingerprint refresh without `cache:build` | **A** — this change |
-| S12 | Demo rephrasing «¿Cómo se calcula el precio total de un pedido?» instead of the ticket's (0.8321 < 0.85); recorded in the Linear ticket | **A** — this change |
+| S12 | Demo rephrasing «¿Cómo se calcula el precio total de un pedido?» instead of the ticket's (0.8321 < 0.85); recorded in AC5 of the `[enhanced]` part of DIS-69 (audit run 1) | **A** — this change |
 | S13 | Live checks on a scratch database `codemind_dis69`, created and dropped | **A** — this change |
 | S14 | Spec placement; main specs only through `/opsx:archive` | **A** — this change |
 | R1 | False similarity hits remain until a `semantic-cache` recalibration | **D** — accepted |
 | R2 | `::int` cast limit of the counts | **D** — accepted |
-| R3 | Versioned vectors tied to `nomic-embed-text`; rerun `cache:embed` after a model change | **D** — accepted |
+| R3 | Versioned vectors tied to `nomic-embed-text`; a model change invalidates the cache (ADR 20261103), no stored entry re-embedded; the golden file does not record the embedding model | **D** — accepted |
 | R4 | `cache:build` leaves `null` vectors until `cache:embed` runs | **D** — accepted |
 | R5 | Golden files grow by about 770 lines per entry | **D** — accepted |
 | R6 | One more statement per answered `/ask` and listed project | **D** — accepted |
 | R7 | A call whose row was not logged is not counted | **D** — accepted |
+
+Spec audit, run 1 (`reports/2026-11-04-spec-audit.md`). *Agent's text: questions for the author
+answered and findings resolved by the agent as lead engineer in an autonomous run, without the
+author.*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| Q1 | The demo rephrasing of S12 is accepted: «Explícame el cálculo del precio final» measured 0.8321 < 0.85 and cannot meet AC5; AC5 of the `[enhanced]` part of DIS-69 now names «¿Cómo se calcula el precio total de un pedido?» (the `[original]` part is untouched) | **A** — this change |
+| Q2 | R3 is read as the ADR 20261103 and the DIS-46 non-goal state: stored entries are never re-embedded, a model change invalidates the cache; rerunning `cache:embed` only applies to a new change of the versioned files' reference model | **A** — this change |
+| Q3 | The percentage `hitRatePct: 40` («40 %», `(40%)`) satisfies the DIS-46 «hit rate 0.4»: same value, the representation the `[enhanced]` part of DIS-69 already chose; no artifact change | **A** — this change |
+| B1 | MODIFIED "Signatures of the reviewed golden answers" in the `golden-answers` delta: `id`, `question`, `questionNormalized` and `response` unchanged, only `reviews`, `seed` fingerprints and `questionEmbedding` may change; the signatures scenario also checks the projection on the panel input (tasks 9.4, 10.2) | **A** — this change |
+| B2 | A `ProjectNotFound` of the count read answers `404 PROJECT_NOT_FOUND` (route error table); any other failure `500` (spec, S3, task 4.1) | **A** — this change |
+| B3 | `toPublicAnswer(answer, projectCache?)` signature fixed in S3; throws for an answered answer without it (task 4.3) | **A** — this change |
+| I1 | Empty listing reads no count: case added to "A failing count read is an unexpected error" (task 6.1) | **A** — this change |
+| I2 | New scenario "A failed write leaves the golden files intact" for the two `INTERNAL` messages of `cache:embed` (task 8.3) | **A** — this change |
+| I3 | No secret, path, question or vector in the output, and the `LLM_TIMEOUT_MS` client, asserted in the `cache:embed` scenarios (task 8.3) | **A** — this change |
+| I4 | The pooled-connection clause of "Explain query counts" refers to "Opening a pooled store from a URL", whose scenarios already cover it, instead of a new scenario | **A** — this change |
+| I5 | R6 and S7 reworded without loose words; the count latency is measured in step 13 (task 13.4) | **A** — this change |
+| I6 | R3 reworded (see Q2); recording the embedding model in the golden file (`generatedWith.embedModel`) is not done: it would change the format for a mismatch the operator handles by invalidating the cache | **D** — accepted |
+| I7 | S11 cites ADR 20261017 and the condition that makes skipping `cache:build` equivalent; the ADR is not amended | **A** — this change |
+| I8 | Single-precision storage noted in S9; the `seed-load` scenario uses a vector of small integer components | **A** — this change |
+| I9 | Tasks split: 5.3 → 5.3a/5.3b/5.3c, 16.7 → 16.7/16.8; 11.2 reuses the 13.5 evidence and runs after it | **A** — this change |
+| I10 | The S12 row now points to the rewritten AC5 of DIS-69 | **A** — this change |

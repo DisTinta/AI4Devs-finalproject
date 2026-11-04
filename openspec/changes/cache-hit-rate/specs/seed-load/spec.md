@@ -21,7 +21,8 @@ like any live answer saved with its embedding.
 - **GIVEN** a migrated database without projects, the versioned seed, a golden drift directory that
   does not exist, and a golden directory holding
   a valid `acme-shop.json` whose fingerprints are not the ones of the current code, with one entry for
-  `¿Cómo se calcula el precio final de un pedido?` whose `questionEmbedding` is a usable vector V and
+  `¿Cómo se calcula el precio final de un pedido?` whose `questionEmbedding` is a usable vector V of small integer components (exact in single
+  precision) and
   another for `¿Cómo se validan los cupones?` whose `questionEmbedding` is `null`
 - **WHEN** the seed load runs, and then `POST /api/projects/{acme-shop's id}/ask` is sent in
   evaluation mode with `{ "question": "COMO SE CALCULA EL PRECIO FINAL DE UN PEDIDO" }`

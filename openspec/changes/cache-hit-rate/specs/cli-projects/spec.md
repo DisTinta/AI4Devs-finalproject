@@ -79,8 +79,9 @@ output SHALL contain the database URL or its credentials, nor the text of any lo
 #### Scenario: A failing count read is an unexpected error
 
 - **GIVEN** a valid configuration, a listing that returns two projects, and a count read that rejects
-  for the second project
+  for the second project; then a listing that returns no project
 - **WHEN** `projects` runs
-- **THEN** it exits with `1`; stdout is empty; stderr holds exactly one error line with code
+- **THEN** the first run exits with `1`; stdout is empty; stderr holds exactly one error line with code
   `INTERNAL` and the message `unexpected error; nothing was changed`; and the read transaction was
-  rolled back and its connection released
+  rolled back and its connection released; the run with the empty listing exits with `0`, stdout is
+  exactly `no projects`, stderr is empty and the count read was never called

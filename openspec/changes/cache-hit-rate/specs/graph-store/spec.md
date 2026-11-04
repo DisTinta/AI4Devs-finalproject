@@ -14,8 +14,9 @@ count. A project without such rows SHALL resolve with `{ queries: 0, cacheHits: 
   from a project without rows in the same statement, which starts from the project row.
 - The read SHALL send exactly one parameterised statement and SHALL never write. On a caller-owned
   transaction it SHALL read inside that transaction (it sees the rows the transaction wrote) and SHALL
-  neither commit nor roll it back; on its own connections it SHALL hold no transaction open after it
-  returns. Any other failure of the database SHALL propagate as the store's other reads propagate it.
+  neither commit nor roll it back; on a store opened on its own connections it runs as every other
+  read of that store, as "Opening a pooled store from a URL" states (no transaction held open between
+  calls). Any other failure of the database SHALL propagate as the store's other reads propagate it.
 - The in-memory store double used by unit tests SHALL apply the same checks in the same order with the
   same errors, SHALL count the query log rows it kept (requirement "Query log write"), SHALL count its
   calls of the read, and SHALL let a test inject a failure of the read, raised as the error the test

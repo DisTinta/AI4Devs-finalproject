@@ -66,7 +66,8 @@ text or a vector component.
   entry, in file order, each with the entry's `questionNormalized` as its only input; each entry's
   `questionEmbedding` is the vector answered for its key; each file is the canonical render of its
   value; each file, with every `questionEmbedding` set to `null`, equals the previous file with every
-  `questionEmbedding` set to `null`; and no database connection was opened
+  `questionEmbedding` set to `null`; the model client was built with the configuration's
+  `LLM_TIMEOUT_MS` limit and the default request function; and no database connection was opened
 
 #### Scenario: Embedding arguments and configuration are checked before any file
 
@@ -94,8 +95,9 @@ text or a vector component.
 
 #### Scenario: A failed embedding leaves the golden file intact
 
-- **GIVEN** previous golden files of acme-shop and task-api with known contents and a valid
-  configuration; in turn: a model whose request for acme-shop's second entry fails with
+- **GIVEN** previous golden files of acme-shop and task-api with known contents, in a scratch golden
+  directory, and a valid configuration with `LLM_BASE_URL=http://127.0.0.1:1/v1` and
+  `LLM_API_KEY=k3y`; in turn: a model whose request for acme-shop's second entry fails with
   `LlmUnavailable` `timeout`; a model that answers acme-shop's second entry with a vector of
   `EMBEDDING_DIMENSIONS` zeros; and a model that answers every acme-shop entry and fails every task-api
   request with `LlmUnavailable` `network`
@@ -104,9 +106,56 @@ text or a vector component.
   `details.reason` = `timeout`, then `invalid-response`, then `network`; in the first two runs stdout
   is empty and both files are unchanged; in the third, stdout is exactly
   `acme-shop: 3 question embeddings -> <acme-shop file>`, the acme-shop file holds its new vectors,
-  the task-api file is unchanged; and no `.tmp` file remains in any run
+  the task-api file is unchanged; no `.tmp` file remains in any run; and no output of any run
+  contains `127.0.0.1:1`, `k3y`, the scratch directory's absolute path, any golden `question` or any
+  vector component
+
+#### Scenario: A failed write leaves the golden files intact
+
+- **GIVEN** previous golden files of acme-shop and task-api with known contents, a valid configuration
+  and a model that answers every entry with a usable vector; in turn: a write that fails while
+  acme-shop's file is written; then a write that fails while task-api's file is written
+- **WHEN** the embeddings command runs without arguments
+- **THEN** each run exits with `1` and stderr holds one error line with code `INTERNAL`; in the first,
+  the message is `cache embed failed; nothing was written`, stdout is empty and both files are
+  unchanged; in the second, the message is
+  `cache embed failed after writing <acme-shop file>; <task-api file> was not written — run npm run cache:embed -- --project task-api`,
+  stdout is exactly `acme-shop: 3 question embeddings -> <acme-shop file>`, the acme-shop file holds
+  its new vectors and the task-api file is unchanged; and no `.tmp` file remains in any run
 
 ## MODIFIED Requirements
+
+### Requirement: Signatures of the reviewed golden answers
+
+After the current round of the review (DIS-110 r2), every entry of `seeds/cache/task-api.json` and
+`seeds/cache/acme-shop.json` whose final verdict is `correct` or `partial` SHALL have `reviews` equal to
+`[{"by": "agent:<model of panelist 1>", "date": "<date of panelist 1>"}, {"by": "agent:<model of
+panelist 2>", "date": "<date of panelist 2>"}]` (the r2 signatures replace the DIS-110 signatures an
+entry still holds). An entry whose final verdict is `incorrect` SHALL have `reviews` empty, SHALL
+stay in its file (it is not retired by this change), and SHALL be named in the report's `## Pending`
+section as the requirement "Golden review report" states. No review in a versioned golden file SHALL
+start with `author:`. Each file SHALL stay the canonical render of its value, and, against the
+version committed by the r2 regeneration commit (task-api `Q1` alone regenerated; acme-shop untouched
+by it), every entry's `id`, `question`, `questionNormalized` and `response` SHALL be unchanged: only
+`reviews`, the `seed` fingerprints (refreshed without regenerating any answer, as in DIS-67 E1 and
+DIS-69) and `questionEmbedding` (filled by "Golden embeddings command") may change, so nothing
+`verify` compares and nothing the panel judged changes.
+
+#### Scenario: Every golden answer judged correct or partial carries both panel signatures
+
+- **GIVEN** the versioned golden files, the panel input, the panel outputs and the resolution
+- **WHEN** the final verdict of each golden entry is computed
+- **THEN** every entry judged `correct` or `partial` has exactly the two panel signatures above, in
+  that order, and no review of either file starts with `author:`; and each judged entry's `question`
+  and `response` project exactly onto its item of the panel input (`answer`, statements and
+  evidence), whatever its `questionEmbedding` and the file's `seed` fingerprints hold
+
+#### Scenario: A golden answer judged incorrect carries no signature
+
+- **GIVEN** a final verdict `incorrect` for an entry (built in the test)
+- **WHEN** the expected `reviews` of that entry are computed by the same rule
+- **THEN** they are empty, and for the real files every entry whose final verdict is `incorrect` has
+  empty `reviews` and its project and id appear in the report's `## Pending` section
 
 ### Requirement: Golden file format
 

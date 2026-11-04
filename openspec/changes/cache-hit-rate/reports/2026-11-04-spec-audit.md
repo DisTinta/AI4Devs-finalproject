@@ -207,3 +207,40 @@ Every scenario of the current deltas maps to a task. The single hole is the requ
 
 23. **(Q1, I10)** In the `[enhanced]` part, AC5, replace «*Cuando* … «Explícame el cálculo del precio final» sobre acme-shop recién sembrado se sirve desde la entrada golden de Q1» with: «con `LLM_EMBED_MODEL=nomic-embed-text` en vivo, «¿Cómo se calcula el precio total de un pedido?» sobre acme-shop recién sembrado se sirve desde la entrada golden de Q1 (`usage.cacheHit: true`). La reformulación original, «Explícame el cálculo del precio final», dio 0,8321 con `nomic-embed-text` en la calibración de DIS-67, por debajo del umbral 0,85 (decisión S12 del cambio `cache-hit-rate`, pendiente de confirmar por la autora).»
 24. Add a comment: «*Texto del agente (auditoría de spec del cambio `cache-hit-rate`, 2026-11-04).* Veredicto: CHANGES REQUIRED, con 3 hallazgos bloqueantes. (B1) El cambio de los ficheros golden contradice la regla «nada salvo `reviews`» de «Signatures of the reviewed golden answers»; el delta la modifica para permitir `questionEmbedding` y las huellas del seed manteniendo `question` y `response`. (B2) Un `ProjectNotFound` en la lectura de la métrica responde `404`, como mapea la tabla de errores de la ruta, no `500`. (B3) Queda fijada la firma de `toPublicAnswer`. Preguntas para la autora: aceptar la reformulación de la demo (S12); cómo se lee la R3 frente al non-goal de DIS-46 y el ADR de embeddings («no se re-embeben entradas»); y si el porcentaje (`40`) cumple el «0.4» del criterio de DIS-46.»
+
+---
+
+## Resolution of run 1
+
+- Date: 2026-11-04 (correction round 1 of the autonomous run).
+- *Agent's text: the questions for the author were answered and every finding was resolved by the agent as lead engineer, without the author. Each decision is in `design.md` → Follow-ups, table "Spec audit, run 1", with its destination; none has destination C.*
+- `openspec validate cache-hit-rate --strict`: the change is valid after the corrections.
+
+### Questions for the author
+
+| Id | Resolution |
+|---|---|
+| Q1 | Decided by the agent: the rephrasing is accepted. «Explícame el cálculo del precio final» measured 0.8321 < 0.85 and cannot meet AC5 without recalibrating the threshold (out of scope, F9). AC5 of the `[enhanced]` part of DIS-69 was rewritten in Linear to name «¿Cómo se calcula el precio total de un pedido?» and the measurement; AC2 of the same part now states the `404` of B2. The `[original]` part is untouched. Design S12 records it. |
+| Q2 | Decided by the agent: R3 now follows ADR 20261103 and the DIS-46 non-goal (a model change invalidates the cache; no stored entry is re-embedded; rerunning `cache:embed` only belongs to a new change of the versioned files' reference model). |
+| Q3 | Decided by the agent: `hitRatePct: 40` is the same value as the parent's «0.4» in the representation the `[enhanced]` part already chose. No artifact change. |
+
+### Findings
+
+| Id | Resolution |
+|---|---|
+| B1 | Fixed. The `golden-answers` delta gains MODIFIED "Signatures of the reviewed golden answers" with the corrected last sentence (only `reviews`, the `seed` fingerprints and `questionEmbedding` may change) and both scenarios copied; the signatures scenario also checks that each judged entry's `question` and `response` project exactly onto its panel input item. Tasks 9.4 and 10.2 name the edit of the existing test in `tests/unit/seed/golden-reviews.spec.ts`. Design S10 cites the requirement. |
+| B2 | Fixed. `http-ask` "Ask answered response": a `ProjectNotFound` of the count read answers `404` `PROJECT_NOT_FOUND`, any other failure `500` `INTERNAL`; the scenario gains the fourth case with the exact `404` body (message `project not found`, checked in `ASK_DOMAIN_ERRORS`). Design S3 and task 4.1 updated; the F3 row of Follow-ups notes it. |
+| B3 | Fixed. Design S3 fixes `toPublicAnswer(answer: ExplainAnswer, projectCache?: ProjectCacheHitRate): AskResponse`, throwing for an answered answer without it and ignoring it for `UNKNOWN`. Tasks 4.2 and 4.3 name the signature and the unconditional edit of the existing test call. |
+| I1 | Fixed. `cli-projects` "A failing count read is an unexpected error" gains the empty-listing case (`no projects`, exit `0`, no count read); task 6.1. |
+| I2 | Fixed. New scenario "A failed write leaves the golden files intact" in `golden-answers` with both `INTERNAL` messages; task 8.3 implements it as a named scenario test instead of a boundary case. |
+| I3 | Fixed. "A failed embedding leaves the golden file intact" runs with `LLM_BASE_URL=http://127.0.0.1:1/v1` and `LLM_API_KEY=k3y` and asserts that no output leaks them, the scratch path, a question or a vector component; "Golden question embeddings are written without touching the answers" asserts the `LLM_TIMEOUT_MS` client and the default request function. Task 8.3 updated. |
+| I4 | Fixed by the audit's alternative, decided by the agent: the clause now refers to "Opening a pooled store from a URL" (no transaction held open between calls), whose scenarios already cover pooled reads, so it is no longer a new SHALL without a scenario. Task 3.1 unchanged. |
+| I5 | Fixed. R6 names the indexed count and records the row count and the latency measured in task 13.4 (`EXPLAIN ANALYZE` on the scratch database). |
+| I5b | Fixed. S7: one embedding request of one question (< 200 characters), bounded by `LLM_TIMEOUT_MS`. |
+| I6 | Fixed (R3 reworded, see Q2). The suggestion to record the embedding model in the golden file was decided by the agent as not done (destination D): it would change the format for a mismatch the operator already handles by invalidating the cache. |
+| I7 | Fixed. S11 cites ADR 20261017 and the condition that makes skipping `cache:build` equivalent; the ADR is not amended. |
+| I8 | Fixed. `seed-load` "Golden answers are loaded and served in evaluation mode" uses a vector V of small integer components (exact in single precision); design S9 notes the single-precision storage. |
+| I9 | Fixed. Task 5.3 split into 5.3a (fixtures and modified tests, RED), 5.3b (negative check and new test, RED) and 5.3c (`UsagePanel.tsx`, GREEN); task 10.2 lists 5.3a and 5.3b. |
+| I9b | Fixed. Task 11.2 reuses the Git Bash captures of 13.2–13.3 and the PowerShell captures of 13.5 and is done after 13.5; no second scratch-database recapture. |
+| I9c | Fixed. Task 16.7 is the archive and its commit; the new 16.8 is the merge, autonomous run only. |
+| I10 | Fixed. The S12 row of Follow-ups points to the rewritten AC5 of DIS-69; the Linear correction was applied. |

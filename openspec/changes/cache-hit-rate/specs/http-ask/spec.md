@@ -22,8 +22,10 @@ The endpoint SHALL read the explain query counts of the resolved project after t
 and after the answer's events were written to the request log, so the counts include the `query_log`
 row of the current call whenever the use case wrote it. It SHALL read them only for an answered
 question: an `UNKNOWN` answer, a validation failure and an error of the use case read no counts. A
-failure of that read SHALL answer `500` `INTERNAL`, like any other unexpected error; the answer was
-already logged and, when cacheable, saved by the use case. `projectCache` is not part of the use
+`ProjectNotFound` of that read (the project was deleted after the use case answered) SHALL answer
+`404` `PROJECT_NOT_FOUND`, as the route's error table maps it; any other failure of that read SHALL
+answer `500` `INTERNAL`, like any other unexpected error; in both cases the answer was already logged
+and, when cacheable, saved by the use case. `projectCache` is not part of the use
 case's usage nor of a stored response.
 
 The evidence ids SHALL be public ids `ev-1`, `ev-2`… numbered in evidence order, and each statement's
@@ -95,14 +97,17 @@ any question of the project's query log.
 - **GIVEN** the app built with doubles over the in-memory store, whose project holds 3 `explain` rows
   of which 1 has the cache flag and 2 `impact` rows; a use case that answers with statements without
   writing any row; then a use case that answers `UNKNOWN` (`no-anchor`); then the first use case with
-  an injected failure of the store's explain query counts
+  an injected failure of the store's explain query counts; then the first use case with the store's
+  explain query counts failing with `ProjectNotFound`
 - **WHEN** a valid question is sent in each case
 - **THEN** the first answers `200` with `usage.projectCache` exactly
   `{ "queries": 3, "cacheHits": 1, "hitRatePct": 33.3 }` and the counts were read once; the second
   answers `200` with the `UNKNOWN` body, no `usage`, and the counts were not read; the third answers
   `500` with the body exactly
   `{ "error": { "code": "INTERNAL", "message": "unexpected error", "details": {} } }`, after the use
-  case was called once
+  case was called once; and the fourth answers `404` with the body exactly
+  `{ "error": { "code": "PROJECT_NOT_FOUND", "message": "project not found", "details": {} } }`,
+  after the use case was called once
 
 ### Requirement: Ask in the OpenAPI document
 
