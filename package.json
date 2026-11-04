@@ -27,6 +27,7 @@
     "db:rollback": "tsx --import=./scripts/load-env.mjs packages/adapters/store-postgres/src/migrate.ts down",
     "db:seed": "tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/seed-load.ts",
     "cache:build": "tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/cache-build.ts",
+    "drift:build": "tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/drift-build.ts",
     "seed:build": "tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/seed-build.ts",
     "cli": "tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts",
     "verify": "tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/verify.ts",

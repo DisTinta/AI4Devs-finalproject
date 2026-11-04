@@ -91,8 +91,8 @@ Verified against `package.json` (root and per package). If a command is not here
 - `.env` loading (DIS-102): `scripts/env.mjs` parses the root `.env` (a hand-written subset of the
   dotenv grammar: comments, blank lines, matched quotes, no expansion, the last assignment wins) and
   fills only the variables the environment lacks (a variable set in the shell, even empty, wins). The
-  root scripts `cli`, `verify`, `db:migrate`, `db:rollback`, `db:seed`, `cache:build` and
-  `seed:build` preload it with `tsx --import=./scripts/load-env.mjs …` (one token: with a space, tsx
+  root scripts `cli`, `verify`, `db:migrate`, `db:rollback`, `db:seed`, `cache:build`,
+  `drift:build` and `seed:build` preload it with `tsx --import=./scripts/load-env.mjs …` (one token: with a space, tsx
   4.23.13 forwards the following `--tsconfig` to Node and fails), the API's `dev` with
   `--import ../../scripts/load-env.mjs`, and `up` / `demo:ask` load it themselves. The quality scripts
   (`test`, `test:a11y`, `test:coverage`, `test:mutation*`, `lint`, `lint:architecture`, `typecheck`, `docs:coverage`)
@@ -277,7 +277,16 @@ Verified against `package.json` (root and per package). If a command is not here
   `DATABASE_URL` of a migrated database and `LLM_BASE_URL`/`LLM_MODEL` (reference: local Ollama
   `qwen2.5-coder` on CPU, about an hour for both projects; see Gotchas → golden answers); `CACHE_BUILD_TIMEOUT_MS`
   (1..3 600 000, default 1 200 000) is its per-request limit, `LLM_TIMEOUT_MS` is not used. Run it
-  after `seed:build`, never in CI.
+  after `seed:build`, never in CI. `npm run drift:build` (DIS-73, `packages/cli/src/drift-build.ts`)
+  does the same for the golden **drift** report, `seeds/drift/acme-shop.json` (one entry, `Q5`, key
+  `drift:`): no arguments (any is `USAGE`), the same configuration and codes as `cache:build`, up to 3
+  attempts in a rolled-back transaction that runs the core `drift` with the live model and
+  `useCache: false`, an `invalid-model-output` skip is retried, the number of contradictions is not
+  checked, atomic write; its helpers live in `packages/cli/src/cache/build-support.ts`. Since DIS-73
+  `db:seed` also loads every `seeds/drift/*.json` (checked before connecting, saved after the golden
+  answers) under its `key`, and the `drift <project> [--doc <path>]` command
+  (`packages/cli/src/commands/drift.ts`, `application_name` `codemind-drift`) prints the report: in
+  evaluation mode the golden one, ending in `note: golden report (answer cache)`.
 - `npm run verify` (DIS-44, `packages/cli/src/verify.ts`) is the no-model smoke check of the readme
   (§1.4, §2.4, §6): needs only `DATABASE_URL` of a database where `db:seed` loaded the seed and the
   golden answers; never reads `LLM_*`, `DAILY_BUDGET_USD` nor `CACHE_BUILD_TIMEOUT_MS`; arguments are
@@ -453,6 +462,23 @@ Verified against `package.json` (root and per package). If a command is not here
   read) see them, whatever `packOf` read before; a given `verificationContents` must hold every file
   the verification reads (an absent one is `file-missing`). `doubles()` also returns `batchReads` and
   `reads`: an answered explain makes two batched reads (the pack's, then the verification's).
+  Since DIS-71 the drift tests (`tests/unit/drift/drift.spec.ts`, `doc-claims.spec.ts`,
+  `contradiction.spec.ts` and `tests/integration/drift/acme-shop.spec.ts`) use
+  `tests/support/drift-doubles.ts`: `createDriftLlm({ extract, confront, verify?, usage?, mode? })` tells
+  the extraction prompt (a `document` key) from the confrontation prompt (a `claim` key), unwraps the
+  untrusted-data markers and hands the script a view (`{ path, lines }` or `{ claim, document,
+  evidence: [{ id, path, startLine, endLine, text }] }`), so a script cites "the span of
+  `config/shop.php`" without knowing its id; `driftDeps({ files, symbols?, describes?, … })` builds the
+  in-memory store and source tree from a list of files. Its `verificationContents` /
+  `verificationFailures` answer the reads made after the first confrontation call, so they suit tests
+  with one confronted claim. It edits none of the other doubles. Since DIS-73 `driftDeps` also takes
+  `cacheEntries` (key → stored response), `failQueryLogWrite` and `failCacheCall`, and
+  `goldenDriftReport()` is a valid stored drift report; the golden lookup and the row are tested in
+  `tests/unit/drift/drift-cache.spec.ts` and `query-log.spec.ts`, the golden file format in
+  `tests/unit/cache/drift-golden-file.spec.ts`, `drift:build` in `tests/unit/cli/drift-build.spec.ts`
+  and `tests/integration/cli/drift-build.spec.ts`, the command in `tests/unit/cli/drift-command.spec.ts`
+  and `tests/integration/cli/drift-command.spec.ts`, and the versioned file in
+  `tests/unit/seed/drift-golden-coherence.spec.ts`.
 - **Property tests use `fast-check`** (root devDependency since DIS-28,
   `tests/unit/context/budget.spec.ts`): `numRuns ≥ 200`, and `seed` fixed only when `CI` is set
   (`{ ...(process.env.CI ? { seed: 20261011 } : {}) }`), so CI replays and local runs explore.
@@ -1135,12 +1161,32 @@ services that must be started first, quirks of the local environment.
     `fileKind`, `origin` as a string, verdict), so `knowledge/` imports nothing from `explain/` or
     `context/`; `explain/claim-items.ts` maps a `VerifiedStatement` with `toConfidenceStatement`.
     Each claim stores the confidence of its statement alone and the answer carries the one of all its
-    statements; both pass `contradiction: false` until DIS-71. An empty set or a statement without
+    statements; both pass `contradiction: false` (`drift`, DIS-71, finds contradictions but does not store them, so the signal stays 0). An empty set or a statement without
     citation throws `RangeError`. `CONFIDENCE_WEIGHTS` / `EVIDENCE_SATURATION` are mirrored in the
     table of `docs/CONFIDENCE.md` and `tests/unit/knowledge/confidence-doc.spec.ts` fails when they
     differ: changing a weight means the code, the document (with the author's reason), the test run
     and `npm run seed:build` (`knowledge/` is a fingerprint input). Tests compute expected values from
     the exported constants, never hard-coded weights.
+  - Gotcha (DIS-71, `core/drift/`): `drift(dependencies, { projectId, docPath?, tokenBudget? })` finds
+    what the indexed documents say that the code, tests or configuration contradict. It reads the
+    stored files of kind `doc` (byte order of the path, at most `MAX_DRIFT_DOCS` = 10, the rest get a
+    `drift_doc_skipped` `limit` event) in one batched read at the indexed commit; per document one
+    `answer` call extracts the claims (prompt 1: the redacted lines, numbered, wrapped as `D1`; at most
+    `MAX_DOC_CLAIMS` = 12 are confronted), per claim the context is the context pack without `doc`
+    spans plus up to `MAX_CONFIG_SPANS` = 3 `config` files (not `.env*`) that share a term with the
+    claim, and one more `answer` call (prompt 2: claim `C1`, document citation `D1`, evidence `E1…En`)
+    returns `contradicted | consistent | unrelated`. Only a `contradicted` verdict whose document
+    citation and code citations verify (`verifyCitations`, `verifyAnswer`) is reported, always typed
+    `INFERENCE`, with a provenance by path (`driftProvenanceSchema`, since the report is not stored and
+    the store has no path-to-file-id read). Since DIS-73 it looks the golden drift report up in the
+    answer cache first (key `drift:` or `drift:<docPath>`, both modes, `useCache: false` skips it;
+    a stored report is answered with zero usage and `cacheHit: true`, anything else is a miss) and
+    leaves one `query_log` row per returned report (capability `drift`, the key as the question) and
+    one after a failure that follows a resolved model call (`drift/query-log.ts`, `query_not_logged`
+    when the write is absorbed). It saves no claim and no cache entry (only `db:seed` writes the
+    golden) and logs nothing; an invalid model output skips one document
+    or one claim with an event that holds only a subcode. `evaluation` mode answers `unknown`
+    `llm-required`, no document `no-docs`. `explain` still passes `contradiction: false`.
   - Gotcha (DIS-72, local Ollama): serve it with `OLLAMA_CONTEXT_LENGTH=16384`. Its default context
     cuts `explain`'s 5–7k-token prompt to about 2 000 tokens (`truncating input prompt` in its log),
     the system prompt is lost and every answer is `invalid-model-output`. On CPU one answer takes
@@ -1158,7 +1204,7 @@ services that must be started first, quirks of the local environment.
     `CUDA_VISIBLE_DEVICES=-1 GGML_VK_VISIBLE_DEVICES=-1 OLLAMA_VULKAN=0 OLLAMA_LLM_LIBRARY=cpu
     OLLAMA_CONTEXT_LENGTH=16384 ollama serve` (its log must show `library=cpu`). Either way, run
     `DATABASE_URL=… LLM_BASE_URL=http://127.0.0.1:11434/v1 LLM_MODEL=qwen2.5-coder npm run
-    cache:build` in the background, logging to a file; stop `ollama.exe` and any orphan
+    cache:build` (and then `npm run drift:build`, DIS-73) in the background, logging to a file; stop `ollama.exe` and any orphan
     `llama-server` afterwards.
     `llama3.2` does not produce strict JSON (`invalid-model-output`).
   - Gotcha (DIS-70, test doubles): `tests/support/scripted-llm.ts` routes `purpose: 'verify'` to
@@ -1425,7 +1471,10 @@ services that must be started first, quirks of the local environment.
   statement schema, typing rules; verify prompt and policy; confidence weights; normalize and
   response-cache); `context/` is out on purpose (DIS-26 D11). **Touching a seed fingerprint input stales
   the seed and, through `seed.*`, the golden file: regenerate in the order `seed:build` →
-  `cache:build`.** Touching an answer fingerprint input stales only the golden file. The golden ids of
+  `cache:build` → `drift:build`** (the golden drift report, DIS-73, has its own `driftFingerprint`
+  over `DRIFT_FINGERPRINT_FILES`; `tests/unit/seed/drift-golden-coherence.spec.ts` checks it and the
+  seed fingerprints, unlike the `explain` coherence test, because `verify` does not read
+  `seeds/drift/`: [ADR](./adr/20261103-drift-golden-freshness-in-unit-suite.md)) Touching an answer fingerprint input stales only the golden file. The golden ids of
   claims and evidence are random UUIDs of the generating transaction (never looked up).
   `tests/unit/seed/golden-coherence.spec.ts` fails when the versioned golden file stops matching the
   seed's file rows, the golden questions or the canonical render.

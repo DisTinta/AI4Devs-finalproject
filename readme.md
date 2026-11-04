@@ -350,12 +350,13 @@ task-api: 28 commits, 3 authors -> <repo>\fixtures\task-api\.git
 
 #### El mismo flujo por CLI
 
-Sin necesidad de abrir la web (`projects`, `ask` e `impact` leen `DATABASE_URL` de `.env`):
+Sin necesidad de abrir la web (`projects`, `ask`, `impact` y `drift` leen `DATABASE_URL` de `.env`):
 
 ```shell
 npm run cli -- projects
 npm run cli -- ask acme-shop "¿Cómo se calcula el precio final de un pedido?"
 npm run cli -- impact acme-shop "cambiar los descuentos de DiscountService"
+npm run cli -- drift acme-shop
 npm run cli -- ask task-api "¿Cómo valida taskRoutes las peticiones entrantes?"
 ```
 
@@ -505,7 +506,7 @@ Las semillas se regeneran con `npm run seed:build`, que indexa los dos repositor
 flowchart TB
     subgraph client["Cliente"]
         WEB["Web · React 18 + Vite<br/>3 pantallas"]
-        CLI["CLI · commander<br/>index · ask · impact · projects<br/>drift · previsto F6"]
+        CLI["CLI · commander<br/>index · ask · impact · projects · drift"]
     end
 
     subgraph api["API · Node 22 + Fastify"]
@@ -585,7 +586,7 @@ flowchart TB
 
 | Componente | Tecnología | Responsabilidad |
 |---|---|---|
-| CLI | TypeScript + `commander` | `index`, `ask`, `impact`, `projects`; `drift` **previsto** (F6) |
+| CLI | TypeScript + `commander` | `index`, `ask`, `impact`, `projects`, `drift` (F6, DIS-73) |
 | API | Node 22 + **Fastify** 5 + Zod | `POST /api/projects/{projectId}/ask`, `POST /api/projects/{projectId}/impact` y `GET /health`, validación por esquema, OpenAPI generado en `/docs` (DIS-76, DIS-78, DIS-95) |
 | Web | React 18 + TypeScript + **Vite** + Tailwind | Andamiaje, rutas y cliente tipado (DIS-58); selección de proyecto (DIS-60) y consulta con panel de uso y estados (DIS-65, DIS-66); impacto en la Entrega 3 |
 | Orquestador | TypeScript | Clasifica intención, coordina el bucle, aplica política de seguridad |
@@ -602,7 +603,7 @@ flowchart TB
 
 **Nota sobre los embeddings (DIS-67).** El esquema tiene columnas `vector(768)` en `FILE`, `SYMBOL` y `CACHE_ENTRY`, con sus índices HNSW ([3.2](#32-descripción-de-entidades-principales) → Índices); la migración `0005` las movió de 1536 a 768, la dimensión de `nomic-embed-text` (Ollama, 0 $). `LlmPort.embed()` lo usa por primera vez el paso de similitud de la caché de `explain` (`packages/core/src/cache/similarity-cache.ts`): en modo vivo, con `LLM_EMBED_MODEL` configurado y tras no acertar la clave exacta, embebe la clave normalizada una vez y busca la entrada más parecida del proyecto (`findSimilarCacheEntry`); la respuesta en vivo cacheable guarda ese vector en `cache_entry.question_embedding`. Siguen sin escribirse `file.embedding` y `symbol.embedding`, y el anclaje de la pregunta es léxico (`packages/core/src/context/anchor.ts`). Sin modelo de embeddings, en modo evaluación o con un fallo del endpoint, el paso se salta sin error; un fallo configurado o un techo agotado añaden el evento `semantic_cache_skipped` (código `embedding-unavailable` o `budget-exhausted`) a los eventos de `/ask` y `ask`. La decisión del puerto (los embeddings siguen en `LlmPort.embed()`, sin `EmbeddingPort`), de la dimensión y de la regla de cambio de modelo (otra dimensión exige migración; el mismo número de dimensiones exige invalidar la caché de cada proyecto) está en el ADR [`20261103-embeddings-stay-on-llm-port.md`](docs/adr/20261103-embeddings-stay-on-llm-port.md).
 
-**Sobre `drift`.** Es el comando de la funcionalidad F6, que es *should-have* y vive en la reserva del calendario: puede no entrar en esta versión. Aparece ya en el diagrama, en la CLI y en el enum `capability` de `QUERY_LOG` porque el punto de extensión conviene diseñarlo ahora —añadir un valor a un enum con datos dentro es una migración, no un cambio de código— pero se documenta como **previsto, no entregado**. La distinción no es cosmética: un README que anuncia un comando que el código no tiene es exactamente la divergencia entre documentación y código que F6 existe para detectar.
+**Sobre `drift`.** Es el comando de la funcionalidad F6, que era *should-have* y vivía en la reserva del calendario. Desde DIS-73 está **entregado**: `codemind drift <proyecto> [--doc <ruta>]` imprime, por documento, las afirmaciones que el código contradice, con la cita de los dos lados, y cada ejecución deja una fila `drift` en `QUERY_LOG`. Sin `LLM_*` (modo evaluación) imprime el informe *golden* versionado en `seeds/drift/acme-shop.json` (que `npm run db:seed` carga y `npm run drift:build` regenera con un modelo real). Con un modelo configurado, `drift acme-shop` sobre el proyecto entero también sirve ese informe *golden* sin llamar al modelo (la salida termina con `note: golden report (answer cache)`); `--doc <ruta>` no tiene informe *golden* y ejecuta el modelo sobre ese documento. La distinción entre lo previsto y lo entregado no era cosmética: un README que anuncia un comando que el código no tiene es exactamente la divergencia entre documentación y código que F6 existe para detectar.
 
 **Por qué Fastify y no NestJS.** Con dos o tres endpoints y el dominio ya aislado en `packages/core`, la estructura de módulos y la inyección de dependencias de NestJS resuelven un problema que este proyecto no tiene. Fastify aporta validación por esquema y generación de OpenAPI, que es exactamente lo que se necesita.
 
@@ -633,7 +634,7 @@ AI4Devs-finalproject/
 │   │   └── git/                    #   historial y lectura del árbol con simple-git
 │   │
 │   ├── api/                        # Fastify: /ask, /health, /docs, errores, límite por IP
-│   ├── cli/                        # projects · index · ask · impact · db:seed · cache:build · verify
+│   ├── cli/                        # projects · index · ask · impact · drift · db:seed · cache:build · drift:build · verify
 │   └── web/                        # React + Vite + Tailwind: rutas, cliente tipado, Pantallas 1 y 2
 │
 ├── fixtures/                       # los 2 repositorios de muestra
@@ -1031,7 +1032,7 @@ erDiagram
         uuid id PK
         uuid project_id FK "not null, on delete cascade"
         text question "not null"
-        text capability "enum: explain, impact, drift — not null, drift previsto (F6)"
+        text capability "enum: explain, impact, drift — not null, drift (F6, DIS-73)"
         int input_tokens
         int output_tokens
         int baseline_tokens "coste que habría tenido el contexto bruto"
@@ -1128,7 +1129,7 @@ confidence = σ( w₁·evidencias_norm         # nº de evidencias que superan l
 
 σ es una sigmoide, que acota el resultado al intervalo (0, 1). Los pesos se fijan **una sola vez**, a mano, sobre las preguntas de desarrollo de los repositorios de muestra, y se publican con su valor y su motivo en `docs/CONFIDENCE.md`. No se reajustan después contra las preguntas con las que se mide.
 
-**Dónde vive el valor (DIS-72).** Es una sola función, `packages/core/src/knowledge/confidence.ts`, aplicada a un conjunto de afirmaciones. Aplicada a cada afirmación por separado da el `confidence` que se guarda en su `CLAIM`; aplicada a todas las afirmaciones de la respuesta da `answer.confidence`, presente en toda respuesta con afirmaciones (guardada o no). Una respuesta `UNKNOWN` no lleva confianza. `ask` no la imprime todavía. Hoy dos términos valen siempre 0: `contradiccion`, hasta que DIS-71 produzca evidencia contraria, y la parte de `historial` de la diversidad, porque ninguna evidencia cita aún commits; por eso la diversidad llega como mucho a 0,75. Sin ninguna señal el valor es exactamente 0,5. Los seis términos, sus definiciones exactas y los límites están en `docs/CONFIDENCE.md`, y un test comprueba que la tabla de pesos del documento y la del código coinciden.
+**Dónde vive el valor (DIS-72).** Es una sola función, `packages/core/src/knowledge/confidence.ts`, aplicada a un conjunto de afirmaciones. Aplicada a cada afirmación por separado da el `confidence` que se guarda en su `CLAIM`; aplicada a todas las afirmaciones de la respuesta da `answer.confidence`, presente en toda respuesta con afirmaciones (guardada o no). Una respuesta `UNKNOWN` no lleva confianza. `ask` no la imprime todavía. Hoy dos términos valen siempre 0: `contradiccion` (`drift`, DIS-71, encuentra contradicciones pero no las guarda, así que la señal sigue en 0), y la parte de `historial` de la diversidad, porque ninguna evidencia cita aún commits; por eso la diversidad llega como mucho a 0,75. Sin ninguna señal el valor es exactamente 0,5. Los seis términos, sus definiciones exactas y los límites están en `docs/CONFIDENCE.md`, y un test comprueba que la tabla de pesos del documento y la del código coinciden.
 
 **Lo que este número no es.** No está calibrado: no se afirma que `0.71` signifique «acierta el 71 % de las veces». Demostrar eso exigiría curva de fiabilidad y error de calibración esperado sobre un conjunto de test suficiente, que está deliberadamente fuera del alcance de este proyecto. Es un **indicador ordinal**: sirve para comparar dos respuestas del mismo sistema, no como probabilidad. La interfaz lo presenta siempre junto a las evidencias, que son lo que de verdad se puede comprobar.
 

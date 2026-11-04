@@ -24,6 +24,11 @@ export default mergeConfig(
         'packages/web/**',
         'tests/a11y/**',
         'tests/unit/web/**',
+        // Stryker instruments the sources in its sandbox, and this test hashes the fingerprint inputs of
+        // the golden drift report (some of them mutated files), so the hash it reads is never the
+        // committed one. It runs in `npx vitest run` and in the CI Vitest step (DIS-73, ADR
+        // 20261103-drift-golden-freshness-in-unit-suite).
+        'tests/unit/seed/drift-golden-coherence.spec.ts',
         // The hook harness spawns bash and Node processes and exercises no mutated source
         // (openspec change autonomous-run-switch, design D15).
         'tests/harness/**',

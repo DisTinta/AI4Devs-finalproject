@@ -242,8 +242,14 @@ function safeLine(line: string): string {
   return terminalSafeText(line.replaceAll('\t', '  '));
 }
 
-/** `line` indented by `spaces`; an empty line stays empty. */
-function indent(line: string, spaces: number): string {
+/**
+ * `line` indented by `spaces`; an empty line stays empty (shared with the `drift` command, DIS-73).
+ *
+ * @param line The line, already terminal-safe.
+ * @param spaces How many spaces go before it.
+ * @returns The indented line, or the empty line.
+ */
+export function indent(line: string, spaces: number): string {
   return line === '' ? '' : `${' '.repeat(spaces)}${line}`;
 }
 

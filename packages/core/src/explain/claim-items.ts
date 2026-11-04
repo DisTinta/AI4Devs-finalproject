@@ -78,8 +78,8 @@ export function toConfidenceStatement(statement: Pick<VerifiedStatement, 'spans'
  * Maps the typed statements of one answer to the claims to store: as subject the symbol name of the
  * first cited span (its path when it has no symbol, never the question), as predicate
  * {@link CLAIM_PREDICATE_EXPLAINS}, as object the text; layer `L2`, type `INFERENCE`, status
- * `current`, as confidence that of the statement alone (`docs/CONFIDENCE.md`, without contradiction
- * until DIS-71); the statement type (after the entailment policy) in the provenance. One
+ * `current`, as confidence that of the statement alone (`docs/CONFIDENCE.md`, without contradiction:
+ * `drift` (DIS-71) finds contradictions but does not store them, so the signal stays 0); the statement type (after the entailment policy) in the provenance. One
  * evidence per cited span, with its redacted text as excerpt (cut when the span was over the limit,
  * without the truncation mark or neutralisation) and as verification the verdict of its (statement,
  * citation) pair, `entailed` or `cited`: only citations that passed the syntactic check reach it.
@@ -103,7 +103,7 @@ export function toClaimItems(
         layer: 'L2',
         type: 'INFERENCE',
         status: 'current',
-        // No component produces contrary evidence until DIS-71.
+        // `drift` (DIS-71) finds contradictions but does not store them, so the signal stays 0.
         confidence: confidence([toConfidenceStatement(statement)], { contradiction: false }),
         provenance: {
           model: provenance.model,
