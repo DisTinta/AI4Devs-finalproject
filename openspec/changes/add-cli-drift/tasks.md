@@ -144,7 +144,7 @@
 
 ## 17. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 17.1 Open the PR against `final-project-CRN`; DIS-73 to In Review with a Spanish comment linking it
+- [x] 17.1 Open the PR against `final-project-CRN`; DIS-73 to In Review with a Spanish comment linking it
 - [ ] 17.2 CI green, including the mutation job: wait in the foreground with `gh pr checks <n> --watch --interval 60` (timeout 600000), repeated until no check is pending; link the run in an addendum to the step 12 report
 - [ ] 17.3 `/show-spec-working` (may reuse the step 13 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
 - [ ] 17.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
