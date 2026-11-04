@@ -791,3 +791,244 @@ None of these block the apply. They can go in one pass before task 1.1, or be re
   > - I5: se nombra la pregunta de `useCache: false` en 11.5.
   > - I6: nota en `[enhanced]`.
   > - I7: frase sobre el índice HNSW en S3.
+
+---
+
+## Run 1 (2026-11-04)
+
+CHANGES REQUIRED
+
+Spec audit of `openspec/changes/semantic-cache` for DIS-67 (CM-HU-19.1), parent DIS-46 (CM-HU-19). Date: 2026-11-04. I read the Linear sub-issue, its parent and all comments on both. I audited the change as it stands now: it is applied, PR #105 is open, and tasks 0–14.1 are checked. This is the first audit of the relaunched workflow. The earlier report `reports/2026-11-03-spec-audit.md` covers runs 1–3, and its findings are not repeated here.
+
+**Questions for the author**
+
+- **Q1 (product decision, not blocking).** The parent's first acceptance criterion pairs «¿Cómo se calcula el precio final de un pedido?» with «explícame el cálculo del precio final» and says the similarity is above the threshold. Calibration R3 used the reference model this change picks (`nomic-embed-text`, D3) and found otherwise:
+  - The parent's own rephrasing pair scores 0.8321, below 0.85, so it misses.
+  - Different-topic questions that share the same sentence frame reach the threshold: shipping 0.8745, "apply coupons" 0.8920. The manual run served the price answer to the shipping question.
+  - The agent accepted both effects as a D follow-up without the author.
+
+  The scenarios meet the criterion with synthetic vectors, so the criterion has a formal requirement and scenario. But accepting false hits that serve a wrong cached answer is a product decision, and `docs/base-standards.md` §7.1 step 3 leaves those to the author. **Does the author accept R3 as it is, or should this change move the threshold or the embedded text?**
+
+---
+
+## 1. Scope against the ticket
+
+Clean. Everything traces to the sub-issue ("SQL, umbral, orden de comprobación", DoD "reformulación acierta, tema distinto no; sin `embed()` se degrada sin error") or to explicit asks in the parent:
+- **Migration and dimension.** The 768 migration of all three embedding columns and the edit to `docs/backend-standards.md` §5 come from the DIS-46 note of 2026-10-09 ("Esta HU decide el modelo de embeddings … añade la migración"; "Corregir el non-goal de CM-HU-01").
+- **ADR.** The ADR `docs/adr/20261103-embeddings-stay-on-llm-port.md` and the DIS-101 row in `readme.md` come from the DIS-46 comment of 2026-10-16.
+- **Excluded.** Hit rate, UI and golden vectors are excluded and routed to DIS-69 (D10). The change does not widen to the parent's whole story.
+
+## 2. Inherited acceptance criteria
+
+Clean, apart from Q1.
+
+| DIS-46 criterion | Requirement / scenario |
+|---|---|
+| Rephrasing hits, `embed()` once, no `complete()` | `semantic-cache` "Similarity lookup in explain" → "A rephrased question is answered from the similar entry" |
+| Different topic is answered live | → "A question on another topic is answered live and saved with its embedding" |
+| Two projects, only own `project_id` | → "The most similar entry of the project wins"; `graph-store` → "A saved embedding is found by similarity within its project" |
+| Evaluation mode degrades to exact key, then `llm-required`; never fails for lack of embedding | → "Evaluation mode requests no embedding"; "Degradation without embeddings" (4 scenarios) |
+| Hit rate 0.4 shown in CLI and `UsagePanel` | Not in the sub-issue DoD; DIS-69 (D10, B). Correctly excluded |
+
+## 3. Missing scenarios
+
+- **I3 (improvable).** In `semantic-cache` "Embedding of a saved answer", the clause "An answer served from the cache SHALL NOT be saved again, and its entry keeps its stored embedding" has no scenario step that asserts it. "A live answer is saved with its embedding and found by a rephrasing" only checks the hit count. Correction: add to that scenario "**AND** the store received exactly one save, and the entry still holds the embedding of the price question's key".
+- **I3b (improvable).** The same requirement says "the operator SHALL invalidate the answer cache of every project … before asking". That is an operator duty, not system behaviour; no test can pin it. Correction: make it non-normative ("Stored embeddings are only comparable … ; after `LLM_EMBED_MODEL` changes the operator invalidates …; the system does not detect the change"). It stays documented in `.env.example`, `docs/project-context.md`, `docs/backend-standards.md` §5 and the ADR.
+- **I4 (improvable).** The tie-break "then to the greatest id" (in `semantic-cache` "Similarity lookup in explain" and `graph-store` "Answer cache entries") has no scenario on the similarity path. Every tie scenario uses different `created_at` values. Correction: in `graph-store` "The most similar entry wins and ties go to the most recent", add an entry E with the same embedding and `created_at` as D and a greater `id`, inserted directly, and expect E. Or state that the id tie is pinned only by the existing `findCacheEntry` scenario.
+- **I5 (improvable).** "it appears at most once per answer" (the skip event) is never asserted. The scenarios only say "events start with". Correction: in "An unavailable endpoint or an unusable vector degrades with an event", add "and holds no other `semantic_cache_skipped` event".
+
+## 4. Ambiguity
+
+Clean. Outside `reports/`, the change contains "fast", "easy", "secure", "efficient", "many", "appropriate" and "robust" only in two unchanged `explain` scenarios: "as many symbol searches as" and "however many statements cite it". Both are exact counts.
+
+## 5. Open decisions
+
+- **B1 (blocking, also points 7 and 10).** The seed and golden fingerprint refresh was decided outside the change's artifacts. The change edits seed fingerprint inputs: the store adapter, `core/knowledge` and a new `migrations/*.up.sql`, which is a contract fingerprint input. `docs/project-context.md:1481-1488` requires a PR that touches them to run `npm run seed:build` then `npm run cache:build` and commit both, and says regenerated entries need a new review.
+  - `tasks.md` has no task for this.
+  - Not planning it caused the clean stop of 2026-11-03 (`FINGERPRINT_MISMATCH`).
+  - After apply, commit `f26c898` refreshed `seeds/graph-dump.sql`, `seeds/cache/*.json`, `seeds/drift/acme-shop.json` and `docs/measurements/graph-quality.json`. It used a procedure Linear calls E1: refresh the `seed.*` headers only, without `cache:build`, keeping the DIS-110 signatures.
+  - No artifact names that procedure, the files, E1–E3 or the commit. A grep of the change for "fingerprint", "seed:build" and "graph-dump" finds nothing.
+  - The Linear note of 2026-11-04 says itself that "E1 a E3 pasan a `design.md` → Follow-ups … en el siguiente paso que edite la rama".
+
+  `docs/base-standards.md` §7 forbids a post-apply fix that is not first reflected in the artifacts. The procedure also departs from `project-context.md:1486-1487`, which says to regenerate with `cache:build`, and the change gives no stated reason. Fix it in `tasks.md` (a new task), `proposal.md` → Impact and `design.md` → Follow-ups (see Corrections).
+
+## 6. Contradictions inside the change
+
+- **B2 (blocking, also point 8).** Who applies `reachesThreshold`:
+  - Design S4: `reachesThreshold` is "the single TypeScript statement of the inclusive rule, applied by the in-memory double".
+  - Task 4.3: "the threshold check applies `reachesThreshold`".
+  - Design Follow-up R6 (D) says the opposite: the double compares with the `minSimilarity` it receives.
+  - The code follows R6. `tests/support/in-memory-store.ts:557` has `best.similarity < minSimilarity`, and `reachesThreshold` is called only from `tests/unit/cache/similarity-cache.spec.ts`.
+  - The TSDoc at `packages/core/src/cache/similarity-cache.ts:19-20` still says it is "applied by the in-memory store".
+
+  So two artifacts and a code comment state a false fact, and nothing in production code calls `reachesThreshold`. Rule 1 of `docs/base-standards.md` §3 forbids leaving that unresolved. Correction (artifacts first, under §7):
+  - Edit S4 and task 4.3 to match R6: `reachesThreshold` is the core statement of the inclusive rule, tested on its own; the double and the SQL apply `>=` to the `minSimilarity` argument.
+  - Fix the TSDoc to say the same.
+  - Alternatively, make the double call `reachesThreshold` when `minSimilarity === SEMANTIC_CACHE_MIN_SIMILARITY`. This is not recommended because it ties a store double to a core constant.
+- **I1 (improvable).** Where the tests live:
+  - Tasks 6.2 and 6.4–6.7 and `proposal.md` → Impact ("extended `tests/unit/explain/explain-cache.spec.ts`") put the `semantic-cache` explain scenarios in `explain-cache.spec.ts`.
+  - R6 and the code put them in `tests/unit/explain/explain-similarity.spec.ts`.
+
+  Correction: name `explain-similarity.spec.ts` (new) in tasks 6.2 and 6.4–6.7 and in the Tests line of `proposal.md` → Impact.
+
+## 7. Contradictions with the project
+
+- **B1** (see point 5) contradicts `docs/project-context.md` → Gotchas, "`verify` and the fingerprint policy" (lines 1481-1488), and the regeneration order at lines 1472-1474 (`seed:build` → `cache:build` → `drift:build`). The change neither plans that order nor documents why `cache:build` was not needed.
+- **I6 (improvable).** Task 14.7 has the agent merge (`gh pr merge <n> --merge`). That is allowed only in an autonomous run, by the exception table in `docs/AUTONOMOUS-RUN.md` §5 (line 135). `docs/openspec-tasks-mandatory-steps.md` §3 (Pre-merge Review, point 5) and base-standards rule 9 say the agent never merges. Correction: condition the task on that exception, as in the correction text below.
+- Otherwise clean:
+  - The `docs/backend-standards.md` §5 embeddings bullet already holds the new rule (lines 99-104, linking the ADR), and HNSW SQL stays in `store-postgres`.
+  - The deltas do not duplicate `answer-cache` (S12).
+
+## 8. Contrast with the real code
+
+- **B2** (see point 6): `packages/core/src/cache/similarity-cache.ts:19-26` and `tests/support/in-memory-store.ts:557`.
+- **I2 (improvable).** The scenario `semantic-cache` → "The most similar entry of the project wins" and its test disagree:
+  - The scenario's GIVEN has "two projects whose graphs both anchor the price question", and its AND step explains "in the second project after C is removed, with only an entry D".
+  - In the test `tests/unit/explain/explain-similarity.spec.ts:187-208`, C is seeded under a random project id with no graph, and C's hit count is never asserted. The test only reads `d.projectId`.
+  - The AND step is implemented as a separate test with a name that is not in the spec, "An entry without an embedding is never a similarity hit" (`:210`). It runs in the same project, which breaks the 1:1 name rule of task 7.3.
+
+  Correction: split the scenario into two, using the spec text given in the correction list below. The test stays as it is, apart from adding the assertion on C.
+- Everything else matches the design:
+  - `explain.ts:376-392` follows the order exact → embed (live, non-empty key) → similarity lookup (unless `useCache: false`) → evaluation.
+  - `finish` and `saveCache` pass `state.embedding`, and `withEvents` puts the skip event first (`:313`).
+  - `FIND_SIMILAR_CACHE_ENTRY` (`queries.ts:452-464`) is the `MATERIALIZED` CTE of S3, with the threshold outside.
+  - The double's checks and tie order match the SQL.
+  - There is no duplicated abstraction: `recordHit` is shared by both kinds of hit.
+
+## 9. Task size
+
+Clean. Groups 6 and 9 are large but are split into one-scenario-at-a-time steps. All tasks up to 14.1 are done, and 14.2–14.7 are single procedures.
+
+## 10. Mandatory steps
+
+- Step 0 creates the branch and comes first (`feature/dis-67-semantic-cache`, matching `BRANCH_PREFIX`).
+- Groups 7, 9, 10, 11, 12 and 14 carry `(MANDATORY)`, and groups 11, 12 and 14 also carry `AGENT MUST EXECUTE`.
+- The step 10 report path follows the template. Mutating steps restore state (10.6, 11.7). PowerShell is checked in both shells (11.6).
+- Pre-merge Review is last: 14.3 → 14.4 → 14.5, then fixes on the same PR, then the archive commit before the merge.
+- The docs group comes before the run-tests group, out of the listed order, with the reason stated in group 9.
+- **Missing:** a task for the fingerprint refresh this stack requires (B1).
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| semantic-cache · Similarity threshold and embedded text | The threshold is 0.85 and inclusive | 1.1, 1.2 |
+| | Only one finite non-zero vector of the schema's dimension is usable | 1.3 |
+| semantic-cache · Similarity lookup in explain | A rephrased question is answered from the similar entry | 6.2, 6.3 |
+| | A question on another topic is answered live and saved with its embedding | 6.4 |
+| | The threshold is inclusive at the boundary | 6.4 |
+| | An exact hit requests no embedding | 6.4 |
+| | The most similar entry of the project wins | 6.5 (test deviates, I2) |
+| | Equal similarities go to the most recent entry | 6.5 |
+| | A rejected similar entry is a miss without trying the next | 6.5 |
+| | Evaluation mode requests no embedding | 6.4 |
+| | Turning the cache off embeds only for the save | 6.4 |
+| | A question without anchor requests no embedding | 6.4 |
+| | A failing similarity lookup or hit record stops before the model | 6.5 |
+| semantic-cache · Degradation without embeddings | Without an embedding model the call is answered as today | 6.6 |
+| | An unavailable endpoint or an unusable vector degrades with an event | 6.6 |
+| | A spent daily budget skips the lookup and the answer call still fails | 6.6 |
+| | Another embedding error propagates before the model | 6.6 |
+| | The skip event carries nothing of the question or the error | 6.7 |
+| | The embedding request is not counted in the usage or the row | 6.7 |
+| semantic-cache · Embedding of a saved answer | A live answer is saved with its embedding and found by a rephrasing | 6.7 |
+| explain · Precedence and UNKNOWN answers (MODIFIED) | A live miss requests one embedding before the pack | 6.8 |
+| | 14 unchanged scenarios | 7.3 |
+| explain · Answer cache (MODIFIED) | A similarity hit over the database counts in its entry and its row | 6.9 |
+| | 14 unchanged scenarios | 7.3 |
+| explain · Explain events and logging (MODIFIED) | The skip event comes before the sanitisation events | 6.8 |
+| | 7 unchanged scenarios | 7.3 |
+| explain · Query log (MODIFIED) | 15 unchanged scenarios; new clauses pinned by semantic-cache scenarios | 7.3 |
+| graph-store · Answer cache entries (MODIFIED) | A saved embedding is found by similarity within its project | 5.1, 5.2 |
+| | The most similar entry wins and ties go to the most recent | 5.3 |
+| | The similarity search is exact whatever the other projects hold | 5.3 |
+| | Invalid cache arguments are rejected before querying (modified) | 5.3 |
+| | Cache calls on an unknown project fail without writing (modified) | 5.3 |
+| | The in-memory double searches by similarity like the database | 4.1, 4.3 |
+| | 10 unchanged scenarios | 5.4, 7.3 |
+| graph-schema · Roll back the latest migration (MODIFIED) | Roll back only the latest migration | 3.1, 3.2 |
+| | Roll back the query log verification migration | 3.1 |
+| | L1 / both / every-migration rollback (unchanged) | 3.4 |
+| graph-schema · L1 column contract (MODIFIED) | Migrated schema matches the column contract | 3.1 |
+| | An embedding of another dimension is rejected by the column | 3.3 |
+| | Defaults apply on a minimal insert (unchanged) | 3.4 |
+| graph-schema · History, claim, usage and cache column contract (MODIFIED) | Migrated schema matches the history, claim, usage and cache column contract | 3.1 |
+| | Defaults apply on a minimal claim, query log and cache entry (unchanged) | 3.4 |
+| llm-adapter · The client waits as long as the configured timeout (MODIFIED) | Without an injected fetch the request does not use the global fetch | 2.3 |
+| | timeouts/refusals/redirects; response after 300 s (unchanged) | 2.4, 7.3 |
+| llm-adapter · Completion request and response (MODIFIED) | A null usage reports zero tokens | 2.3 |
+| | other unchanged scenarios | 2.4 |
+| llm-adapter · Embedding request, order and dimension (MODIFIED) | Embeddings are returned in input order | 2.3 |
+| | A vector of another dimension is rejected | 2.3 |
+| | Embeddings with missing or duplicated indexes are an invalid response | 2.3 |
+| | The schema dimension is 768 | 2.1, 2.2 |
+| | Embeddings without usage / for no texts (unchanged) | 2.4 |
+
+No empty row. I confirmed by grep under `tests/` that every new or modified scenario name has a test.
+
+---
+
+## Corrections to apply
+
+### `openspec/changes/semantic-cache/tasks.md`
+
+1. **B1.** Add task 10.9 to group 10 and mark it done only with its evidence:
+
+   > - [x] 10.9 Seed and golden fingerprints (`docs/project-context.md` → "`verify` and the fingerprint policy"): this change touches seed fingerprint inputs (store adapter, `core/knowledge`, `migrations/0005_embedding-768.up.sql`). Run `npm run seed:build` and confirm it regenerates the same rows (`git diff seeds/graph-dump.sql` limited to the header fingerprints); since `ANSWER_FINGERPRINT_FILES` are untouched and the rows are identical, refresh only the `seed.*` fingerprints of `seeds/cache/*.json` and `seeds/drift/acme-shop.json` and `docs/measurements/graph-quality.json` (command used: <name it>), without `cache:build`, keeping the signed reviews (DIS-110 signatures; precedent DIS-94); `tests/unit/seed/golden-coherence.spec.ts`, `tests/unit/seed/drift-golden-coherence.spec.ts` and `npm run verify` green; record it, with commit `f26c898`, in an addendum to the step 10 report (design Follow-ups E1)
+
+2. **I1.** In 6.2, replace `tests/unit/explain/explain-cache.spec.ts` with `tests/unit/explain/explain-similarity.spec.ts (new)`. Add the same file name to 6.4–6.7.
+3. **B2.** Replace 4.3's "the threshold check applies `reachesThreshold`" with "the threshold check is `similarity >= minSimilarity` on the argument (design S4, R6)".
+4. **I6.** At the end of 14.7, add: "the agent merges only in an autonomous run (`KIT_AUTONOMOUS_RUN=1`, `docs/AUTONOMOUS-RUN.md` §5); otherwise the author merges".
+
+### `openspec/changes/semantic-cache/design.md`
+
+1. **B2.** In S4, replace "It also exports `reachesThreshold(similarity)` (similarity `>=` `SEMANTIC_CACHE_MIN_SIMILARITY`), the single TypeScript statement of the inclusive rule, applied by the in-memory double." with:
+
+   > It also exports `reachesThreshold(similarity)` (similarity `>=` `SEMANTIC_CACHE_MIN_SIMILARITY`), the core statement of the inclusive rule, tested on its own; the store (SQL and the in-memory double) applies the same `>=` to the `minSimilarity` it receives (R6).
+
+2. **B1.** Add a table "Relaunch of the autonomous run (2026-11-04)" to Follow-ups, marked as agent's text:
+   - E1 (**A**): the `FINGERPRINT_MISMATCH` is resolved by refreshing the seed fingerprints only. `seed:build` produces the same rows and the answer fingerprint is unchanged, so the signed golden files stay valid and no `cache:build` or new review is needed. Commit `f26c898`, task 10.9.
+   - E2 (**B** — DIS-69): `cache:build` fails with `qwen2.5-coder` at a 4096-token context. It matters only when the golden files are regenerated with vectors, which happens in DIS-69.
+   - E3 (**A**): the pending pre-merge steps run on the existing PR #105 and on this change.
+3. **B1.** Add one sentence to S6 or S7: "Migration `0005` and the edits under `store-postgres/src` and `core/knowledge` are seed fingerprint inputs: the seed and golden fingerprints are refreshed in this change (task 10.9, E1)."
+4. **I2.** Add an R7 row (A): "The scenario 'The most similar entry of the project wins' is split into two, matching the two tests of `explain-similarity.spec.ts`."
+
+### `openspec/changes/semantic-cache/proposal.md`
+
+1. **B1.** Add an Impact bullet: "**Seed:** `seeds/graph-dump.sql`, `seeds/cache/*.json`, `seeds/drift/acme-shop.json` and `docs/measurements/graph-quality.json` get refreshed fingerprints (this change touches seed fingerprint inputs); no golden answer is regenerated (design E1)."
+2. **I1.** In Impact → Tests, replace "extended `tests/unit/explain/explain-cache.spec.ts`" with "new `tests/unit/explain/explain-similarity.spec.ts`".
+
+### `openspec/changes/semantic-cache/specs/semantic-cache/spec.md`
+
+1. **I2.** Replace "The most similar entry of the project wins" with:
+
+   > #### Scenario: The most similar entry of the project wins
+   > - **GIVEN** a project with entries A (similarity 0.88 with the rephrased question's embedding) and B (similarity 0.95), and another project with an entry C of similarity 1; none of them stored under the rephrased question's key
+   > - **WHEN** the rephrased price question is explained in the first project with a live model
+   > - **THEN** the answer is B's stored response; B's hit count is 1, and A's and C's are unchanged
+   >
+   > #### Scenario: An entry without an embedding is never a similarity hit
+   > - **GIVEN** a project whose only entry has no stored embedding and a key other than the rephrased question's
+   > - **WHEN** the rephrased question is explained with a live model with usable embeddings
+   > - **THEN** it is answered live with `usage.cacheHit` `false`
+
+   Add C's hit count assertion to the test (verify step).
+2. **I3.** In "A live answer is saved with its embedding and found by a rephrasing", add "**AND** the store received exactly one save, and the entry still holds the embedding of the price question's key".
+3. **I3b.** In "Embedding of a saved answer", replace "the operator SHALL invalidate the answer cache of every project" with "the operator invalidates the answer cache of every project".
+4. **I5.** In "An unavailable endpoint or an unusable vector degrades with an event", add "and hold no other `semantic_cache_skipped` event" after the THEN.
+
+### `openspec/changes/semantic-cache/specs/graph-store/spec.md`
+
+1. **I4.** In "The most similar entry wins and ties go to the most recent", add an entry E inserted directly with the embedding and `created_at` of D and an `id` greater than D's. The second search then resolves to E. Mirror it in "The in-memory double searches by similarity like the database".
+
+### Code (after the artifacts, under §7)
+
+1. **B2.** `packages/core/src/cache/similarity-cache.ts:19-20`: replace "applied by the in-memory store (the database applies the same `>=` in SQL)" with "the store applies the same `>=` to the minimum it receives (SQL and the in-memory double)".
+
+### Linear (in Spanish; the `[original]` block is not touched)
+
+- **DIS-67, comment:**
+
+  > *Texto del agente (auditoría de spec del relanzamiento, 2026-11-04).* La auditoría sale `CHANGES REQUIRED` con 2 bloqueantes: (B1) el refresco de huellas del seed (E1, commit `f26c898`) no figura en los artefactos del cambio; se añade la tarea 10.9, el impacto en `proposal.md` y E1–E3 en `design.md` → Follow-ups, con el motivo de no ejecutar `cache:build` frente a la política de `docs/project-context.md`; (B2) `design.md` S4 y la tarea 4.3 dicen que el doble en memoria aplica `reachesThreshold`, pero R6 y el código usan el `minSimilarity` recibido; se corrigen S4, 4.3 y el TSDoc. Mejoras I1–I6 en el mismo paso. Pregunta para la autora (Q1): con `nomic-embed-text`, la reformulación de la HU padre no alcanza 0,85 (0,8321) y preguntas de otro tema con la misma estructura sí (0,8745 y 0,8920); R3 lo aceptó el agente como D. ¿Se acepta así o se cambia el umbral o el texto embebido en este cambio?
+
+- **DIS-67, `[enhanced]`:** nothing to add beyond the note already announced there. E1–E3 now reach `design.md`.
