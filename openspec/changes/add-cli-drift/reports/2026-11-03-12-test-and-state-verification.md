@@ -91,3 +91,9 @@ Checked by hand over the diff, as `/privacy-ethics-check` asks: `seeds/drift/acm
 
 - Status: PASS
 - Blocking issues: none
+
+## Addendum, 2026-11-04: CI and review (tasks 17.2, 17.6)
+
+Agent's text. CI of PR #107 on `0efb1ea`: every job green, run [41748276279](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/41748276279) (e2e 1m15s, mutation 58m21s, quality 10m35s, scope 7s, secrets 8s, verify 44s) and the frontend job of run 41748276289 (4m39s).
+
+Review fixes (design Follow-ups RV2, RV4, RV5): `package.json` formatting of the `seed:build` line, `indent` exported from `commands/ask.ts` and imported by `commands/drift.ts`, and one sentence in `readme.md`. Re-run after them: `npm run typecheck`, `npm run lint` and `npm run docs:coverage` clean; `npx vitest run tests/unit/cli tests/integration/cli/drift-command.spec.ts tests/integration/cli/ask-command.spec.ts` 19 files, 303 passed, 13 skipped (their own guards). No file of `DRIFT_FINGERPRINT_FILES` changed after task 6.2, so `npm run drift:build` was not re-run and the coherence test is unaffected. The CI of the review commit is recorded in the PR.

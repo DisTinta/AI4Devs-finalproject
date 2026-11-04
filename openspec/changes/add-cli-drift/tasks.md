@@ -145,9 +145,9 @@
 ## 17. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
 - [x] 17.1 Open the PR against `final-project-CRN`; DIS-73 to In Review with a Spanish comment linking it
-- [ ] 17.2 CI green, including the mutation job: wait in the foreground with `gh pr checks <n> --watch --interval 60` (timeout 600000), repeated until no check is pending; link the run in an addendum to the step 12 report
-- [ ] 17.3 `/show-spec-working` (may reuse the step 13 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
-- [ ] 17.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
-- [ ] 17.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
-- [ ] 17.6 Fix every finding in this change (TDD for behaviour), each with an A/B/C/D destination in `design.md` → Follow-ups; re-run what each fix invalidates and add an addendum to the affected report; commit to the same PR; re-run a check whose findings led to non-trivial fixes until no Blocker or Major. If any file of `DRIFT_FINGERPRINT_FILES` changed after task 6.2, re-run `npm run drift:build` (as task 6.2) and `npm run db:seed`, check that the coherence test is green, and record the run in the step 12 report
+- [x] 17.2 CI green, including the mutation job: wait in the foreground with `gh pr checks <n> --watch --interval 60` (timeout 600000), repeated until no check is pending; link the run in an addendum to the step 12 report
+- [x] 17.3 `/show-spec-working` (may reuse the step 13 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
+- [x] 17.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
+- [x] 17.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
+- [x] 17.6 Fix every finding in this change (TDD for behaviour), each with an A/B/C/D destination in `design.md` → Follow-ups; re-run what each fix invalidates and add an addendum to the affected report; commit to the same PR; re-run a check whose findings led to non-trivial fixes until no Blocker or Major. If any file of `DRIFT_FINGERPRINT_FILES` changed after task 6.2, re-run `npm run drift:build` (as task 6.2) and `npm run db:seed`, check that the coherence test is green, and record the run in the step 12 report
 - [ ] 17.7 Any edit of a main spec (`openspec/specs/drift-detection/spec.md` or `openspec/specs/seed-load/spec.md`, the capabilities this change has a delta for) is made before `/opsx:archive`; then `/opsx:archive` (it creates `openspec/specs/cli-drift/spec.md` and `openspec/specs/drift-golden/spec.md` with their `## Purpose`); commit it to the same PR; `node scripts/dev-processes.mjs stop`; merge (`gh pr merge <n> --merge`, through the merge gate) only after the archive commit and with CI green (autonomous run, `KIT_AUTONOMOUS_RUN=1`, only; otherwise the author merges)

@@ -19,7 +19,7 @@ import { createLogger } from '../logger.js';
 import type { TextSink } from '../logger.js';
 import { terminalSafeText, toTerminalSafeJson } from '../safe-json.js';
 import { CLI_VERSION } from '../version.js';
-import { excerptLines, safeLines, toFailure as toAskFailure } from './ask.js';
+import { excerptLines, indent, safeLines, toFailure as toAskFailure } from './ask.js';
 import type { OpenedStore } from './ask.js';
 
 // The `drift <project> [--doc <path>]` command (DIS-73, spec cli-drift): the drift use case from the
@@ -211,11 +211,6 @@ function continued(prefix: string, text: string[]): string[] {
 /** `<path>:<startLine>-<endLine>`, the path escaped. */
 function citation(span: { path: string; startLine: number; endLine: number }): string {
   return `${terminalSafeText(span.path)}:${span.startLine}-${span.endLine}`;
-}
-
-/** `line` indented by `spaces`; an empty line stays empty. */
-function indent(line: string, spaces: number): string {
-  return line === '' ? '' : `${' '.repeat(spaces)}${line}`;
 }
 
 /**
