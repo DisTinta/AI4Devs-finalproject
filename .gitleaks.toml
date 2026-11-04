@@ -94,3 +94,7 @@ regexes = ['''^k[e]y\-distinctive\-123$''']
 [[allowlists]]
 description = "Synthetic Stripe-shaped value quoted from an early draft scenario in the first spec audit of the drift-detection change (DIS-71) - openspec/changes/add-drift-detection/reports/2026-11-03-spec-audit.md, stripe-access-token, lines 191 and 193 when generated (also in the git history of this branch)"
 regexes = ['''^s[k]_live_abcdef123456$''']
+
+[[allowlists]]
+description = "Synthetic sentinel API key of the daily-budget scenario of the add-cli-drift change (DIS-73) - openspec/changes/add-cli-drift/specs/cli-drift/spec.md and tests/unit/cli/drift-command.spec.ts, generic-api-key (lines not listed: they move with every edit; the regex matches the exact value, also in the git history of this branch)"
+regexes = ['''^S[E]NTINEL\-key\-5d2b$''']
