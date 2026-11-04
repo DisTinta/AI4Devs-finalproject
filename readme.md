@@ -284,7 +284,7 @@ Cada elemento del informe de impacto indica su **origen**: `[grafo]` para lo der
 | 2 | Pulsar una evidencia | La cita resuelve a un fragmento real del código |
 | 3 | Preguntar algo que el repositorio no puede responder | **El sistema responde `UNKNOWN` en lugar de inventar** |
 | 4 | Pedir el impacto de cambiar los descuentos | Separación entre grafo determinista y señal histórica |
-| 5 | Repetir el paso 1 reformulando la pregunta | Acierto de caché por similitud, coste 0 (solo con `LLM_EMBED_MODEL` configurado; sin él, o en modo evaluación, solo hay acierto exacto) |
+| 5 | Repetir el paso 1 reformulando la pregunta («¿Cómo se calcula el precio total de un pedido?») | Acierto de caché por similitud sobre la respuesta *golden* sembrada, coste 0 (solo con `LLM_EMBED_MODEL=nomic-embed-text` configurado; sin él, o en modo evaluación, solo hay acierto exacto), y la línea «Caché del proyecto» del panel de uso con la tasa de aciertos del proyecto |
 | 6 | Cambiar a `task-api` y repetir el paso 1 | **El mismo núcleo sobre TypeScript**, con grafo más preciso |
 
 El paso 3 es el más característico: un sistema que sabe callarse.
@@ -359,6 +359,8 @@ npm run cli -- impact acme-shop "cambiar los descuentos de DiscountService"
 npm run cli -- drift acme-shop
 npm run cli -- ask task-api "¿Cómo valida taskRoutes las peticiones entrantes?"
 ```
+
+Cada línea de `projects` termina con el campo `cache <aciertos>/<consultas> (<tasa>%)` (DIS-69): las consultas `explain` del proyecto y las que se sirvieron desde la caché de respuestas, por clave exacta o por similitud (`cache 0/0` si el proyecto aún no tiene consultas; `impact` y `drift` no cuentan), por ejemplo `acme-shop  a794456d-6d1b-5b55-a360-13fec83dc7bc  php/laravel  174 nodes · 170 edges  2024-05-06T09:31:00.000Z  cache 3/4 (75%) sample`.
 
 **Estado en Entrega 2:** desde DIS-21, sin `LLM_*` (modo evaluación) `ask` responde desde la caché de respuestas del proyecto cualquier pregunta que ya tenga entrada (misma pregunta normalizada: sin distinguir mayúsculas, tildes, signos ni espacios), sin llamar al modelo y a coste 0. Desde DIS-26, `npm run db:seed` (y con él `npm run up`) carga además las respuestas *golden* versionadas en `seeds/cache/acme-shop.json` para tres preguntas de muestra de acme-shop: Q1 «¿Cómo se calcula el precio final de un pedido?», Q3 «¿Cómo se validan los cupones?» y Q4 «¿Qué hace OrderObserver al crear un pedido?». Esas tres responden al instante, sin modelo y a coste 0 (también escritas con otras mayúsculas, tildes o signos). Una pregunta sin entrada responde:
 
@@ -443,7 +445,7 @@ Sin respuesta posible imprime `UNKNOWN (<reason>)` (`no-anchor`, `llm-required`,
 
 #### Probar con un modelo real
 
-Sin `LLM_*` (modo evaluación) no hace falta ningún modelo: las tres preguntas *golden* de `acme-shop` (Q1, Q3 y Q4) se sirven al instante desde la caché, con `cacheHit: true` y `costUsd: 0`, y cualquier otra pregunta responde `UNKNOWN (llm-required)` (ver [`docs/DEMO.md`](docs/DEMO.md), pasos 1 y 5). Para preguntar libremente hace falta un endpoint compatible con OpenAI, y conviene saber de antemano cuánto tarda:
+Sin `LLM_*` (modo evaluación) no hace falta ningún modelo: las tres preguntas *golden* de `acme-shop` (Q1, Q3 y Q4) se sirven al instante desde la caché, con `cacheHit: true` y `costUsd: 0`, y cualquier otra pregunta responde `UNKNOWN (llm-required)` (ver [`docs/DEMO.md`](docs/DEMO.md), pasos 1 y 5). Con la semilla cargada y `LLM_EMBED_MODEL=nomic-embed-text` (los vectores de las respuestas *golden* versionadas son de ese modelo, DIS-69), «¿Cómo se calcula el precio total de un pedido?» se responde desde la entrada golden de Q1 por similitud; el modo evaluación sigue siendo solo de clave exacta. Para preguntar libremente hace falta un endpoint compatible con OpenAI, y conviene saber de antemano cuánto tarda:
 
 | Modo | Tiempo por pregunta | Fuente |
 |---|---|---|
@@ -494,7 +496,7 @@ Hace cada pregunta golden de los repositorios de muestra (versionadas en `seeds/
 
 > **Decisión (5 sep 2026).** Antes: `LLM_API_KEY` obligatoria. Ahora: **opcional**; evaluación sin key; desarrollo libre con Ollama. Motivo: 0 € y 0 fricción para quien evalúa.
 
-Las semillas se regeneran con `npm run seed:build`, que indexa los dos repositorios de muestra y volca el grafo a `seeds/graph-dump.sql`, versionado en el repositorio. Así la instalación es determinista y no depende de que el indexado se comporte igual en otra máquina. Las respuestas *golden* de evaluación (DIS-26) se regeneran en desarrollo con `npm run cache:build`, **después** de `seed:build`: el comando comprueba que la semilla está al día con el código, pregunta cada pregunta *golden* a un LLM vivo (la referencia es Ollama local con `qwen2.5-coder`; en CPU tarda unos 30 minutos) sobre la semilla cargada en una transacción que siempre deshace, y escribe `seeds/cache/acme-shop.json` de una vez, solo si todas salieron bien. El fichero viaja versionado con las huellas de la semilla y una huella de las respuestas (prompts, reglas de tipado y verificación, pesos de confianza y formato guardado), para que `verify` sepa cuándo se han quedado viejas sin necesitar modelo. `npm run cache:build -- Q3` regenera solo esa pregunta si las huellas no han cambiado.
+Las semillas se regeneran con `npm run seed:build`, que indexa los dos repositorios de muestra y volca el grafo a `seeds/graph-dump.sql`, versionado en el repositorio. Así la instalación es determinista y no depende de que el indexado se comporte igual en otra máquina. Las respuestas *golden* de evaluación (DIS-26) se regeneran en desarrollo con `npm run cache:build`, **después** de `seed:build`: el comando comprueba que la semilla está al día con el código, pregunta cada pregunta *golden* a un LLM vivo (la referencia es Ollama local con `qwen2.5-coder`; en CPU tarda unos 30 minutos) sobre la semilla cargada en una transacción que siempre deshace, y escribe `seeds/cache/acme-shop.json` de una vez, solo si todas salieron bien. El fichero viaja versionado con las huellas de la semilla y una huella de las respuestas (prompts, reglas de tipado y verificación, pesos de confianza y formato guardado), para que `verify` sepa cuándo se han quedado viejas sin necesitar modelo. `npm run cache:build -- Q3` regenera solo esa pregunta si las huellas no han cambiado. Desde DIS-69 cada entrada del fichero lleva además `questionEmbedding`, el vector de su pregunta normalizada: `cache:build` escribe `null` en lo que regenera y `npm run cache:embed [-- --project <name>]` lo rellena con el modelo de `LLM_EMBED_MODEL` (la referencia es `nomic-embed-text`, 768 dimensiones) sin volver a preguntar nada ni tocar la base de datos, así que no cambia ninguna respuesta ni ninguna revisión; `db:seed` guarda el vector con la entrada y una pregunta reformulada puede acertar por similitud nada más sembrar.
 
 ---
 
@@ -634,7 +636,7 @@ AI4Devs-finalproject/
 │   │   └── git/                    #   historial y lectura del árbol con simple-git
 │   │
 │   ├── api/                        # Fastify: /ask, /health, /docs, errores, límite por IP
-│   ├── cli/                        # projects · index · ask · impact · drift · db:seed · cache:build · drift:build · verify
+│   ├── cli/                        # projects · index · ask · impact · drift · db:seed · cache:build · cache:embed · drift:build · verify
 │   └── web/                        # React + Vite + Tailwind: rutas, cliente tipado, Pantallas 1 y 2
 │
 ├── fixtures/                       # los 2 repositorios de muestra
@@ -1331,6 +1333,7 @@ paths:
                       cacheHit: false
                       generation: {inputTokens: 4212, outputTokens: 340, costUsd: 0.0116}
                       verification: {calls: 4, cacheHits: 1, inputTokens: 600, outputTokens: 40, costUsd: 0.0024, latencyMs: 900}
+                      projectCache: {queries: 10, cacheHits: 4, hitRatePct: 40}
                 unknown:
                   value:
                     answer: "UNKNOWN"
@@ -1357,7 +1360,12 @@ paths:
       # (estos van al log del servidor). Una respuesta UNKNOWN lleva `reason`, uno de seis valores
       # (DIS-39, DIS-68): no-anchor, llm-required, over-budget, invalid-model-output, no-evidence,
       # broken-evidence; `message` solo con llm-required, y sin `confidence` ni `usage`. Los
-      # totales de `usage` incluyen la verificación (DIS-74).
+      # totales de `usage` incluyen la verificación (DIS-74). `usage.projectCache` (DIS-69) es la tasa
+      # de aciertos de caché del proyecto, leída después de la llamada, así que cuenta la llamada
+      # actual: `queries` son las consultas `explain` del proyecto, `cacheHits` las servidas desde
+      # la caché (exactas o por similitud) y `hitRatePct` su porcentaje con un decimal como mucho,
+      # `null` sin consultas. No va en el uso del caso de uso ni en la respuesta guardada, y una
+      # respuesta UNKNOWN no la lleva.
 
   /api/projects/{projectId}/impact:
     post:

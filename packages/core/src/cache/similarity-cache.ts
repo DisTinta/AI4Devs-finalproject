@@ -36,9 +36,22 @@ export function reachesThreshold(similarity: number): boolean {
 export function usableVector(result: EmbeddingResult): readonly number[] | undefined {
   if (result.vectors.length !== 1) return undefined;
   const vector = result.vectors[0]!;
-  if (vector.length !== EMBEDDING_DIMENSIONS) return undefined;
-  if (!vector.every((component) => Number.isFinite(component))) return undefined;
-  return vector.some((component) => component !== 0) ? vector : undefined;
+  return isUsableVector(vector) ? vector : undefined;
+}
+
+/**
+ * Whether a vector is usable (DIS-69 design S6): exactly `EMBEDDING_DIMENSIONS` components, all finite,
+ * at least one different from 0. {@link usableVector} and the golden file format share this rule, so
+ * they cannot drift.
+ *
+ * @param vector The candidate vector.
+ */
+export function isUsableVector(vector: readonly number[]): boolean {
+  return (
+    vector.length === EMBEDDING_DIMENSIONS &&
+    vector.every((component) => Number.isFinite(component)) &&
+    vector.some((component) => component !== 0)
+  );
 }
 
 /**

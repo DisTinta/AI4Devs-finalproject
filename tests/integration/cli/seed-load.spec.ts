@@ -6,6 +6,7 @@ import type { Client } from 'pg';
 import { afterAll, expect, it } from 'vitest';
 import { createGitSourceTree } from '@codemind/adapter-git';
 import { createPostgresStore } from '@codemind/adapter-store-postgres';
+import { createInMemoryVerificationCache, explain, normalizeQuestion } from '@codemind/core';
 import { buildApp } from '../../../packages/api/src/app';
 import { renderDriftGoldenFile } from '../../../packages/cli/src/cache/drift-golden-file';
 import { renderGoldenFile } from '../../../packages/cli/src/cache/golden-file';
@@ -15,6 +16,7 @@ import { runSeedLoad } from '../../../packages/cli/src/seed-load';
 import type { SeedLoadDeps } from '../../../packages/cli/src/seed-load';
 import { seedProjects } from '../../../packages/cli/src/seed/parse-seed';
 import { cachedAnswer } from '../../support/cached-answer';
+import { embeddingVector } from '../../support/embedding-vector';
 import { driftGoldenFile } from '../../support/drift-golden-file';
 import { goldenEntry, goldenFile } from '../../support/golden-file';
 import { sampleGraph } from '../../support/sample-graph';
@@ -334,6 +336,7 @@ describeWithDatabase('db:seed (integration)', () => {
 
   interface CacheRow {
     question_normalized: string;
+    question_embedding: string | null;
     response: unknown;
     hit_count: number;
     last_hit_at: Date | null;
@@ -341,15 +344,25 @@ describeWithDatabase('db:seed (integration)', () => {
 
   async function cacheRows(client: Client, projectId: string): Promise<CacheRow[]> {
     const { rows } = await client.query<CacheRow>(
-      'SELECT question_normalized, response, hit_count, last_hit_at FROM cache_entry WHERE project_id = $1 ORDER BY question_normalized',
+      `SELECT question_normalized, question_embedding::text, response, hit_count, last_hit_at
+         FROM cache_entry WHERE project_id = $1 ORDER BY question_normalized`,
       [projectId],
     );
     return rows;
   }
 
-  /** A golden file of acme-shop with Q1 and Q3, fingerprints that are not the current code's. */
+  /**
+   * The vector V of Q1's `questionEmbedding` (DIS-69): small integer components, exact in the single
+   * precision pgvector stores.
+   */
+  const V = embeddingVector(3, 1);
+
+  /** V as pgvector writes it in text. */
+  const V_TEXT = JSON.stringify(V);
+
+  /** A golden file of acme-shop with Q1 (embedding V) and Q3 (no embedding), fingerprints that are not the current code's. */
   function twoEntries(): string {
-    const q1 = goldenEntry('Q1');
+    const q1 = goldenEntry('Q1', { questionEmbedding: V });
     const q3 = goldenEntry('Q3', { response: cachedAnswer({ answer: 'Los cupones los valida CouponValidator::percentFor.' }) });
     return renderGoldenFile(goldenFile({ entries: [q1, q3] }));
   }
@@ -385,7 +398,13 @@ describeWithDatabase('db:seed (integration)', () => {
     expect(loaded.exit).toBe(0);
     expect(loaded.stderr).toBe('');
     expect(loaded.stdout.split('\n')).toEqual([...SAMPLE_LINES, '']);
-    const before = [q1, q3].map((entry) => ({ question_normalized: entry.questionNormalized, response: entry.response, hit_count: 0, last_hit_at: null }));
+    const before = [q1, q3].map((entry) => ({
+      question_normalized: entry.questionNormalized,
+      question_embedding: entry.questionEmbedding === null ? null : V_TEXT,
+      response: entry.response,
+      hit_count: 0,
+      last_hit_at: null,
+    }));
     expect(afterLoad).toEqual(before.sort((a, b) => (a.question_normalized < b.question_normalized ? -1 : 1)));
     expect(response.statusCode).toBe(200);
     const body = response.json();
@@ -397,6 +416,51 @@ describeWithDatabase('db:seed (integration)', () => {
     );
     expect(body.usage).toMatchObject({ cacheHit: true, costUsd: 0 });
     expect(model.requests).toEqual([]);
+    const { rows } = await db().query<{ hit_count: number }>('SELECT hit_count FROM cache_entry WHERE project_id = $1 AND question_normalized = $2', [
+      ACME_ID,
+      q1.questionNormalized,
+    ]);
+    expect(rows).toEqual([{ hit_count: 1 }]);
+  });
+
+  // DIS-69 (change cache-hit-rate), requirement "Golden answers are loaded with the seed".
+  it('A rephrased golden question is a similarity hit after the seed', async () => {
+    // Arrange: the versioned seed and golden files loaded; the scripted model embeds the rephrasing to
+    // exactly the stored vector of acme-shop's Q1.
+    await db().query('DELETE FROM project');
+    const versioned = resolve('seeds/cache');
+    const golden = JSON.parse(readFileSync(join(versioned, 'acme-shop.json'), 'utf8')) as GoldenFile;
+    const q1 = golden.entries.find((entry) => entry.id === 'Q1')!;
+    const rephrased = '¿Cómo se calcula el precio total de un pedido?';
+    const rephrasedKey = normalizeQuestion(rephrased);
+    const loaded = await loadGolden(db(), versioned);
+    const model = createScriptedLlm('live', undefined, undefined, {
+      embed: (texts) => texts.map((text) => (text === rephrasedKey ? (q1.questionEmbedding as number[]) : embeddingVector())),
+    });
+    const hitAt = new Date('2026-11-04T12:00:00.000Z');
+
+    // Act
+    const answer = await explain(
+      {
+        store: createPostgresStore({ transaction: db() }),
+        llm: model.llm,
+        source: createGitSourceTree(),
+        workspaceRoot: WORKSPACE_ROOT,
+        verificationCache: createInMemoryVerificationCache(),
+        now: () => hitAt,
+      },
+      { projectId: ACME_ID, question: rephrased },
+    );
+
+    // Assert
+    expect(loaded.exit).toBe(0);
+    expect(answer).toMatchObject({
+      kind: 'answered',
+      answer: (q1.response as ReturnType<typeof cachedAnswer>).answer,
+      usage: { cacheHit: true },
+    });
+    expect(model.requests).toEqual([]);
+    expect(model.embeddings).toEqual([[rephrasedKey]]);
     const { rows } = await db().query<{ hit_count: number }>('SELECT hit_count FROM cache_entry WHERE project_id = $1 AND question_normalized = $2', [
       ACME_ID,
       q1.questionNormalized,
@@ -443,6 +507,10 @@ describeWithDatabase('db:seed (integration)', () => {
     const acme = await cacheRows(db(), ACME_ID);
     expect(acme).toHaveLength(2);
     expect(acme.map((row) => row.hit_count)).toEqual([0, 0]);
+    // Q1 (the first key in order) still holds V and Q3 no embedding (DIS-69).
+    expect(acme.map((row) => [row.question_normalized, row.question_embedding])).toEqual(
+      [[goldenEntry('Q1').questionNormalized, V_TEXT], [goldenEntry('Q3').questionNormalized, null]].sort((a, b) => (a[0]! < b[0]! ? -1 : 1)),
+    );
     expect((await db().query('SELECT * FROM cache_entry WHERE project_id = $1', [mine])).rows).toEqual(mineBefore);
   });
 
@@ -509,7 +577,7 @@ describeWithDatabase('db:seed (integration)', () => {
       expect(result.stdout).toBe(`${SAMPLE_LINES.join('\n')}\n`);
       expect(result.stderr).toBe('');
       const rows = await cacheRows(db(), ACME_ID);
-      expect(rows).toEqual([{ question_normalized: 'drift:', response: file.entries[0]!.response, hit_count: 0, last_hit_at: null }]);
+      expect(rows).toEqual([{ question_normalized: 'drift:', question_embedding: null, response: file.entries[0]!.response, hit_count: 0, last_hit_at: null }]);
     }
   });
 });

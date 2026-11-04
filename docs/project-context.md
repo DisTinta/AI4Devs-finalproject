@@ -91,7 +91,7 @@ Verified against `package.json` (root and per package). If a command is not here
 - `.env` loading (DIS-102): `scripts/env.mjs` parses the root `.env` (a hand-written subset of the
   dotenv grammar: comments, blank lines, matched quotes, no expansion, the last assignment wins) and
   fills only the variables the environment lacks (a variable set in the shell, even empty, wins). The
-  root scripts `cli`, `verify`, `db:migrate`, `db:rollback`, `db:seed`, `cache:build`,
+  root scripts `cli`, `verify`, `db:migrate`, `db:rollback`, `db:seed`, `cache:build`, `cache:embed`,
   `drift:build` and `seed:build` preload it with `tsx --import=./scripts/load-env.mjs …` (one token: with a space, tsx
   4.23.13 forwards the following `--tsconfig` to Node and fails), the API's `dev` with
   `--import ../../scripts/load-env.mjs`, and `up` / `demo:ask` load it themselves. The quality scripts
@@ -245,7 +245,10 @@ Verified against `package.json` (root and per package). If a command is not here
   D10). `index`, `projects` and `ask` are real: `npm run cli -- index <path> --name <name> --language php
   [--framework laravel|fastify|none] [--json]` (see the gotcha on the `index` command) and
   `npm run cli -- projects` (DIS-92: every stored project, one line each, read through
-  `StorePort.listProjects` in a transaction it always rolls back; needs `DATABASE_URL`) and
+  `StorePort.listProjects` in a transaction it always rolls back, then, since DIS-69, one
+  `countExplainQueries` read per project on the same transaction, written as the `cache h/q (p%)` field
+  (`cache 0/0` without queries) through the `countExplainQueries` seam of `ProjectsCommandDeps`;
+  needs `DATABASE_URL`) and
   `npm run cli -- ask <project> "<question>"` (DIS-40, see the gotcha on the `ask` command) and
   `npm run cli -- impact <project> "<change>"` (DIS-90, see the gotcha on the `impact` command).
 - Migrations: `npm run db:migrate` (apply all pending) / `npm run db:rollback` (revert the latest
@@ -277,7 +280,14 @@ Verified against `package.json` (root and per package). If a command is not here
   `DATABASE_URL` of a migrated database and `LLM_BASE_URL`/`LLM_MODEL` (reference: local Ollama
   `qwen2.5-coder` on CPU, about an hour for both projects; see Gotchas → golden answers); `CACHE_BUILD_TIMEOUT_MS`
   (1..3 600 000, default 1 200 000) is its per-request limit, `LLM_TIMEOUT_MS` is not used. Run it
-  after `seed:build`, never in CI. `npm run drift:build` (DIS-73, `packages/cli/src/drift-build.ts`)
+  after `seed:build`, never in CI. `npm run cache:embed [-- --project <name>]` (DIS-69,
+  `packages/cli/src/cache-embed.ts`) runs **after** `cache:build`: it fills the `questionEmbedding` of
+  every entry of the golden files with the model of `LLM_EMBED_MODEL` (the versioned vectors are
+  `nomic-embed-text`, 768 components), one request per entry over its `questionNormalized`, with the
+  `ask` model configuration and `LLM_TIMEOUT_MS`, no database and no budget meter; every other key of
+  the file stays as it was, so no review needs a new round. `cache:build` writes `null` for the
+  entries it regenerates (the coherence test fails until `cache:embed` runs) and `db:seed` stores each
+  vector with its cache entry. `npm run drift:build` (DIS-73, `packages/cli/src/drift-build.ts`)
   does the same for the golden **drift** report, `seeds/drift/acme-shop.json` (one entry, `Q5`, key
   `drift:`): no arguments (any is `USAGE`), the same configuration and codes as `cache:build`, up to 3
   attempts in a rolled-back transaction that runs the core `drift` with the live model and
@@ -431,7 +441,10 @@ Verified against `package.json` (root and per package). If a command is not here
   `tests/support/explain-doubles.ts` forwards `failCacheCall` and records `findCacheEntry`,
   `findSimilarCacheEntry`, `touchCacheEntry` and `saveCacheEntry` in `order`; stored responses for tests come from the factories of `tests/support/cached-answer.ts`.
   Graph writes and `sumCostSince` throw. It runs the `graph-store` read scenarios in
-  `tests/unit/store/in-memory-store.spec.ts` (tests named `… (in-memory double)`). Known limit:
+  `tests/unit/store/in-memory-store.spec.ts` (tests named `… (in-memory double)`). Since DIS-69 it also
+  counts the explain queries of a project over its kept `queryLog` rows (`countExplainQueries`,
+  `calls.countExplainQueries`, option `failCountExplainQueries`); an app built over it through
+  `doubles()` forwards the method. Known limit:
   case-insensitivity uses `toLowerCase`, which can differ from `ILIKE` on non-ASCII names. It lives
   in `tests/` on purpose: outside Stryker's `mutate` and core's `dist`.
 - **In-memory `SourceTreePort` double** (DIS-28, `tests/support/in-memory-source-tree.ts`).
@@ -1449,7 +1462,9 @@ services that must be started first, quirks of the local environment.
   `packages/cli/src/cache/long-fetch.ts`; `node:http` with the caller's `signal` as the only limit),
   because Node's `fetch` ends any request at 300 s. **Format** (`golden-file.ts`): `format: 1`,
   `project`, `seed` (the seed header's two fingerprints), `answerFingerprint`, `generatedWith`
-  (`model`, `verifyModel`), `entries` (`id`, `question`, `questionNormalized`, `response`,
+  (`model`, `verifyModel`), `entries` (`id`, `question`, `questionNormalized`, `questionEmbedding`
+  (DIS-69: `null` or a usable 768-component vector, `isUsableVector` of core; `cache:embed` fills it),
+  `response`,
   `reviews` — `{by, date}` per review: DIS-34 added `agent:claude-opus-5-5` to every entry; the
   golden answers are now reviewed by an independent agent panel (DIS-33, then DIS-107 after the
   analyzer fix regenerated them, then DIS-9 after the index pipeline extraction and DIS-10 after the incremental indexing regenerated them,
@@ -1528,7 +1543,11 @@ services that must be started first, quirks of the local environment.
   table, never in the global one. `POST /api/projects/{projectId}/ask` (DIS-78, `routes/ask.ts`)
   resolves the project with `getProject` before `explain`, keeps **one verification cache per app**
   (created at registration, not per request), writes the answer's events to `request.log` and
-  returns only the public shape (`toPublicAnswer`: ids `ev-n`, `path` → `file`). Since DIS-21 it
+  returns only the public shape (`toPublicAnswer`: ids `ev-n`, `path` → `file`). Since DIS-69, for an
+  answered question only, it reads `store.countExplainQueries(project.id)` after the events were logged
+  and adds `usage.projectCache` (`cacheHitRate` of core: `{ queries, cacheHits, hitRatePct }`,
+  `hitRatePct` `null` without queries; a `ProjectNotFound` of the read keeps the table's `404`, any
+  other failure is `500 INTERNAL`); `explain`, `AnswerUsage` and the stored response are untouched. Since DIS-21 it
   forwards `useCache` only when sent; a cached question answers `200` (`usage.cacheHit: true`) even
   with the daily budget spent, and evaluation mode answers from the cache when an entry exists. `AppOptions.explain`
   replaces the use case: a test seam only, as `AskCommandDeps.explain` in the CLI.

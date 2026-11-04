@@ -30,6 +30,7 @@ import type {
   ClaimRefresh,
   ClaimSpan,
   EdgeKind,
+  ExplainQueryCounts,
   IndexState,
   KnowledgeGraph,
   Neighbor,
@@ -52,6 +53,7 @@ import { rewriteClaim, toStoredClaim, writeClaims, type ClaimRow } from './claim
 import { isWellFormedId } from './ids.js';
 import {
   CO_CHANGES,
+  COUNT_EXPLAIN_QUERIES,
   DOCUMENT_LINKS,
   FILE_COMMITS,
   DELETE_CACHE_KEY,
@@ -435,6 +437,12 @@ export function createPostgresStore(connection: StoreConnection): StorePort {
         },
         toQueryLogWriteError,
       );
+    },
+
+    async countExplainQueries(projectId: string): Promise<ExplainQueryCounts> {
+      // Order of DIS-69 design S2: the id form, then the one statement from the project row.
+      const [row] = await runProjectQuery<{ queries: number; cache_hits: number }>(connection, projectId, COUNT_EXPLAIN_QUERIES, []);
+      return { queries: row!.queries, cacheHits: row!.cache_hits };
     },
 
     async findCacheEntry(projectId: string, questionNormalized: string): Promise<CacheEntry | undefined> {

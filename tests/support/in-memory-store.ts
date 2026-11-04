@@ -27,6 +27,7 @@ import type {
   EdgeEndpoint,
   EdgeKind,
   EdgeResolution,
+  ExplainQueryCounts,
   FileKind,
   GraphNode,
   IndexState,
@@ -87,6 +88,7 @@ export interface InMemoryStore {
     refreshClaim: number;
     findClaimsOverlapping: number;
     saveQueryLog: number;
+    countExplainQueries: number;
     findCacheEntry: number;
     findSimilarCacheEntry: number;
     saveCacheEntry: number;
@@ -264,6 +266,7 @@ export function createInMemoryStore({
   failClaimRefresh,
   beforeRefreshCheck,
   failQueryLogWrite,
+  failCountExplainQueries,
   failCacheCall = {},
 }: {
   projects: InMemoryProject[];
@@ -276,6 +279,11 @@ export function createInMemoryStore({
   /** Called by `refreshClaim` just before it checks the condition, to move the commit or change the claim. */
   beforeRefreshCheck?: (claimId: string) => void;
   failQueryLogWrite?: () => unknown;
+  /**
+   * Called by `countExplainQueries` once a call passed its checks; a value other than `undefined` is
+   * thrown instead of counting (DIS-69 design S2).
+   */
+  failCountExplainQueries?: () => unknown;
   failCacheCall?: CacheCallFailures;
 }): InMemoryStore {
   const projectRows = new Map<string, Project>();
@@ -296,6 +304,7 @@ export function createInMemoryStore({
     refreshClaim: 0,
     findClaimsOverlapping: 0,
     saveQueryLog: 0,
+    countExplainQueries: 0,
     findCacheEntry: 0,
     findSimilarCacheEntry: 0,
     saveCacheEntry: 0,
@@ -520,6 +529,17 @@ export function createInMemoryStore({
       const failure = failQueryLogWrite?.();
       if (failure !== undefined) throw failure;
       queryLogRows.push({ ...entry });
+    },
+
+    async countExplainQueries(projectId: string): Promise<ExplainQueryCounts> {
+      calls.countExplainQueries += 1;
+      // Same order as the Postgres adapter (DIS-69 design S2): id form, project.
+      if (!UUID.test(projectId)) throw new ProjectNotFound(projectId);
+      const project = projectOf(projectId);
+      const failure = failCountExplainQueries?.();
+      if (failure !== undefined) throw failure;
+      const explained = queryLogRows.filter((row) => row.projectId === project.id && row.capability === 'explain');
+      return { queries: explained.length, cacheHits: explained.filter((row) => row.cacheHit).length };
     },
 
     async findCacheEntry(projectId: string, questionNormalized: string): Promise<CacheEntry | undefined> {

@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { normalizeQuestion, parseStoredResponse } from '@codemind/core';
+import { isUsableVector, normalizeQuestion, parseStoredResponse } from '@codemind/core';
 import { GOLDEN_PROJECTS } from '../../../packages/cli/src/cache/demo-questions';
 import { checkGoldenFile, renderGoldenFile } from '../../../packages/cli/src/cache/golden-file';
 import { seedProjects } from '../../../packages/cli/src/seed/parse-seed';
@@ -50,6 +50,9 @@ function expectCoherent(name: string): void {
   );
   expect(files.size).toBeGreaterThan(0);
   for (const entry of file!.entries) {
+    // DIS-69: every question embedding is a usable vector, never `null` (filled by `npm run cache:embed`).
+    expect(entry.questionEmbedding, `the vector of ${name} ${entry.id}`).not.toBeNull();
+    expect(isUsableVector(entry.questionEmbedding!)).toBe(true);
     const response = parseStoredResponse(entry.response);
     expect(response?.kind).toBe('answered');
     if (response?.kind !== 'answered') continue;

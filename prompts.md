@@ -101,6 +101,7 @@
 85. [Revisión de las respuestas de la Tabla 1 por un panel de agentes (DIS-82)](#85-revisión-de-las-respuestas-de-la-tabla-1-por-un-panel-de-agentes-dis-82)
 86. [Detección de deriva: afirmaciones de los docs contra el código (DIS-71)](#86-detección-de-deriva-afirmaciones-de-los-docs-contra-el-código-dis-71)
 87. [Búsqueda por similitud en la caché de respuestas (DIS-67)](#87-búsqueda-por-similitud-en-la-caché-de-respuestas-dis-67)
+88. [Tasa de aciertos de caché del proyecto y vectores de las respuestas golden (DIS-69)](#88-tasa-de-aciertos-de-caché-del-proyecto-y-vectores-de-las-respuestas-golden-dis-69)
 
 ---
 
@@ -5716,3 +5717,24 @@ que el agente pudo escribir primero cada test y después el código sin pregunta
 `explain` de la capacidad nueva viven en un fichero propio (`explain-similarity.spec.ts`) y no en `explain-cache.spec.ts`,
 y el doble en memoria compara con el mínimo que recibe y no con la constante, porque el mínimo es un parámetro de la
 llamada; `reachesThreshold` queda como la declaración única de la regla inclusiva y la usa su propio test.
+
+---
+
+# 88. Tasa de aciertos de caché del proyecto y vectores de las respuestas golden (DIS-69)
+
+### Prompt 1 — Paso de apply del cambio `cache-hit-rate` en la ejecución autónoma
+
+Extracto literal del encargo que recibió el subagente:
+
+```
+Run /opsx:apply on change cache-hit-rate: every task in TDD (failing test first, then implementation, in the layer order), marking tasks.md as you go, with the mandatory verification steps. Run the tests, lint and typecheck. Commit, push and open the PR to final-project-CRN with /pr-describe (write the "why" yourself and mark it as agent-written). Return pr.
+```
+
+**Por qué funcionó.** El `design.md` (S1–S14) y las siete specs, cerrados tras cuatro auditorías, fijaban la firma de
+`countExplainQueries`, el orden de las comprobaciones, el redondeo de `cacheHitRate`, la forma exacta de cada línea de la
+CLI y de la web y el orden de migración de los ficheros golden (primero `questionEmbedding: null`, después los vectores de
+`cache:embed`), así que el agente pudo escribir cada test antes que el código y ejecutar `cache:embed` en vivo con
+Ollama sin decidir nada de producto (texto del agente).
+
+**Ajuste humano.** Ninguno: ejecución autónoma (texto del agente).
+

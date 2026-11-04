@@ -5,6 +5,7 @@ import {
   LlmUnavailable,
   SEMANTIC_CACHE_MIN_SIMILARITY,
   SEMANTIC_CACHE_SKIPPED_CODES,
+  isUsableVector,
   reachesThreshold,
   skipCode,
   usableVector,
@@ -56,6 +57,26 @@ describe('Requirement: Similarity threshold and embedded text', () => {
     // Assert
     expect(usable).toEqual([true, false, false, false, false, false, false, false, false]);
     expect(usableVector(results[0]!)).toEqual(vector(1));
+  });
+
+  // DIS-69 (design S6): the vector check usableVector and the golden file format share.
+  it('A vector is usable when it has the dimensions, only finite components and one that is not zero', () => {
+    // Arrange
+    const vectors = [
+      vector(1),
+      vector(),
+      vector(Number.NaN),
+      vector(Number.POSITIVE_INFINITY),
+      vector(1).slice(1),
+      [...vector(1), 0.5],
+      [],
+    ];
+
+    // Act
+    const usable = vectors.map((candidate) => isUsableVector(candidate));
+
+    // Assert
+    expect(usable).toEqual([true, false, false, false, false, false, false]);
   });
 });
 

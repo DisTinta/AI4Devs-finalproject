@@ -6,6 +6,7 @@
  * @module
  */
 
+import type { AskUsage } from '../services/api-client';
 import { formatCount, groupDigits } from './project-display';
 
 /**
@@ -41,6 +42,24 @@ export function formatTokens(inputTokens: number, outputTokens: number): string 
  */
 export function baselineLine(baselineTokens: number, inputTokens: number): string {
   return `${formatCount(baselineTokens, 'token', 'tokens')} sin selección de contexto → ${groupDigits(inputTokens)} con CODEMIND`;
+}
+
+/**
+ * Writes the project cache line (DIS-69 design S4): «Caché del proyecto: <hit rate> % de aciertos
+ * (<hits> de <queries> consulta|consultas)», or «Caché del proyecto: sin consultas» when the project
+ * has no queries (`hitRatePct` `null`). The API sends the rate with at most one decimal, so it is
+ * written as it comes («40», «33.3»); both counts have their digits grouped, without a noun of their own.
+ *
+ * @param projectCache - The project's cache hit rate, as the API sent it.
+ * @returns The written line.
+ */
+export function projectCacheLine(projectCache: AskUsage['projectCache']): string {
+  const { queries, cacheHits, hitRatePct } = projectCache;
+  if (hitRatePct === null) {
+    return 'Caché del proyecto: sin consultas';
+  }
+  const noun = queries === 1 ? 'consulta' : 'consultas';
+  return `Caché del proyecto: ${String(hitRatePct)} % de aciertos (${groupDigits(cacheHits)} de ${groupDigits(queries)} ${noun})`;
 }
 
 /** The three-decimal form of a positive cost too small to show, written «< $0.001» instead. */

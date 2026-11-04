@@ -1,6 +1,14 @@
 import { useId, type ReactElement } from 'react';
 import type { AskUsage } from '../services/api-client';
-import { baselineLine, formatConfidence, formatCost, formatLatency, formatTokens, savingsBadge } from './usage-display';
+import {
+  baselineLine,
+  formatConfidence,
+  formatCost,
+  formatLatency,
+  formatTokens,
+  projectCacheLine,
+  savingsBadge,
+} from './usage-display';
 
 /** Props of {@link UsagePanel}. */
 export interface UsagePanelProps {
@@ -33,7 +41,8 @@ function NextFigure({ children }: { children: string }): ReactElement {
  * The usage panel of an answered question (ask-page, "Usage panel"; DIS-66 design D2–D6, D21, D25, D30,
  * D38): a section on the canvas background named by its visually hidden level-2 heading «Uso», with the
  * confidence, the tokens, the cost and the latency separated by « · », the savings badge, the cache badge
- * and the baseline line. Every badge has its text, never colour alone; the panel holds no control.
+ * and the baseline line, and under it the project cache line (DIS-69, muted text). Every badge has its
+ * text, never colour alone; the panel holds no control.
  *
  * @param props - The confidence and the usage of the answer.
  * @returns The usage section.
@@ -68,6 +77,7 @@ export function UsagePanel({ confidence, usage }: UsagePanelProps): ReactElement
           </p>
         </div>
         <p className="mt-2">{baselineLine(usage.baselineTokens, usage.inputTokens)}</p>
+        <p className="mt-1">{projectCacheLine(usage.projectCache)}</p>
       </div>
     </section>
   );

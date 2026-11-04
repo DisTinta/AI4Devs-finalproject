@@ -70,6 +70,7 @@ const ANSWERED_BODY = {
     cacheHit: false,
     generation: { inputTokens: 700, outputTokens: 100, costUsd: 0 },
     verification: { calls: 1, cacheHits: 0, inputTokens: 200, outputTokens: 20, costUsd: 0, latencyMs: 900 },
+    projectCache: { queries: 10, cacheHits: 4, hitRatePct: 40 },
   },
 };
 

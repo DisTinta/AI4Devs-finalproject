@@ -226,6 +226,21 @@ export const INSERT_QUERY_LOG = `
   SELECT p.id, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14 FROM project p WHERE p.id = $1`;
 
 /**
+ * Counts the `explain` queries of project `$1` and those served from the answer cache (DIS-69 design
+ * S2). It starts from the project row, so it returns no row exactly when the project does not exist
+ * and one row of zeros when the project has no `explain` row. `'explain'` is a literal of the closed
+ * capability set, not user input; `impact` and `drift` rows never count. The counts are cast to `int`
+ * (a count beyond 2147483647 fails the cast instead of returning a wrong figure).
+ */
+export const COUNT_EXPLAIN_QUERIES = `
+  SELECT count(q.id)::int AS queries,
+         (count(q.id) FILTER (WHERE q.cache_hit))::int AS cache_hits
+    FROM project p
+    LEFT JOIN query_log q ON q.project_id = p.id AND q.capability = 'explain'
+   WHERE p.id = $1
+   GROUP BY p.id`;
+
+/**
  * Finds the project's symbols whose name contains `$2`, case-insensitively. `$2` arrives with `\`,
  * `%` and `_` already escaped, so it matches literally. `$3` is the kinds filter, or `NULL` for all.
  * Filtering starts at `file.project_id`, then reaches symbols by `file_id`.

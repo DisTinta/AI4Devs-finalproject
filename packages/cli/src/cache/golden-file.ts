@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { z } from 'zod';
-import { normalizeQuestion, parseStoredResponse } from '@codemind/core';
+import { EMBEDDING_DIMENSIONS, isUsableVector, normalizeQuestion, parseStoredResponse } from '@codemind/core';
 import type { StoredResponse } from '@codemind/core';
 
 // The versioned golden answers of a sample project (DIS-26 design C2, decisions D9 and D10): the
@@ -22,6 +22,12 @@ export interface GoldenEntry {
   question: string;
   /** The answer cache key of the question (`normalizeQuestion`). */
   questionNormalized: string;
+  /**
+   * The embedding of `questionNormalized` (DIS-69): `null` or a usable vector of `EMBEDDING_DIMENSIONS`
+   * components. `db:seed` stores it with the entry, so a rephrased question can hit it by similarity;
+   * `cache:embed` fills it and `cache:build` writes `null` for what it regenerates.
+   */
+  questionEmbedding: number[] | null;
   /** The stored response the answer cache keeps for the answer. */
   response: StoredResponse;
   /** The reviews of the answer: the two panel signatures of the current round (DIS-110 r2), empty until the panel signs it (or when it judged it incorrect). */
@@ -71,6 +77,11 @@ export const goldenFileSchema = z.strictObject({
       id: z.string().regex(/^Q[0-9]+$/),
       question: z.string().min(1),
       questionNormalized: z.string(),
+      questionEmbedding: z
+        .array(z.number())
+        .length(EMBEDDING_DIMENSIONS)
+        .refine((vector) => isUsableVector(vector))
+        .nullable(),
       response: z.unknown(),
       reviews: z.array(
         z.strictObject({

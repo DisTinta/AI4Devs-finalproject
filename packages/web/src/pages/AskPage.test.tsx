@@ -72,6 +72,7 @@ const ANSWERED: AskAnswered = {
     cacheHit: false,
     generation: { inputTokens: 3_000, outputTokens: 600, costUsd: 0.01 },
     verification: { calls: 2, cacheHits: 0, inputTokens: 1_000, outputTokens: 212, costUsd: 0.004, latencyMs: 700 },
+    projectCache: { queries: 10, cacheHits: 4, hitRatePct: 40 },
   },
 };
 
@@ -905,7 +906,9 @@ describe('Usage panel', () => {
       'ahorro 88 % vs bruto',
       'sin caché',
       `41${NBSP}200 tokens sin selección de contexto → 4${NBSP}000 con CODEMIND`,
+      'Caché del proyecto: 40 % de aciertos (4 de 10 consultas)',
     ]);
+    expect((region.textContent ?? '').endsWith('Caché del proyecto: 40 % de aciertos (4 de 10 consultas)')).toBe(true);
     const separators = textNodesWith(region, '·');
     expect(separators.length).toBeGreaterThan(0);
     for (const separator of separators) {
@@ -928,6 +931,7 @@ describe('Usage panel', () => {
         costUsd: 0,
         latencyMs: 12,
         cacheHit: true,
+        projectCache: { queries: 1, cacheHits: 1, hitRatePct: 100 },
       },
     };
 
@@ -945,6 +949,7 @@ describe('Usage panel', () => {
       'ahorro 100 % vs bruto',
       'caché ✓',
       `7${NBSP}123 tokens sin selección de contexto → 0 con CODEMIND`,
+      'Caché del proyecto: 100 % de aciertos (1 de 1 consulta)',
     ]);
     const ticks = textNodesWith(region, '✓');
     expect(ticks).toHaveLength(1);
@@ -965,12 +970,33 @@ describe('Usage panel', () => {
 
     // Assert
     expect(runs).toHaveLength(2);
-    for (const text of runs) {
+    for (const region of runs) {
+      // The project cache line holds «%» (DIS-69): the check covers the text before it.
+      const text = region.slice(0, region.indexOf('Caché del proyecto'));
       expect(text).toContain('sin ahorro vs bruto');
       expect(text).not.toContain('ahorro -');
       expect(text).not.toContain('ahorro 0');
       expect(text).not.toContain('%');
     }
+  });
+
+  // DIS-69 (change cache-hit-rate, specs/ask-page/spec.md → "Usage panel").
+  it('A project without logged queries shows no hit rate', async () => {
+    // Arrange
+    const answer: AskAnswered = {
+      ...ANSWERED,
+      usage: { ...ANSWERED.usage, projectCache: { queries: 0, cacheHits: 0, hitRatePct: null } },
+    };
+
+    // Act
+    const { region } = await usageRegionOf(answer);
+
+    // Assert
+    const text = region.textContent ?? '';
+    expect(text.endsWith('Caché del proyecto: sin consultas')).toBe(true);
+    expect(text).not.toContain('de aciertos');
+    expect(text).not.toContain('null');
+    expect(region.querySelectorAll('a, button, input')).toHaveLength(0);
   });
 });
 

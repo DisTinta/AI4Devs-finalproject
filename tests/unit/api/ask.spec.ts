@@ -21,6 +21,8 @@ import type {
   AnsweredExplain,
   DomainError,
   LlmPort,
+  ProjectCacheHitRate,
+  QueryLogEntry,
   SourceTreePort,
   StorePort,
   UnknownExplain,
@@ -373,6 +375,65 @@ describe('ask answered response', () => {
     expect(response.statusCode).toBe(500);
     expect(response.json()).toEqual(errorBody('INTERNAL', 'unexpected error'));
   });
+
+  // DIS-69 (change cache-hit-rate, specs/http-ask/spec.md → "Ask answered response").
+  it('The hit rate is read only for an answered question and its failure answers INTERNAL', async () => {
+    // Arrange: a project with 3 explain rows (1 cache hit) and 2 impact rows; a use case that writes no row
+    const injected: { failure?: () => unknown } = {};
+    const loaded = createInMemoryStore({
+      projects: [{ project: ACME_SHOP_PROJECT, graph: acmeShopGraph() }],
+      failCountExplainQueries: () => injected.failure?.(),
+    });
+    const projectId = loaded.projectIds[0]!;
+    const row = (capability: 'explain' | 'impact', cacheHit: boolean): QueryLogEntry => ({
+      projectId,
+      question: Q1,
+      capability,
+      inputTokens: 0,
+      outputTokens: 0,
+      baselineTokens: null,
+      costUsd: 0,
+      latencyMs: 1,
+      cacheHit,
+      verifyInputTokens: 0,
+      verifyOutputTokens: 0,
+      verifyCostUsd: 0,
+      verifyCalls: 0,
+      verifyLatencyMs: null,
+    });
+    for (const entry of [row('explain', true), row('explain', false), row('explain', false), row('impact', true), row('impact', true)]) {
+      await loaded.store.saveQueryLog(entry);
+    }
+    let next: () => ExplainAnswer = () => answered([evidenceOf('E1')], [statementOf('a statement', ['E1'])]);
+    const recorded = useCase(() => next());
+    const built = await askApp({ explain: recorded.explain, deps: { store: loaded.store } });
+
+    // Act
+    const first = await ask(built.app, projectId, { question: Q1 });
+    const countsAfterFirst = loaded.calls.countExplainQueries;
+    next = () => unknownAnswer('no-anchor');
+    const second = await ask(built.app, projectId, { question: Q1 });
+    const countsAfterSecond = loaded.calls.countExplainQueries;
+    next = () => answered([evidenceOf('E1')], [statementOf('a statement', ['E1'])]);
+    injected.failure = () => new Error('the database failed');
+    const third = await ask(built.app, projectId, { question: Q1 });
+    injected.failure = () => new ProjectNotFound(projectId);
+    const fourth = await ask(built.app, projectId, { question: Q1 });
+
+    // Assert
+    expect(first.statusCode).toBe(200);
+    expect(first.json().usage.projectCache).toEqual({ queries: 3, cacheHits: 1, hitRatePct: 33.3 });
+    expect(countsAfterFirst).toBe(1);
+    expect(second.statusCode).toBe(200);
+    expect(second.json()).toEqual({ answer: 'UNKNOWN', reason: 'no-anchor', statements: [], evidence: [] });
+    expect(second.json()).not.toHaveProperty('usage');
+    expect(countsAfterSecond).toBe(1);
+    expect(third.statusCode).toBe(500);
+    expect(third.json()).toEqual(errorBody('INTERNAL', 'unexpected error'));
+    expect(fourth.statusCode).toBe(404);
+    expect(fourth.json()).toEqual(errorBody('PROJECT_NOT_FOUND', 'project not found'));
+    expect(recorded.requests).toHaveLength(4);
+  });
 });
 
 describe('ask UNKNOWN response', () => {
@@ -616,6 +677,15 @@ describe('ask in the OpenAPI document', () => {
       ]),
     );
     expect(shapes).toHaveLength(2);
+    const answeredShape = shapes.find((shape: { properties: Record<string, unknown> }) => 'usage' in shape.properties);
+    const projectCache = answeredShape.properties.usage.properties.projectCache;
+    expect(projectCache).toMatchObject({ type: 'object', additionalProperties: false });
+    expect([...projectCache.required].sort()).toEqual(['cacheHits', 'hitRatePct', 'queries']);
+    expect(projectCache.properties.queries).toMatchObject({ type: 'integer', minimum: 0 });
+    expect(projectCache.properties.cacheHits).toMatchObject({ type: 'integer', minimum: 0 });
+    expect(JSON.stringify(projectCache.properties.hitRatePct)).toContain('"minimum":0');
+    expect(JSON.stringify(projectCache.properties.hitRatePct)).toContain('"maximum":100');
+    expect(JSON.stringify(projectCache.properties.hitRatePct)).toMatch(/nullable|"null"/);
     expect(Object.keys(operation.responses)).toEqual(expect.arrayContaining(['400', '404', '429', '500', '503']));
   });
 });
@@ -635,7 +705,8 @@ describe('ask route boundaries', () => {
 
     // Assert
     expect(unknown.json()).toEqual({ answer: 'UNKNOWN', reason: 'llm-required', message: LLM_REQUIRED_MESSAGE, statements: [], evidence: [] });
-    expect(answer.json().usage).toEqual(USAGE);
+    // The seam writes no query log row, so the project has no queries (DIS-69).
+    expect(answer.json().usage).toEqual({ ...USAGE, projectCache: { queries: 0, cacheHits: 0, hitRatePct: null } });
     expect(answer.json().confidence).toBe(0.73);
   });
 
@@ -727,10 +798,24 @@ describe('ask route boundaries', () => {
     const broken = answered([evidenceOf('X')], [statementOf('cites a missing id', ['Y'])]);
 
     // Act
-    const act = () => toPublicAnswer(broken);
+    const projectCache: ProjectCacheHitRate = { queries: 0, cacheHits: 0, hitRatePct: null };
+    const act = () => toPublicAnswer(broken, projectCache);
 
     // Assert
     expect(act).toThrow('a statement cites an evidence id absent from the answer');
+  });
+
+  it('throws for an answered answer without the project cache hit rate, and ignores it for an UNKNOWN', () => {
+    // Arrange
+    const projectCache: ProjectCacheHitRate = { queries: 3, cacheHits: 1, hitRatePct: 33.3 };
+
+    // Act
+    const missing = () => toPublicAnswer(answered([evidenceOf('E1')], [statementOf('a statement', ['E1'])]));
+    const unknown = toPublicAnswer(unknownAnswer('no-anchor'), projectCache);
+
+    // Assert
+    expect(missing).toThrow('an answered answer needs the project cache hit rate');
+    expect(unknown).toEqual({ answer: 'UNKNOWN', reason: 'no-anchor', statements: [], evidence: [] });
   });
 
   it("logs each event with the message 'explain event'", async () => {

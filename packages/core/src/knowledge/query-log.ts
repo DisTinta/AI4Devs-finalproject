@@ -44,6 +44,17 @@ export interface QueryLogEntry {
   verifyLatencyMs: number | null;
 }
 
+/**
+ * The counts of a project's `explain` queries (DIS-69): what `StorePort.countExplainQueries` returns
+ * and `cacheHitRate` turns into the hit rate.
+ */
+export interface ExplainQueryCounts {
+  /** Every `query_log` row of the project with capability `explain`, since the project was created. */
+  queries: number;
+  /** The rows among them with `cache_hit` true: an exact hit and a similarity hit alike. */
+  cacheHits: number;
+}
+
 /** The largest value of a Postgres `integer` column. */
 const INTEGER_MAX = 2_147_483_647;
 /** The largest value of a Postgres `numeric(10,6)` column. */

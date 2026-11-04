@@ -1,6 +1,7 @@
 import type { ClientBase } from 'pg';
 import { Command, CommanderError } from 'commander';
-import type { Project } from '@codemind/core';
+import { cacheHitRate } from '@codemind/core';
+import type { ExplainQueryCounts, Project } from '@codemind/core';
 import { createPostgresStore } from '@codemind/adapter-store-postgres';
 import { CliError, DatabaseUnavailable, defaultOpenTransaction } from '../compose-index.js';
 import type { Environment, OpenTransaction } from '../compose-index.js';
@@ -23,6 +24,11 @@ export interface ProjectsCommandDeps {
   openTransaction?: OpenTransaction;
   /** Lists the projects on the transaction's client. Defaults to the store's `listProjects`. */
   listProjects?: (client: ClientBase) => Promise<Project[]>;
+  /**
+   * Counts the explain queries of a project on the transaction's client (DIS-69 design S5). Defaults
+   * to the store's `countExplainQueries`.
+   */
+  countExplainQueries?: (client: ClientBase, projectId: string) => Promise<ExplainQueryCounts>;
 }
 
 /**
@@ -41,15 +47,20 @@ export async function runProjectsCommand(argv: string[], deps: ProjectsCommandDe
     const databaseUrl = deps.env.DATABASE_URL?.trim() ?? '';
     if (databaseUrl === '') throw new CliError('MISSING_CONFIG', 1, 'DATABASE_URL is not set', { variable: 'DATABASE_URL' });
     const list = deps.listProjects ?? ((client: ClientBase) => createPostgresStore({ transaction: client }).listProjects());
+    const count =
+      deps.countExplainQueries ??
+      ((client: ClientBase, projectId: string) => createPostgresStore({ transaction: client }).countExplainQueries(projectId));
     const transaction = await (deps.openTransaction ?? defaultOpenTransaction(databaseUrl))();
-    let projects: Project[];
+    const lines: string[] = [];
     try {
-      projects = await list(transaction.client);
+      const projects = await list(transaction.client);
+      // Read project by project on the same transaction, before the rollback (DIS-69 design S5).
+      for (const project of projects) lines.push(`${formatProjectLine(project, await count(transaction.client, project.id))}\n`);
     } finally {
       await transaction.rollback().catch(() => undefined);
       await transaction.release().catch(() => undefined);
     }
-    deps.stdout.write(projects.length === 0 ? 'no projects\n' : projects.map((p) => `${formatProjectLine(p)}\n`).join(''));
+    deps.stdout.write(lines.length === 0 ? 'no projects\n' : lines.join(''));
     return 0;
   } catch (error) {
     const failure =
@@ -65,20 +76,25 @@ export async function runProjectsCommand(argv: string[], deps: ProjectsCommandDe
 
 /**
  * One line of the listing: `<name>  <id>  <language>/<framework>  <nodes> nodes · <edges> edges
- * <indexedAt>[ sample]`, two spaces between fields, `-` without framework, `not indexed` without
- * `indexedAt`. A name, language or framework holding a control or a terminal-unsafe character is
- * printed as its escaped literal ({@link terminalSafeText}).
+ * <indexedAt>  <cache>[ sample]`, two spaces between fields, `-` without framework, `not indexed`
+ * without `indexedAt`. `<cache>` is `cache <hits>/<queries> (<rate>%)`, the rate with at most one
+ * decimal and no trailing `.0`, or `cache 0/0` without `explain` queries (DIS-69). A name, language or
+ * framework holding a control or a terminal-unsafe character is printed as its escaped literal
+ * ({@link terminalSafeText}).
  *
  * @param project A stored project.
+ * @param counts The project's explain query counts.
  * @returns The line, without its line feed.
  */
-export function formatProjectLine(project: Project): string {
+export function formatProjectLine(project: Project, counts: ExplainQueryCounts): string {
+  const { queries, cacheHits, hitRatePct } = cacheHitRate(counts);
   const fields = [
     terminalSafeText(project.name),
     project.id,
     `${terminalSafeText(project.language)}/${project.framework === undefined ? '-' : terminalSafeText(project.framework)}`,
     `${project.nodeCount} nodes · ${project.edgeCount} edges`,
     project.indexedAt?.toISOString() ?? 'not indexed',
+    hitRatePct === null ? 'cache 0/0' : `cache ${cacheHits}/${queries} (${String(hitRatePct)}%)`,
   ];
   return `${fields.join('  ')}${project.isSample ? ' sample' : ''}`;
 }

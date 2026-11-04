@@ -1095,6 +1095,53 @@ describe('in-memory StorePort double', () => {
     });
   });
 
+  // DIS-69 (change cache-hit-rate, specs/graph-store/spec.md → "Explain query counts").
+  describe('Requirement: Explain query counts', () => {
+    it('The in-memory double counts explain queries like the database', async () => {
+      // Arrange: A (10 explain rows, 4 hits; 3 impact and 2 drift rows, all hits), B (5 explain hits), C (no rows)
+      const injected: { failure?: unknown } = {};
+      const loaded = createInMemoryStore({
+        projects: [
+          { project: newProject('a'), graph: graphOf([file('a.php')], []) },
+          { project: newProject('b'), graph: graphOf([file('a.php')], []) },
+          { project: newProject('c'), graph: graphOf([file('a.php')], []) },
+        ],
+        failCountExplainQueries: () => injected.failure,
+      });
+      const [a, b, c] = loaded.projectIds as [string, string, string];
+      const rows: Array<[string, QueryLogEntry['capability'], number, boolean]> = [
+        [a, 'explain', 4, true],
+        [a, 'explain', 6, false],
+        [a, 'impact', 3, true],
+        [a, 'drift', 2, true],
+        [b, 'explain', 5, true],
+      ];
+      for (const [projectId, capability, count, cacheHit] of rows) {
+        for (let i = 0; i < count; i += 1) {
+          await loaded.store.saveQueryLog({ ...queryLogEntry(projectId), capability, cacheHit });
+        }
+      }
+
+      // Act
+      const counted = [await loaded.store.countExplainQueries(a), await loaded.store.countExplainQueries(b), await loaded.store.countExplainQueries(c)];
+      const malformed = await rejectionOf(() => loaded.store.countExplainQueries('not-a-uuid'));
+      const unknown = await rejectionOf(() => loaded.store.countExplainQueries(randomUUID()));
+      injected.failure = new Error('injected');
+      const failed = await rejectionOf(() => loaded.store.countExplainQueries(a));
+
+      // Assert
+      expect(counted).toEqual([
+        { queries: 10, cacheHits: 4 },
+        { queries: 5, cacheHits: 5 },
+        { queries: 0, cacheHits: 0 },
+      ]);
+      expect(malformed).toBeInstanceOf(ProjectNotFound);
+      expect(unknown).toBeInstanceOf(ProjectNotFound);
+      expect(failed).toBe(injected.failure);
+      expect(loaded.calls.countExplainQueries).toBe(6);
+    });
+  });
+
   // DIS-21 (change evaluation-cache, specs/graph-store/spec.md → "Answer cache entries").
   describe('Requirement: Answer cache entries', () => {
     it('The in-memory double keeps, checks and fails cache entries', async () => {

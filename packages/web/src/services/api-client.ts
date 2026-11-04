@@ -82,6 +82,11 @@ export interface AskUsage {
     costUsd: number;
     latencyMs: number;
   };
+  /**
+   * The project's cache hit rate (DIS-69): its `explain` queries, those served from the cache and the
+   * percentage with at most one decimal, `null` without queries.
+   */
+  projectCache: { queries: number; cacheHits: number; hitRatePct: number | null };
 }
 
 /** An answered question: the answer, its statements, the cited evidence, the confidence and the usage. */

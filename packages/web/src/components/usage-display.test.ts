@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { baselineLine, formatConfidence, formatCost, formatLatency, formatTokens, savingsBadge } from './usage-display';
+import {
+  baselineLine,
+  formatConfidence,
+  formatCost,
+  formatLatency,
+  formatTokens,
+  projectCacheLine,
+  savingsBadge,
+} from './usage-display';
 
 /** The digit-group separator, a no-break space (U+00A0), written by code point. */
 const NBSP = String.fromCodePoint(0x00a0);
@@ -85,6 +93,32 @@ describe('How usage figures and notice details are written', () => {
       { text: 'sin ahorro vs bruto', saving: false },
       { text: 'sin ahorro vs bruto', saving: false },
       { text: 'sin ahorro vs bruto', saving: false },
+    ]);
+  });
+
+  // DIS-69 (change cache-hit-rate, specs/ask-page/spec.md).
+  it('The project cache line is written with its counts', () => {
+    // Arrange: (queries, cache hits, hit rate)
+    const caches: Array<[number, number, number | null]> = [
+      [10, 4, 40],
+      [3, 1, 33.3],
+      [1, 0, 0],
+      [1, 1, 100],
+      [12345, 1234, 10],
+      [0, 0, null],
+    ];
+
+    // Act
+    const lines = caches.map(([queries, cacheHits, hitRatePct]) => projectCacheLine({ queries, cacheHits, hitRatePct }));
+
+    // Assert
+    expect(lines).toEqual([
+      'Caché del proyecto: 40 % de aciertos (4 de 10 consultas)',
+      'Caché del proyecto: 33.3 % de aciertos (1 de 3 consultas)',
+      'Caché del proyecto: 0 % de aciertos (0 de 1 consulta)',
+      'Caché del proyecto: 100 % de aciertos (1 de 1 consulta)',
+      `Caché del proyecto: 10 % de aciertos (1${NBSP}234 de 12${NBSP}345 consultas)`,
+      'Caché del proyecto: sin consultas',
     ]);
   });
 });
