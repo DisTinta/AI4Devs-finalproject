@@ -83,3 +83,12 @@ Not applicable beyond step 11: the change has no browser UI (`packages/web` unto
 ### State of the local database `codemind` (task 10.10)
 - `project` 2, `cache_entry` 7, `cache_entry` with an embedding 0, `query_log` 0 (`max(created_at)` none), `claim` 0; no `.stryker-tmp/`; `node scripts/dev-processes.mjs stop` run.
 - `cache_entry` is 7 and not the 6 of the 10.1 baseline: the extra row is the key `drift:` of project acme-shop, loaded by `db:seed` at 2026-11-04 01:44 UTC (same `created_at` as every seed row) after the base branch merge brought the DIS-73 drift golden file. It is a seed row of the merged base, not a leftover of this change's tests (those run on `codemind_test`), so it is kept and the new baseline is 7. Migration `0005_embedding-768` stays applied.
+
+## Addendum: CI of PR #105 (task 14.2)
+
+*Agent's text: written by the agent of the review step in an autonomous run, without the author. Date: 2026-11-04.*
+
+- Head `77db509` (before the reviews): CI run 41812095131, every check green (`quality`, `verify`, `e2e`, `mutation`, `scope`, `secrets`; `frontend` in run 41812095051).
+- Head `430d98a` (fixes V1 and V2 of the pre-merge reviews): run 41816454640, `verify` red with `FINGERPRINT_MISMATCH` (`reason: seed`), because the V2 fix edits `queries.ts`, a seed fingerprint input. CI fix 1 of 2: commit `5caadbf` refreshes the `analyzer-fingerprint` as in task 10.9 (task 14.6.5); checked locally with `npx vitest run tests/unit/seed` (7 files, 18 tests) and `npm run verify` on a scratch database `verify_dis67` (6/6 golden answers match; the database was dropped). GitHub kept the PR on `430d98a` after that push for more than 8 minutes, so the empty commit `4d4e6a2` re-sent the push event.
+- Head `4d4e6a2`: CI run 41819095373 (https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/41819095373) and Frontend run 41819095448, every check green: `quality` (the whole suite with the new spec files `tests/unit/cache/similarity-cache.spec.ts`, `tests/unit/explain/explain-similarity.spec.ts` and the extended integration specs), `verify` (6/6), `e2e`, `mutation` (incremental; mutation score 93.94 over all files, break threshold 80; the `semantic-cache` scenario tests listed as killing mutants), `scope`, `secrets`, `frontend`.
+- The commit of this addendum only adds report text; its CI is checked by the review step before it returns.

@@ -115,7 +115,7 @@ Order note: this group runs before group 10 (and not after group 12, as `docs/op
 ## 14. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
 - [x] 14.1 Open the PR against `final-project-CRN`; DIS-67 to In Review with a Spanish comment linking it and the change
-- [ ] 14.2 CI green: wait in the foreground with `gh pr checks <n> --watch --interval 60`, repeated until no check is pending; confirm the new spec files ran and passed and the mutation job is ≥ 80; link the run in an addendum to the step 10 report
+- [x] 14.2 CI green: wait in the foreground with `gh pr checks <n> --watch --interval 60`, repeated until no check is pending; confirm the new spec files ran and passed and the mutation job is ≥ 80; link the run in an addendum to the step 10 report
 - [x] 14.3 `/show-spec-working` (may reuse the step 11 evidence) → `reports/YYYY-MM-DD-show-spec-working.md` (`reports/2026-11-04-show-spec-working.md`, re-run on the real CLI, API, database and `nomic-embed-text`, state restored)
 - [x] 14.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md` (`reports/2026-11-04-verify-against-spec.md`: V1, V2)
 - [x] 14.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md` (`reports/2026-11-04-adversarial-review.md`: PASS WITH GAPS, one Major and two Minors)
