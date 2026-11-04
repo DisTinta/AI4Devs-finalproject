@@ -146,7 +146,7 @@ A client built with an injected `fetch` SHALL use that `fetch` only, as before.
 
 - **GIVEN** a local HTTP server on a free port that answers `POST /v1/chat/completions` with 200 and
   `{ "choices": [{ "message": { "content": "hola" } }], "usage": { "prompt_tokens": 12, "completion_tokens": 3 } }`,
-  and `POST /v1/embeddings` with 200 and one vector of 1536 components (`index` 0), a live
+  and `POST /v1/embeddings` with 200 and one vector of 768 components (`index` 0), a live
   configuration with `LLM_BASE_URL` pointing at `/v1` of that server, `LLM_API_KEY=clave-x`,
   `LLM_MODEL=chat-x` and `LLM_EMBED_MODEL=embed-z`, and the global `fetch` replaced by a recording spy
 - **WHEN** the model is built through the entry point without a `fetch`, a completion with purpose
@@ -248,7 +248,7 @@ response not accepted.
 
 - **GIVEN** a live configuration with `LLM_EMBED_MODEL=embed-z` and an endpoint that answers a
   completion with 200, text `hola` and `"usage": null`, and embeddings for `["a"]` with 200, one vector
-  of 1536 components (`index` 0) and `"usage": null`
+  of 768 components (`index` 0) and `"usage": null`
 - **WHEN** a completion and embeddings for `["a"]` are requested
 - **THEN** the completion is text `hola` with `inputTokens` `0` and `outputTokens` `0`, and the
   embeddings hold the vector with `inputTokens` `0`
@@ -280,16 +280,17 @@ order of the input texts (by `index`, not by position in `data`; the indexes SHA
 `0..n-1` for `n` texts, each once, or the response is not accepted) and `usage.inputTokens` =
 `usage.prompt_tokens`, with the same rule as completions: `usage` or `usage.prompt_tokens` absent or
 `null` counts as `0`, and a `usage.prompt_tokens` that is present and is not a non-negative integer
-makes the response not accepted. Every vector SHALL have exactly
-1536 components, the dimension of the schema's embedding columns; otherwise the request SHALL fail
-with `LLM_UNAVAILABLE`, reason `dimension-mismatch`, the expected dimension and the received one.
-When `LLM_EMBED_MODEL` is configured, embeddings for an empty list SHALL return no vectors and
-`inputTokens` `0` without sending any HTTP request.
+makes the response not accepted. Every vector SHALL have exactly `EMBEDDING_DIMENSIONS` components,
+768, the dimension of the schema's embedding columns and of the reference embedding model
+`nomic-embed-text`; otherwise the request SHALL fail with `LLM_UNAVAILABLE`, reason
+`dimension-mismatch`, the expected dimension and the received one. When `LLM_EMBED_MODEL` is
+configured, embeddings for an empty list SHALL return no vectors and `inputTokens` `0` without sending
+any HTTP request.
 
 #### Scenario: Embeddings are returned in input order
 
 - **GIVEN** a live configuration with `LLM_EMBED_MODEL=embed-z` and an endpoint that answers with 200,
-  `data` holding two vectors of 1536 components listed as `index` 1 then `index` 0, and
+  `data` holding two vectors of 768 components listed as `index` 1 then `index` 0, and
   `usage: { "prompt_tokens": 7 }`
 - **WHEN** embeddings for `["a", "b"]` are requested
 - **THEN** exactly one `POST <base>/embeddings` is sent with `model: "embed-z"`,
@@ -311,18 +312,23 @@ When `LLM_EMBED_MODEL` is configured, embeddings for an empty list SHALL return 
 #### Scenario: A vector of another dimension is rejected
 
 - **GIVEN** a live configuration with `LLM_EMBED_MODEL=embed-z` and an endpoint that answers with 200
-  and one vector of 768 components for one input text
+  and one vector of 1536 components for one input text
 - **WHEN** embeddings for `["a"]` are requested
-- **THEN** it fails with `LLM_UNAVAILABLE`, reason `dimension-mismatch`, expected `1536` and received
-  `768`
+- **THEN** it fails with `LLM_UNAVAILABLE`, reason `dimension-mismatch`, expected `768` and received
+  `1536`
 
 #### Scenario: Embeddings with missing or duplicated indexes are an invalid response
 
 - **GIVEN** a live configuration with `LLM_EMBED_MODEL=embed-z` and an endpoint that answers
-  embeddings for two texts with 200 and vectors of 1536 components, in turn: `data` holding a single
+  embeddings for two texts with 200 and vectors of 768 components, in turn: `data` holding a single
   vector (`index` 0); `data` with indexes `[0, 0]`; `data` with indexes `[0, 2]`
 - **WHEN** embeddings for `["a", "b"]` are requested against each answer
 - **THEN** every request fails with `LLM_UNAVAILABLE` and reason `invalid-response`
+
+#### Scenario: The schema dimension is 768
+
+- **WHEN** `EMBEDDING_DIMENSIONS` is read
+- **THEN** it is `768`
 
 ### Requirement: Endpoint failures map to one error
 
