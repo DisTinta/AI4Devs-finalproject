@@ -733,3 +733,18 @@ No row is empty. The requirement "Golden answers are loaded with the seed" is im
    > Mejorables:
    > - el RED de la comprobación de vectores de `golden-coherence.spec.ts` pasa a una tarea 9.2b, antes de la ejecución de `cache:embed`;
    > - la tarea 4.4 guarda las golden con su vector, como lo hace la carga de la semilla.
+
+## Resolution of run 3
+
+- Date: 2026-11-04 (correction round 3 of the autonomous run).
+- *Agent's text: every finding was resolved by the agent as lead engineer, without the author. Run 3 had no question for the author. Each decision is in `design.md` → Follow-ups, table "Spec audit, run 3", with its destination; none has destination C.*
+- `openspec validate cache-hit-rate --strict`: the change is valid after the corrections.
+
+### Findings
+
+| Id | Resolution |
+|---|---|
+| B1 | Fixed, checked against the code: `saveGoldenAnswers` (`packages/cli/src/seed-load.ts:235`) and the two `toEqual` assertions of `tests/unit/cli/seed-load.spec.ts` (lines 433 and 529) are as the audit describes. Decided by the agent: S9's four-argument call is kept, and the alternative of a three-argument call when the vector is `null` is rejected, because it would add a branch only to keep a test's shape. Task 7.5 now names the edit: the expected golden saves of both tests gain the fourth element `entry.questionEmbedding ?? undefined`, the drift saves keep three elements, and no assertion is removed. Task 10.2 lists this edit. Design S9 states the call shape the unit test expects. |
+| I1 | Fixed. New task 9.2b, before 9.3, is the RED step: the two tests of `tests/unit/seed/golden-coherence.spec.ts` also assert that every `questionEmbedding` is a usable vector (`isUsableVector`, task 7.3), and they fail on the `null` vectors of the 7.3b/9.1 files. Task 9.4 is now the GREEN step on the 9.3 files. Task 9.1 says "green (the vector check is added in 9.2b)". Task 10.2 names 9.2b/9.4. |
+| I2 | Fixed. Task 4.4 saves the golden answers with `entry.questionEmbedding ?? undefined` as the fourth argument, as the seed load does (design S9). |
+| Linear 7 | Done: a Spanish comment summarises run 3 and this round's decisions. |

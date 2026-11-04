@@ -146,7 +146,8 @@ already cannot complete (DIS-67 E2).
 
 **S9 — `db:seed` passes the vector.** `saveGoldenAnswers` calls `saveCacheEntry(projectId,
 entry.questionNormalized, entry.response, entry.questionEmbedding ?? undefined)`; the drift entries are
-saved as today. The similarity lookup then treats a golden entry like any live entry; evaluation mode
+saved as today. The unit test of `seed-load` that records the calls (`tests/unit/cli/seed-load.spec.ts`)
+expects this four-argument call for the golden saves and three arguments for the drift saves (task 7.5). The similarity lookup then treats a golden entry like any live entry; evaluation mode
 never embeds (PH-04), so the vectors change nothing without `LLM_EMBED_MODEL`. pgvector stores
 single-precision components: the versioned double-precision vectors are rounded on load, which keeps
 the cosine similarity of a key with its own stored vector ≈ 1; the `seed-load` scenario that compares
@@ -304,3 +305,12 @@ as lead engineer in an autonomous run, without the author; the run had no questi
 | I5 | Option (a), the narrower one: "Signatures…" requires unchanged only the parts of `response` the panel judged (as "Blind panel input of the golden review" projects them); the added THEN clause is removed because the existing scenario "The panel input projects the golden answers without their verification" already checks it; `golden-reviews.spec.ts` is no longer edited (9.4, 10.2). The full-value comparison stays the 9.3 scratch check | **A** — this change |
 | I6 | `DAILY_BUDGET_USD` in `cache:embed`: not applied (no budget meter), but a value the model configuration rejects still fails with `LLM_CONFIG_INVALID` (`nomic-embed-text` is priced in `COST_TABLE`, so a valid budget does not block the run) | **A** — this change |
 | L1 | `[enhanced]` of DIS-69, Contexto técnico → Golden: `cache:embed` reads the model configuration as `ask` does (no `longFetch`, S7), not as `cache:build` | **A** — this change |
+
+Spec audit, run 3 (`reports/2026-11-04-spec-audit.md`). *Agent's text: findings resolved by the agent
+as lead engineer in an autonomous run, without the author; the run had no question for the author.*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| B1 | S9's four-argument call is kept; task 7.5 names the edit of the two expected-saves assertions of `tests/unit/cli/seed-load.spec.ts` (golden saves gain `entry.questionEmbedding ?? undefined`, drift saves keep three elements), and 10.2 lists it. Rejected alternative: a three-argument call when the vector is `null`, because it adds a branch only to keep a test's shape | **A** — this change |
+| I1 | The RED of the usable-vector assertion of `golden-coherence.spec.ts` moves to a new task 9.2b, before `cache:embed` (9.3); 9.4 is its GREEN step and 9.1 no longer cites a check that did not exist yet | **A** — this change |
+| I2 | Task 4.4 saves the golden answers with `entry.questionEmbedding ?? undefined` as the seed load does (S9) | **A** — this change |
