@@ -323,3 +323,13 @@ relaunch's spec audit (the rest), without the author.*
 | Run 2 · B1 | *Agent's text (correction round 2 of the relaunch).* Task 10.9 checks both tracked files `seed:build` writes (`seeds/graph-dump.sql`, `packages/web/src/data/sample-projects.ts`) with `git status --porcelain`, restores them and stops if anything changed, and takes its `verify` evidence from the CI `verify` job of PR #105 on the head commit (its own database) or from a scratch database created and dropped for it, never from a `db:seed` on the shared local database (which would undo the 11.7 restoration) | **A** — this change |
 | Run 2 · I1 | *Agent's text.* Task 10.10 re-checks the 0.3 indicators and the absence of `.stryker-tmp/` after the broader suite, and restores and documents any difference | **A** — this change |
 | Run 2 · I2 | *Agent's text.* Task 4.7 seeds E after D with exactly D's creation instant, so the test pins the id tie-break and not the `createdAt` order | **A** — this change |
+
+Pre-merge reviews (2026-11-04: `reports/2026-11-04-show-spec-working.md`,
+`…-verify-against-spec.md`, `…-adversarial-review.md`). *Agent's text: decided as lead engineer in the
+review step of the autonomous run, without the author.*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| V1 | Major: the test of "Turning the cache off embeds only for the save" did not assert that the entry holds E2 after the first call; the assertion is added (task 14.6.1) | **A** — this change |
+| V2 | Minor: pgvector returns a `NaN` distance when components overflow single precision, and Postgres compares `NaN >= 0.85` as true; `FIND_SIMILAR_CACHE_ENTRY` now leaves `NaN` distances out, test first (task 14.6.2) | **A** — this change |
+| V3 | Minor: a component above the single-precision range (about 3.4e38) is finite in JavaScript, so usable and valid, but Postgres rejects the cast and the similarity lookup fails the call. It conforms to the deltas (a lookup failure propagates) and needs an endpoint returning absurd magnitudes; the reference model returns unit-length vectors. Redefining a usable vector would reopen an approved delta for a broken-endpoint case | **D** — accepted |

@@ -265,6 +265,25 @@ describeWithDatabase('graph store answer cache entries (DIS-21)', () => {
       expect(found!.similarity).toBeCloseTo(0.9, 5);
     });
 
+    // Not a scenario of its own: it pins the requirement text of "Answer cache entries" (an entry is
+    // resolved only when its similarity is at least the minimum) against pgvector's `NaN` distance,
+    // which Postgres orders after every number and compares as greater (adversarial review V2).
+    it('An entry whose similarity is not a number is never found', async () => {
+      // Arrange
+      const { store } = stores();
+      const project = await createProject(db());
+      // Finite, so valid for the store, but their products overflow single precision: `<=>` is NaN.
+      await store.saveCacheEntry(project.id, KEY, R1, embeddingVector(3e38, 3e38));
+
+      // Act
+      const found = await store.findSimilarCacheEntry(project.id, embeddingVector(1, 1), 0.85);
+      const anyMinimum = await store.findSimilarCacheEntry(project.id, embeddingVector(1, 1), 0);
+
+      // Assert
+      expect(found).toBeUndefined();
+      expect(anyMinimum).toBeUndefined();
+    });
+
     it('Invalid cache arguments are rejected before querying', async () => {
       // Arrange
       const { counted, statements } = stores();

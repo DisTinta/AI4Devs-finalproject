@@ -280,6 +280,7 @@ describe('Requirement: Similarity lookup in explain', () => {
     const first = await explain(d.deps, { projectId: d.projectId, question: REPHRASED, useCache: false });
     const found = d.loaded.calls.findCacheEntry + d.loaded.calls.findSimilarCacheEntry;
     const embedsAfterFirst = d.model.embeddings.length;
+    const savedAfterFirst = entryOf(d, REPHRASED_KEY)?.embedding;
     fail = true;
     const second = await explain(d.deps, { projectId: d.projectId, question: REPHRASED, useCache: false });
 
@@ -287,6 +288,7 @@ describe('Requirement: Similarity lookup in explain', () => {
     expect(found).toBe(0);
     expect(first).toMatchObject({ kind: 'answered', usage: { cacheHit: false } });
     expect(embedsAfterFirst).toBe(1);
+    expect(savedAfterFirst).toEqual(e2);
     expect(d.model.requests.map((request) => request.purpose)).toContain('answer');
     expect(second.events[0]).toEqual({ type: 'semantic_cache_skipped', code: 'embedding-unavailable' });
     expect(second).toMatchObject({ kind: 'answered', usage: { cacheHit: false } });

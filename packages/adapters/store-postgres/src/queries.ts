@@ -448,6 +448,8 @@ export const FIND_CACHE_ENTRY = `
  * embedding in a `MATERIALIZED` CTE (read through `cache_entry_project_id_idx`, never ordered by the
  * HNSW index, whose post-filtering could miss the project's entry); the best row is chosen by
  * distance, then the most recently created, then the greatest id, and the minimum applies outside.
+ * A `NaN` distance (pgvector's result when the components overflow single precision) is no similarity
+ * and is left out: Postgres would order it after every number and compare it as greater than `$3`.
  */
 export const FIND_SIMILAR_CACHE_ENTRY = `
   WITH scored AS MATERIALIZED (
@@ -459,6 +461,7 @@ export const FIND_SIMILAR_CACHE_ENTRY = `
     FROM project p
     LEFT JOIN LATERAL (
       SELECT s.id, s.response, 1 - s.distance AS similarity FROM scored s
+       WHERE s.distance <> 'NaN'::float8
        ORDER BY s.distance, s.created_at DESC, s.id DESC
        LIMIT 1) e ON e.similarity >= $3
    WHERE p.id = $1`;
