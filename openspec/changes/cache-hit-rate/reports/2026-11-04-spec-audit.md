@@ -748,3 +748,251 @@ No row is empty. The requirement "Golden answers are loaded with the seed" is im
 | I1 | Fixed. New task 9.2b, before 9.3, is the RED step: the two tests of `tests/unit/seed/golden-coherence.spec.ts` also assert that every `questionEmbedding` is a usable vector (`isUsableVector`, task 7.3), and they fail on the `null` vectors of the 7.3b/9.1 files. Task 9.4 is now the GREEN step on the 9.3 files. Task 9.1 says "green (the vector check is added in 9.2b)". Task 10.2 names 9.2b/9.4. |
 | I2 | Fixed. Task 4.4 saves the golden answers with `entry.questionEmbedding ?? undefined` as the fourth argument, as the seed load does (design S9). |
 | Linear 7 | Done: a Spanish comment summarises run 3 and this round's decisions. |
+
+---
+
+## Run 4 (2026-11-04)
+
+APPROVED
+
+# Spec audit, run 4: `cache-hit-rate` (DIS-69, parent DIS-46)
+
+- Date: 2026-11-04
+- Inputs read:
+  - The change: `proposal.md`, `design.md` (Follow-ups including the run 3 table), `tasks.md`, the seven deltas (`semantic-cache`, `graph-store`, `http-ask`, `ask-page`, `cli-projects`, `golden-answers`, `seed-load`), and `reports/2026-11-04-spec-audit.md` (runs 1–3 and their resolutions) for context.
+  - Linear: DIS-69 (`[original]`, `[reality-map]`, `[enhanced]` with AC1–AC5 and F1–F12, 8 comments including the run 3 resolution) and parent DIS-46 (description, 2 comments).
+  - Project: `docs/project-context.md` (seed fingerprint inputs, lines 1029–1030 and 1364–1372), `openspec/specs/http-ask/spec.md` ("Ask answered response"), `openspec/specs/cli-projects/spec.md:46`, `openspec/specs/local-startup/spec.md:110-140`, and the cross-referenced requirements (all resolve: `seed-load`/"Command contract and configuration", `golden-answers`/"A failed build never leaves a broken golden file" and "Blind panel input of the golden review", `graph-store`/"Query log write" and "Opening a pooled store from a URL", `semantic-cache`/"Similarity threshold and embedded text" and "Similarity lookup in explain", `explain`/"Answer usage").
+  - Code:
+    - `packages/api/src/routes/ask.ts:19-20, 72, 136`
+    - `packages/api/src/schemas/ask.ts:36-75`
+    - `packages/adapters/llm/src/config.ts:79-110`
+    - `packages/adapters/llm/src/create-llm.ts:15`
+    - `packages/adapters/llm/src/openai-compatible-llm.ts:15-37`
+    - `packages/cli/src/commands/ask.ts:283-319`
+    - `packages/cli/src/cache-build.ts:170-249`
+    - `packages/cli/src/seed-load.ts:163-215`
+    - `packages/cli/src/cache/golden-file.ts:156`
+    - `packages/cli/src/cache/write-atomically.ts:14`
+    - `packages/core/src/cache/similarity-cache.ts:36`
+    - `packages/core/src/llm/cost-table.ts:21-22`
+    - `scripts/load-env.mjs`
+    - `scripts/measure-context.mjs:458-471`
+    - `package.json:26-33`
+    - `stryker.config.json`
+  - Tests:
+    - `tests/unit/api/ask.spec.ts` (the app over the counted in-memory store, lines 77–93; every exact `calls()` assertion)
+    - `tests/unit/api/support.ts:96-108`
+    - `tests/support/in-memory-store.ts` (query log rows)
+    - `tests/integration/api/ask.spec.ts`
+    - `tests/integration/api/reindex.spec.ts`
+    - `tests/unit/api/reindex.spec.ts`
+    - `packages/web/src/pages/AskPage.test.tsx`
+    - `tests/unit/seed/drift-golden-coherence.spec.ts:49-54`
+    - `tests/unit/scripts/wiring.spec.ts:92-110`
+    - every exact `calls).toEqual` in `tests/`
+
+## Questions for the author
+
+None. The decisions the agent recorded in runs 1–3 are consistent with the ticket and the project, so I treat them as settled:
+- Q1–Q3 of run 1;
+- option (a) of run 2 I5;
+- the four-argument call of run 3 B1.
+
+---
+
+## 1. Scope against the ticket
+
+Clean. Every part of the change follows from the DoD of DIS-69 ("Métrica visible en web y CLI; `seeds/cache` incluye vectores") and from the `[enhanced]` decisions:
+- F1/F2: the metric and the store read;
+- F3: `usage.projectCache`;
+- F4: the web line;
+- F5: the CLI field;
+- F6: `questionEmbedding` and `cache:embed`;
+- F7: the vectors stored by `db:seed`;
+- F8: the fingerprint refresh.
+
+The MODIFIED "Signatures of the reviewed golden answers" is the consistency edit F6 requires. It is not new scope. Nothing reaches into the similarity step, the threshold or the degradation of DIS-46 (DIS-67).
+
+## 2. Inherited acceptance criteria
+
+| AC | Requirement → scenario | Status |
+|---|---|---|
+| DIS-46: 10 queries, 4 hits → hit rate 0.4, shown in CLI and `UsagePanel` | `semantic-cache` "The hit rate is rounded…" (10, 4 → 40); `ask-page` "An answer from the model shows its usage panel"; `cli-projects` "Sample and user projects are listed" (`cache 4/10 (40%)`) | Covered (percentage form accepted, run 1 Q3) |
+| DIS-69 AC1: metric, `ProjectNotFound`, Postgres equals in-memory | `graph-store` "Explain query counts" (3 scenarios); `semantic-cache` (2 scenarios) | Covered |
+| DIS-69 AC2: `{2,2,100}`, `UNKNOWN` without usage, OpenAPI, `500` / `404` | `http-ask` "The usage carries…", "The hit rate is read only…" (4 cases), "The document lists ask…" | Covered |
+| DIS-69 AC3: web line, «0 de 1 consulta», «sin consultas», a11y | `ask-page`: 4 usage-panel scenarios, "The project cache line is written with its counts"; axe fixture (5.4) | Covered |
+| DIS-69 AC4: CLI `cache 4/10 (40%)`, `cache 0/0`, database unchanged | `cli-projects` "Sample and user projects are listed" | Covered |
+| DIS-69 AC5: vectors, `response`/`reviews` unchanged, `db:seed` stores them, live rephrasing hit, `cache:embed` errors | `golden-answers` "Golden embeddings command" (5 scenarios), "The versioned golden file is coherent", MODIFIED "Signatures…"; `seed-load` (2 modified scenarios and "A rephrased golden question is a similarity hit after the seed") | Covered |
+
+No inherited criterion is missing, and the sub-issue and the parent agree on scope.
+
+## 3. Missing scenarios
+
+Clean. Every MUST or SHALL clause of the seven deltas has a scenario or points to an existing one. The pooled-connection clause points to "Opening a pooled store from a URL". The `DAILY_BUDGET_USD` clause of "Golden embeddings command" uses `llmConfigFromEnv` without change (`config.ts:96-108`), which the `ask` scenarios already cover.
+
+## 4. Ambiguity
+
+Clean. A search for «fast», «easy», «secure», «efficient», «many», «appropriate» and «robust» over the proposal, the design, the specs and the tasks finds only "how many" (`graph-store`, line 5), which is not a vague qualifier.
+
+## 5. Open decisions
+
+Clean. The names the tests will pin are all fixed:
+- `cacheHitRate`, `ProjectCacheHitRate`, `ExplainQueryCounts`;
+- `countExplainQueries`, `COUNT_EXPLAIN_QUERIES`, `failCountExplainQueries`;
+- `toPublicAnswer(answer, projectCache?)` and its error message;
+- `projectCacheLine`, `isUsableVector`, `runCacheEmbed`;
+- the `cache:embed` script string.
+
+The following are fixed too:
+- the formats: the web line, the CLI field, the rounding, `null`;
+- the error cases: `404`/`500` of the read, every `cache:embed` code and message, the two `INTERNAL` messages;
+- the empty inputs: no project, no query, a `null` vector;
+- the orderings: the arguments, then the configuration, then the files, then the requests; the projects `acme-shop` then `task-api`;
+- the call shape of `saveCacheEntry` (S9, task 7.5).
+
+I checked them against the code they extend:
+- `ASK_DOMAIN_ERRORS` maps `PROJECT_NOT_FOUND` to `404 'project not found'` (`ask.ts:19-20`).
+- `llmConfigFromEnv` returns `{ mode: 'evaluation' }` without `LLM_BASE_URL` and `LLM_API_KEY`, and rejects `ftp://x` as `LLM_BASE_URL` (`config.ts:82-83`).
+- `qwen2.5-coder` and `nomic-embed-text` are priced in `COST_TABLE` (`cost-table.ts:21-22`), so the 9.3 run passes under a `DAILY_BUDGET_USD` too.
+- `toFailure` gives `LlmUnavailable` its `details.reason` (`commands/ask.ts:304-312`).
+- `cache:build` exits `1` for `USAGE` (`cache-build.ts:231-249`), the same as the `cache:embed` spec.
+
+## 6. Contradictions inside the change
+
+Clean. The run 3 corrections are in place and consistent:
+- 7.5 names the two unit expected-saves edits, and 10.2 lists them;
+- 9.2b is the RED step before 9.3, 9.4 is the GREEN step, and 9.1 says "(the vector check is added in 9.2b)";
+- 4.4 passes `entry.questionEmbedding ?? undefined`;
+- S9 states the call shape.
+
+I rechecked the arithmetic:
+- 13.2: 3/3, then 3/4;
+- 14.2: 1/1, then 2/2, then 3/4;
+- the six calls of the in-memory double scenario;
+- the six `"questionEmbedding": null` lines of 7.3b.
+
+## 7. Contradictions with the project
+
+- **I1 (improvable): the new `cache:embed` script loads `.env`, but `local-startup` → "Which commands load .env" (`openspec/specs/local-startup/spec.md:110-130`) does not list it.**
+  - Design S7 fixes the script as `tsx --import=./scripts/load-env.mjs …`. The requirement lists the scripts that SHALL load `.env` (`cli`, `verify`, `db:migrate`, `db:rollback`, `db:seed`, `cache:build`, `seed:build`), and this change adds none.
+  - It is not a contradiction. The list does not exclude other scripts, and `tests/unit/scripts/wiring.spec.ts:98-109` only checks the listed scripts and the quality scripts, so nothing turns red. `drift:build` (`package.json:30`) already loads `.env` without being listed.
+  - Still, the main spec stops describing the real set of scripts.
+  - **Correction (pick one):**
+    - (a) add to design S7: "`local-startup` → 'Which commands load .env' is not amended; its list is not exhaustive, as for `drift:build`", with a Follow-ups row of destination D;
+    - (b) add a MODIFIED `local-startup` delta that adds `cache:embed` (and `drift:build`) to the list and to its scenario, plus a task line that extends the `PRELOADED` map of `wiring.spec.ts`.
+  - (a) is the narrower option.
+
+Everything else is clean:
+- Seed fingerprints: `knowledge/` and `store-postgres/src` feed the analyzer fingerprint (`docs/project-context.md:1029-1030`), so the S11 refresh is needed. `drift-golden-coherence.spec.ts:49-54` compares the drift file with the header of `graph-dump.sql`, not with a recomputed value, so the test run of 7.3b (before 9.1) stays green and S11's copy keeps it green afterwards.
+- ADRs 20261017, 20261103 (drift freshness) and 20261103 (embeddings on `LlmPort`) are cited and respected.
+- `GUARD_DB_IN_HTTP` holds: the route calls the store port.
+- No dependency or migration is added.
+- The MODIFIED "Ask answered response" keeps the four scenarios of the main spec (`openspec/specs/http-ask/spec.md:125-162`) and adds two.
+
+## 8. Contrast with the real code
+
+- `tests/unit/api/ask.spec.ts` builds every app over `createInMemoryStore`, wrapped by the `counting` Proxy (`ask.spec.ts:77-93`, `support.ts:96-108`). After 2.3 the existing answered tests ("Evidence ids are renumbered…", "Internal fields…", "Requests to one API share verification verdicts", …) read `{0,0,null}` and keep passing. The only exact `store.calls()` assertions (lines 228 and 697) are validation failures that never reach the read.
+- The other test files that send `/ask` only read `usage.cacheHit`:
+  - `tests/integration/api/ask.spec.ts:276, 314`
+  - `tests/integration/api/reindex.spec.ts:172`
+- `scripts/measure-context.mjs:458-471` checks for the `usage` keys it needs and ignores extra keys, so the real API's new `projectCache` does not break it.
+- Exact `calls).toEqual` objects of the in-memory store occur only in `tests/unit/explain/explain.spec.ts:107, 146, 216`, which task 2.4 already names.
+- **I2 (improvable): task 12.4 points Stryker at a file outside its scope and leaves out the largest new mutated file.**
+  - `stryker.config.json:20-29` mutates `packages/core`, `packages/cli`, `packages/api` and `long-fetch.ts`, not `packages/web`.
+  - Task 12.4 still lists `packages/web/src/components/usage-display.ts` among the files whose survivors get tests. It can have no survivors.
+  - The task leaves out `packages/cli/src/cache-embed.ts`. That file is new, has many branches, and is mutated: it counts toward the 80 break threshold of 16.2.
+  - **Correction:** in 12.4, replace `packages/web/src/components/usage-display.ts` with `packages/cli/src/cache-embed.ts` (and optionally `packages/cli/src/cache/golden-file.ts`). Add: "`usage-display.ts` is outside the Stryker `mutate` scope; its scenarios are covered by `usage-display.test.ts`".
+
+## 9. Task size
+
+Clean. Every task fits in one agent turn. The largest are 4.4 (one test edited, one new) and 8.3 (four scenarios, done "one at a time").
+
+## 10. Mandatory steps
+
+Clean.
+- Step 0 creates the branch (0.1), and its check (0.2) and the baseline (0.3) follow.
+- The labelled groups are present:
+  - 10 Review and Update Existing Tests;
+  - 11 Docs, whose position before 12 is justified by the docs gate;
+  - 12 Run Tests and Verify Data State, with the report path;
+  - 13 Manual Interface Testing (AGENT MUST EXECUTE);
+  - 14 End-to-End (AGENT MUST EXECUTE);
+  - 15 the PR;
+  - 16 Pre-merge Review, last, with the archive (16.7) before the merge (16.8).
+- The mutating tasks restore state:
+  - 7.3b and 9.3 check the rendered files with scratchpad scripts;
+  - 9.1 restores `sample-projects.ts`;
+  - 12.6 checks the counts after the tests;
+  - 13.6 and 14.5 drop the scratch database and stop the servers;
+  - `db:seed` never runs on the shared database (S13).
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| semantic-cache: Project cache hit rate | The hit rate is rounded to one decimal and null without queries | 1.1, 1.2 |
+| | Impossible counts are rejected | 1.3 |
+| graph-store: Explain query counts | Explain queries and cache hits are counted per project | 3.1, 3.2 |
+| | Counting the queries of an unknown project fails | 3.3 |
+| | The in-memory double counts explain queries like the database | 2.1, 2.2, 2.3 |
+| http-ask: Ask answered response | An answered question returns only the public fields over the seed | 4.4 |
+| | Evidence ids are renumbered in evidence order (unchanged) | 10.3 |
+| | Internal fields of the answer are not sent (unchanged) | 10.3 |
+| | A statement citing an unknown evidence id answers INTERNAL | 4.3, 10.3 |
+| | The usage carries the project's cache hit rate over the seed | 4.4 |
+| | The hit rate is read only for an answered question and its failure answers INTERNAL | 4.1, 4.2 |
+| http-ask: Ask in the OpenAPI document | The document lists ask with its parameter, body and responses | 4.3 |
+| ask-page: Usage panel | An answer from the model shows its usage panel | 5.3a, 5.3c |
+| | A cache hit shows its usage panel | 5.3a, 5.3c |
+| | No saving is not shown as a saving | 5.3b |
+| | A project without logged queries shows no hit rate | 5.3b, 5.3c |
+| | The usage panel and the states follow the wireframe | 14.2, 14.3 |
+| ask-page: How usage figures and notice details are written | The 7 unchanged scenarios | 10.3 |
+| | The project cache line is written with its counts | 5.1, 5.2 |
+| cli-projects: Project listing | Sample and user projects are listed | 6.4 |
+| | An empty database lists no projects (unchanged) | 6.4 |
+| | Configuration, connection and usage errors (unchanged) | 10.3 |
+| | The cache field writes the hit rate with at most one decimal | 6.1, 6.2 |
+| | A failing count read is an unexpected error | 6.1, 6.2 |
+| golden-answers: Golden embeddings command | Golden question embeddings are written without touching the answers | 8.3 |
+| | Embedding arguments and configuration are checked before any file | 8.1, 8.2 |
+| | An invalid golden file stops the embedding before any request | 8.3 |
+| | A failed embedding leaves the golden file intact | 8.3 |
+| | A failed write leaves the golden files intact | 8.3 |
+| golden-answers: Signatures of the reviewed golden answers | Every golden answer judged correct or partial carries both panel signatures | 9.4, 10.3 |
+| | A golden answer judged incorrect carries no signature | 9.4, 10.3 |
+| golden-answers: Golden file format | The canonical render is stable | 7.2, 7.3 |
+| | Golden files with an invalid shape are rejected | 7.2, 7.3 |
+| golden-answers: Partial regeneration | Only the named question is regenerated | 7.4 |
+| | A stale golden file is not partially regenerated (unchanged) | 10.3 |
+| golden-answers: The versioned golden file is coherent | The versioned golden file matches the seed, the questions and the code | 9.2b, 9.3, 9.4 |
+| | The versioned task-api golden file matches the seed, the questions and the code | 9.2b, 9.3, 9.4 |
+| seed-load: Golden answers are loaded with the seed | Golden answers are loaded and served in evaluation mode | 7.5 |
+| | A seed without golden files loads only the graph (unchanged) | 10.3 |
+| | Loading golden answers again does not duplicate them | 7.5 |
+| | A failed golden save leaves the database unchanged (unchanged) | 10.3 |
+| | A rephrased golden question is a similarity hit after the seed | 7.6 (green after 9.3) |
+
+No row is empty.
+
+---
+
+## Corrections to apply
+
+There are no blocking corrections. The two improvable ones:
+
+### `openspec/changes/cache-hit-rate/design.md`
+
+1. **(I1, option a)** At the end of S7, after the `package.json` script, add: "`local-startup` → 'Which commands load .env' is not amended: its list of scripts that load `.env` is not exhaustive (`drift:build` already loads it without being listed), and `tests/unit/scripts/wiring.spec.ts` only checks the listed scripts." In Follow-ups, add a table "Spec audit, run 4" with the row `I1 | cache:embed loads .env without being listed in local-startup → "Which commands load .env" (precedent drift:build) | **D** — accepted`, plus the row for I2 below with destination **A**.
+
+### `openspec/changes/cache-hit-rate/tasks.md`
+
+2. **(I2)** In 12.4, replace "`packages/web/src/components/usage-display.ts`" with "`packages/cli/src/cache-embed.ts`", and add at the end: "(`usage-display.ts` is outside the `mutate` scope of `stryker.config.json`; `usage-display.test.ts` covers its scenarios)".
+
+### Linear DIS-69 (Spanish; the `[original]` block is never edited)
+
+3. Add a comment:
+   > *Texto del agente (auditoría de spec del cambio `cache-hit-rate`, ronda 4, 2026-11-04).* Veredicto: `APPROVED`. No hay hallazgos bloqueantes ni preguntas para la autora. Quedan dos mejorables:
+   >
+   > - (I1) El script nuevo `cache:embed` carga `.env`, pero `local-startup` → «Which commands load .env» no lo lista. No es una contradicción, porque la lista no es exhaustiva: `drift:build` tampoco figura. Se deja constancia en S7 con destino D.
+   > - (I2) La tarea 12.4 cita `usage-display.ts`, que está fuera del alcance de Stryker. Pasa a citar `packages/cli/src/cache-embed.ts`, que sí se muta y cuenta para el umbral 80.
