@@ -1032,3 +1032,23 @@ No empty row. I confirmed by grep under `tests/` that every new or modified scen
   > *Texto del agente (auditoría de spec del relanzamiento, 2026-11-04).* La auditoría sale `CHANGES REQUIRED` con 2 bloqueantes: (B1) el refresco de huellas del seed (E1, commit `f26c898`) no figura en los artefactos del cambio; se añade la tarea 10.9, el impacto en `proposal.md` y E1–E3 en `design.md` → Follow-ups, con el motivo de no ejecutar `cache:build` frente a la política de `docs/project-context.md`; (B2) `design.md` S4 y la tarea 4.3 dicen que el doble en memoria aplica `reachesThreshold`, pero R6 y el código usan el `minSimilarity` recibido; se corrigen S4, 4.3 y el TSDoc. Mejoras I1–I6 en el mismo paso. Pregunta para la autora (Q1): con `nomic-embed-text`, la reformulación de la HU padre no alcanza 0,85 (0,8321) y preguntas de otro tema con la misma estructura sí (0,8745 y 0,8920); R3 lo aceptó el agente como D. ¿Se acepta así o se cambia el umbral o el texto embebido en este cambio?
 
 - **DIS-67, `[enhanced]`:** nothing to add beyond the note already announced there. E1–E3 now reach `design.md`.
+
+---
+
+## Resolution of run 1 (2026-11-04)
+
+Correction round 1 of the relaunch. *Agent's text: decided as lead engineer in an autonomous run, without the author.* Every decision is in `design.md` → Follow-ups, table "Relaunch of the autonomous run (2026-11-04)"; none has destination C. `openspec validate semantic-cache --strict` passes. The code and test edits wait for an approving audit (the spec-auditor gate), so they are planned as open tasks 4.7, 5.5, 6.11, 7.4, 10.9 and 10.10.
+
+| Finding | Resolution |
+|---|---|
+| Q1 (question for the author) | Decided by the agent: R3 stays accepted (D); this change does not move the threshold (no constant in [0.80, 0.95] separates the measured pairs, S11) nor the embedded text (a task prefix reverses D4 and needs its own calibration and audit). The recalibration stays with R4 in DIS-69 (B). Follow-up Q1 |
+| B1 | Fixed. Task 10.9 (verification of commit `f26c898`: `seed:build` produces the same dump, headers only, coherence tests and `verify` green, without `cache:build`), Impact → Seed in `proposal.md`, a sentence in design S6, and E1–E3 in Follow-ups. E1 states why `cache:build` is not run: no input of `ANSWER_FINGERPRINT_FILES` or `DRIFT_FINGERPRINT_FILES` changes (checked against `packages/cli/src/cache/answer-fingerprint.ts` and `drift-golden-file.ts`), the seed rows are identical, so no golden entry is regenerated and no new review is needed (precedent DIS-94). The command was not named because commit `f26c898` does not record it; 10.9 re-checks the result instead |
+| B2 | Fixed in the artifacts: S4 and task 4.3 now say the store applies `>=` to the `minSimilarity` it receives and `reachesThreshold` is the core statement tested on its own. The TSDoc of `similarity-cache.ts` is task 6.11(a), after approval |
+| I1 | Fixed: tasks 6.2 and 6.4–6.7 and `proposal.md` → Impact name `tests/unit/explain/explain-similarity.spec.ts` |
+| I2 | Fixed: the scenario is split into "The most similar entry of the project wins" and "An entry without an embedding is never a similarity hit" (the existing test names); task 6.5 names both; the assertion on C's hit count is task 6.11(b). Follow-up I2 / R7 |
+| I3 | Fixed: the scenario gains "the store received exactly one save, and the entry still holds the embedding of the price question's key"; the assertions are task 6.11(b) |
+| I3b | Fixed: "the operator invalidates" without SHALL, as a non-normative statement |
+| I4 | Fixed with a scenario step, not by declaring it pinned elsewhere: in `graph-store` an entry E with D's embedding and `created_at` and a greater explicit id resolves the tie; the double scenario, whose seed assigns random ids, expects whichever of D and E has the greater id in byte order (no change to the double's seed API). Tasks 4.7 and 5.5 |
+| I5 | Fixed: the THEN adds "hold no other `semantic_cache_skipped` event"; the assertion is task 6.11(b) |
+| I6 | Fixed: task 14.7 says the agent merges only in an autonomous run (`docs/AUTONOMOUS-RUN.md` §5) |
+| Linear | The comment of this round is posted on DIS-67 (in Spanish); the `[enhanced]` part is not touched |

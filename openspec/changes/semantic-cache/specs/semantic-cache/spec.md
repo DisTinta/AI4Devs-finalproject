@@ -117,14 +117,18 @@ any pack, completion or `query_log` row.
 
 #### Scenario: The most similar entry of the project wins
 
-- **GIVEN** two projects in the in-memory store whose graphs both anchor the price question; the first
-  project with entries A (similarity 0.88 with the question's embedding) and B (similarity 0.95), and
-  the second project with an entry C of similarity 1; none of A, B, C or D is stored under the
-  rephrased question's key
+- **GIVEN** a project with entries A (similarity 0.88 with the rephrased question's embedding) and B
+  (similarity 0.95), and another project with an entry C of similarity 1; none of them stored under
+  the rephrased question's key
 - **WHEN** the rephrased price question is explained in the first project with a live model
 - **THEN** the answer is B's stored response; B's hit count is 1, and A's and C's are unchanged
-- **AND** explained in the second project after C is removed, with only an entry D that has no stored
-  embedding and the same key text as A, it is answered live
+
+#### Scenario: An entry without an embedding is never a similarity hit
+
+- **GIVEN** a project whose only entry has no stored embedding and a key other than the rephrased
+  question's
+- **WHEN** the rephrased question is explained with a live model with usable embeddings
+- **THEN** it is answered live with `usage.cacheHit` `false`
 
 #### Scenario: Equal similarities go to the most recent entry
 
@@ -229,8 +233,8 @@ still be checked before it (`llm-adapter`, "Daily spend ceiling").
   of zeros
 - **WHEN** the rephrased question is explained against each
 - **THEN** each answer is the model's stored answer whose events start with exactly
-  `{ type: 'semantic_cache_skipped', code: 'embedding-unavailable' }`, and no similarity lookup was
-  made
+  `{ type: 'semantic_cache_skipped', code: 'embedding-unavailable' }` and hold no other
+  `semantic_cache_skipped` event, and no similarity lookup was made
 - **AND** each saved entry has no stored embedding
 
 #### Scenario: A spent daily budget skips the lookup and the answer call still fails
@@ -279,7 +283,7 @@ without an embedding, as before. An answer served from the cache SHALL NOT be sa
 entry keeps its stored embedding.
 
 Stored embeddings are only comparable with embeddings of the same model: after `LLM_EMBED_MODEL`
-changes, the operator SHALL invalidate the answer cache of every project (a full reindex,
+changes, the operator invalidates the answer cache of every project (a full reindex,
 `POST /api/projects/{id}/index` with `incremental: false`, or `invalidateCache`) before asking; the
 system does not detect the change.
 
@@ -295,3 +299,5 @@ system does not detect the change.
 - **AND** the second answer is served from that entry with `usage.cacheHit` `true`, the model received
   completions only during the first call and exactly one embedding request in each call, and the entry's
   hit count is 1
+- **AND** the store received exactly one save, and the entry still holds the embedding of the price
+  question's key

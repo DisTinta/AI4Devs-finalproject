@@ -95,7 +95,10 @@ stands.
 - **Adapters:** `packages/adapters/store-postgres/src/queries.ts` and `postgres-store.ts`, new
   migration `0005_embedding-768` (up and down); `packages/adapters/llm` unchanged in code (it reads
   `EMBEDDING_DIMENSIONS`).
-- **Tests:** new `tests/unit/cache/similarity-cache.spec.ts`; extended `tests/unit/explain/explain-cache.spec.ts`,
+- **Seed:** `seeds/graph-dump.sql`, `seeds/cache/*.json`, `seeds/drift/acme-shop.json` and
+  `docs/measurements/graph-quality.json` get refreshed fingerprints (this change touches seed
+  fingerprint inputs); no golden answer is regenerated (design E1, task 10.9).
+- **Tests:** new `tests/unit/cache/similarity-cache.spec.ts` and `tests/unit/explain/explain-similarity.spec.ts`; extended
   `tests/integration/store/cache-entry.spec.ts`, `tests/unit/store/in-memory-store.spec.ts`; doubles
   `tests/support/in-memory-store.ts`, `tests/support/explain-doubles.ts`, `tests/support/scripted-llm.ts`;
   existing tests that fix 1536 or the latest migration change (named in `tasks.md`).

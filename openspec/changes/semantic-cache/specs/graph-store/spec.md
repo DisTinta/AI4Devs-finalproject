@@ -192,10 +192,11 @@ as the error the test gives.
 - **GIVEN** a project with entries A (similarity 0.88 with a query vector Q) and B (similarity 0.95),
   and two entries C and D of the same embedding inserted directly with `created_at`
   `2026-10-01T00:00:00Z` and `2026-10-02T00:00:00Z`; C and D have a similarity below 0.88 with Q, and
-  A and B a similarity below 0.99 with the embedding of C and D
+  A and B a similarity below 0.99 with the embedding of C and D; then an entry E inserted directly with
+  the embedding and `created_at` of D and an `id` greater than D's (both ids given explicitly)
 - **WHEN** the project is searched with Q and minimum 0.85, and with the embedding of C and D and
-  minimum 0.99
-- **THEN** the first resolves to B and the second to D
+  minimum 0.99, before and after E is inserted
+- **THEN** the first resolves to B, the second to D before E exists and to E after
 
 #### Scenario: The similarity search is exact whatever the other projects hold
 
@@ -222,13 +223,15 @@ as the error the test gives.
   within its project" (in the first project R₁ with E1 and R₂ without an embedding, in the second
   project R₃ with E1) and, in a third project, the entries A, B, C and D of "The most similar entry
   wins and ties go to the most recent" with their embeddings and with C created at
-  `2026-10-01T00:00:00Z` and D at `2026-10-02T00:00:00Z`
+  `2026-10-01T00:00:00Z` and D at `2026-10-02T00:00:00Z`, and E seeded after them with the embedding
+  and creation instant of D (the double assigns both ids)
 - **WHEN** the four searches of the first of those scenarios are made in the first project and the two
-  of the second in the third project; then the first project is searched with the vector Q whose
+  of the second in the third project (with E present); then the first project is searched with the vector Q whose
   first five components are `17, 10, 3, 1, 1` (the rest 0) and minimum 0.85; then with an embedding
   of `EMBEDDING_DIMENSIONS − 1` components; then with a similarity failure injected as an `Error`
 - **THEN** the first six searches resolve as in those two scenarios (R₁ with similarity 1, R₁, nothing,
-  R₁ with similarity 0; B, D), with exactly computed similarities; the search with Q and minimum 0.85
+  R₁ with similarity 0; B, and whichever of D and E has the greater id in byte order), with exactly
+  computed similarities; the search with Q and minimum 0.85
   resolves to R₁ with a similarity of exactly `0.85`; the short embedding fails with
   `InvalidStoreQuery` naming `embedding`; the injected failure rejects with that `Error`
 - **AND** its call counts record each similarity search

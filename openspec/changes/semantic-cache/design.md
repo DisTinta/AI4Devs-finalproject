@@ -81,7 +81,8 @@ else `undefined`) and `skipCode(error)` (`not-configured` → no code, other `Ll
 not import `explain/` (no cycle, as `response-cache.ts`); `SEMANTIC_CACHE_SKIPPED_CODES` and the event
 type live in `explain-event.ts` with the other closed sets, and the module imports only the type of the
 code. It also exports `reachesThreshold(similarity)` (similarity `>=` `SEMANTIC_CACHE_MIN_SIMILARITY`),
-the single TypeScript statement of the inclusive rule, applied by the in-memory double. `answerQuestion`, after the exact lookup and before the evaluation check: `if (llm.mode ===
+the core statement of the inclusive rule, tested on its own; the store (SQL and the in-memory double)
+applies the same `>=` to the `minSimilarity` it receives (R6). `answerQuestion`, after the exact lookup and before the evaluation check: `if (llm.mode ===
 'live' && key !== '')` request `llm.embed([key])`, classify, keep the vector and the skip code in
 `state`; if `useCache !== false` and a vector exists, `findSimilarCacheEntry(projectId, vector,
 SEMANTIC_CACHE_MIN_SIMILARITY)`, then `parseStoredResponse`, `touchCacheEntry`, `{ hit }` exactly as the
@@ -106,7 +107,10 @@ entries and their responses stay). Index names unchanged, so `0003`'s down still
 with `migration-review` before applying it to the shared local database. Exception to Expand →
 Contract (`docs/backend-standards.md` §5): no code reads or writes the three columns before this
 change, and the up migration runs before the code that writes them; there is no reader to migrate.
-`/migration-review` must confirm it (task 3.2).
+`/migration-review` must confirm it (task 3.2). Migration `0005` and the edits under
+`store-postgres/src` and `core/knowledge` are seed fingerprint inputs (`docs/project-context.md` →
+"`verify` and the fingerprint policy"): the seed and golden fingerprints are refreshed in this change
+(task 10.9, E1).
 
 **S7. 768 is the dimension (D3), and changing it is a migration.** `EMBEDDING_DIMENSIONS = 768`, the
 TSDoc says the columns, the migration and the reference model, and that a model of another dimension
@@ -296,3 +300,23 @@ Apply step (2026-11-03). *Agent's text: decided as lead engineer in the apply st
 | R4 | A future calibration (another embedding model, a task prefix on the embedded text, or a second check on the hit) needs a delta change and its own spec audit; it is passed to DIS-69, which exposes the hit rate and so makes false hits measurable (comment there) | **B** — DIS-69 |
 | R5 | The local chat model `qwen2.5-coder` mostly returns `invalid-model-output` for the explain prompt, so the manual run could not show a live cacheable answer saved with its embedding; the save is pinned by the unit and integration tests, and the manual run saved the seeded answer through the real store with the real embedding instead | **D** — accepted |
 | R6 | The in-memory double compares with the `minSimilarity` it receives, not with the constant, because the minimum is a call argument; `reachesThreshold` stays the single statement of the rule for core and is tested on its own. The `explain` scenarios of `semantic-cache` live in `tests/unit/explain/explain-similarity.spec.ts`, not in `explain-cache.spec.ts` | **D** — accepted |
+
+Relaunch of the autonomous run (2026-11-04). *Agent's text: decided as lead engineer in the enrich step
+of the relaunch (E1–E3, Linear DIS-67 comment of 2026-11-04) and in correction round 1 of the
+relaunch's spec audit (the rest), without the author.*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| E1 | The `FINGERPRINT_MISMATCH` of the clean stop of 2026-11-03 is resolved by refreshing the seed fingerprints only (commit `f26c898`, task 10.9). Why `cache:build` is not run, against the general order of `docs/project-context.md` (`seed:build` → `cache:build` → `drift:build`): that order exists to regenerate the rows a fingerprint input changes; here `seed:build` produces the same seed rows (only the two header fingerprint lines change), no `ANSWER_FINGERPRINT_FILES` or `DRIFT_FINGERPRINT_FILES` input is touched, so the answer and drift fingerprints are unchanged and the signed golden answers (DIS-110 signatures) and the drift golden report still describe the same seed; only their `seed.*` header fingerprints are refreshed, as in DIS-94. No entry is regenerated, so no new review is needed. `golden-coherence.spec.ts`, `drift-golden-coherence.spec.ts` and `npm run verify` pin it | **A** — this change |
+| E2 | `cache:build` fails with `qwen2.5-coder` at a 4096-token context (`GOLDEN_NOT_CACHEABLE`). It matters only when the golden answers are regenerated with vectors, which is DIS-69 (comment there) | **B** — DIS-69 |
+| E3 | The pending pre-merge steps run on the existing PR #105 and on this change | **A** — this change |
+| Q1 | Question of the relaunch audit (does the author accept R3 or move the threshold or the embedded text?). Decision: R3 stays accepted and this change does not move the threshold nor the embedded text. The measured pairs show that no constant in [0.80, 0.95] separates them (S11), so moving it would trade one error for the other; changing the embedded text (a task prefix such as `search_query:` for `nomic-embed-text`) reverses D4 and needs a new calibration and its own audit, which widens the change. The ticket's DoD is pinned by the scenarios; the real-model behaviour is recorded (R3), `useCache: false` bypasses a false hit, and the recalibration goes with R4 to DIS-69, which makes false hits measurable through the hit rate | **D** — accepted (recalibration **B** — DIS-69, R4) |
+| B1 | Fingerprint refresh planned in the artifacts: task 10.9, `proposal.md` → Impact (Seed), S6 sentence, E1–E3 | **A** — this change |
+| B2 | `reachesThreshold` is the core statement of the inclusive rule, tested on its own; the store applies `>=` to the `minSimilarity` it receives: S4 and task 4.3 fixed, TSDoc of `similarity-cache.ts` fixed (task 6.11) | **A** — this change |
+| I1 | The `semantic-cache` explain tests are named `tests/unit/explain/explain-similarity.spec.ts` in tasks 6.2, 6.4–6.7 and `proposal.md` → Impact | **A** — this change |
+| I2 / R7 | "The most similar entry of the project wins" split into two scenarios matching the two tests of `explain-similarity.spec.ts` ("An entry without an embedding is never a similarity hit" is now a spec scenario); the first test gains the assertion on C's hit count (task 6.11) | **A** — this change |
+| I3 | "A live answer is saved with its embedding and found by a rephrasing" asserts one save and the kept embedding (task 6.11) | **A** — this change |
+| I3b | The operator duty after a change of `LLM_EMBED_MODEL` is stated without SHALL: no test can pin it; it stays documented in `.env.example`, `docs/project-context.md`, `docs/backend-standards.md` §5 and the ADR | **A** — this change |
+| I4 | The id tie-break of the similarity search gets a scenario step: entry E with D's embedding and `created_at` and a greater id (Postgres, explicit ids); the double resolves to the greater random id in byte order (tasks 4.7, 5.5) | **A** — this change |
+| I5 | "An unavailable endpoint or an unusable vector degrades with an event" asserts no other skip event (task 6.11) | **A** — this change |
+| I6 | Task 14.7: the agent merges only in an autonomous run (`docs/AUTONOMOUS-RUN.md` §5); otherwise the author merges | **A** — this change |
