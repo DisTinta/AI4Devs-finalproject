@@ -502,3 +502,234 @@ No row is empty. Two rows depend on the B1 migration task, which does not exist 
 | I6 | Fixed. "Golden embeddings command": `DAILY_BUDGET_USD` is not applied (no budget meter), but a value the model configuration rejects still fails with `LLM_CONFIG_INVALID`, as `ask` reports it. Checked: `nomic-embed-text` is priced in `COST_TABLE` (`packages/core/src/llm/cost-table.ts:22`), so a valid budget does not block the 9.3 run. |
 | Linear 18 | Done: a Spanish comment summarises run 2 and this round's decisions. |
 | Linear 19 (optional) | Done. In the `[enhanced]` part of DIS-69, Contexto técnico → Golden now says `cache:embed` reads the model configuration as `ask` does (no `longFetch`, decision S7). The `[original]` part is untouched. |
+
+---
+
+## Run 3 (2026-11-04)
+
+CHANGES REQUIRED
+
+# Spec audit, run 3: `cache-hit-rate` (DIS-69, parent DIS-46)
+
+- Date: 2026-11-04
+- Inputs read:
+  - The change: `proposal.md`, `design.md` (Follow-ups up to the run 2 table), `tasks.md`, and the seven deltas (`semantic-cache`, `graph-store`, `http-ask`, `ask-page`, `cli-projects`, `golden-answers`, `seed-load`). I also read `reports/2026-11-04-spec-audit.md` (runs 1 and 2 and how they were resolved) for context.
+  - Linear: DIS-69 (`[original]`, `[reality-map]`, `[enhanced]` with AC1–AC5 and F1–F12, 7 comments) and parent DIS-46 (description, 2 comments).
+  - Project docs: `docs/base-standards.md` §7.1, and `docs/project-context.md` (the seed fingerprint inputs, lines 1351–1358).
+  - Code:
+    - `packages/api/src/routes/ask.ts` (lines 72–154)
+    - `packages/api/src/app.ts:36`
+    - `packages/adapters/store-postgres/src/postgres-store.ts:244-254`
+    - `packages/cli/src/seed-load.ts:221-237`
+    - `packages/cli/src/cache/answer-fingerprint.ts:13-27`
+    - `packages/cli/src/cache/drift-golden-file.ts:160-171`
+    - `packages/web/src/components/project-display.ts:68`
+    - `packages/core/src/cache/similarity-cache.ts:36`
+  - Tests:
+    - `tests/unit/cli/seed-load.spec.ts`
+    - `tests/unit/seed/golden-coherence.spec.ts`
+    - `tests/integration/cli/verify.spec.ts`
+    - `tests/e2e/ask-flow.spec.ts`
+    - every test that reads `questionNormalized`
+
+## Questions for the author
+
+None. The answers the agent recorded in runs 1 and 2 (Q1–Q3, and the I5 option (a)) contradict neither the ticket nor the project, so I accept them as decided.
+
+---
+
+## 1. Scope against the ticket
+
+Clean. Each part of the change traces to the DoD of DIS-69 ("Métrica visible en web y CLI; `seeds/cache` incluye vectores") and to the `[enhanced]` decisions:
+
+| Part of the change | Ticket source |
+|---|---|
+| Metric and the store read | F1, F2 |
+| `usage.projectCache` | F3 |
+| Web line | F4 |
+| CLI field | F5 |
+| `questionEmbedding` and `cache:embed` | F6 |
+| `db:seed` storing the vectors | F7 |
+| Fingerprint refresh | F8 |
+
+The MODIFIED "Signatures of the reviewed golden answers" is needed to stay consistent with the main spec; it is not new scope. Nothing extends the change into the similarity step of DIS-46, its threshold or its degradation.
+
+## 2. Inherited acceptance criteria
+
+| AC | Requirement → scenario | Status |
+|---|---|---|
+| DIS-46: 10 queries, 4 hits → hit rate 0.4, shown in CLI and `UsagePanel` | `semantic-cache` "The hit rate is rounded…" (10, 4 → 40); `ask-page` "An answer from the model shows its usage panel"; `cli-projects` "Sample and user projects are listed" (`cache 4/10 (40%)`) | Covered (percentage form accepted, run 1 Q3) |
+| DIS-69 AC1: metric, `ProjectNotFound`, Postgres equals in-memory | `graph-store` "Explain query counts" (3 scenarios); `semantic-cache` (2 scenarios) | Covered |
+| DIS-69 AC2: `{2,2,100}`, `UNKNOWN` without usage, OpenAPI, `500` / `404` | `http-ask` "The usage carries…", "The hit rate is read only…" (4 cases), "The document lists ask…" | Covered |
+| DIS-69 AC3: web line, «0 de 1 consulta», «sin consultas», a11y | `ask-page`: 4 usage-panel scenarios and "The project cache line is written with its counts"; axe fixture (5.4) | Covered |
+| DIS-69 AC4: CLI `cache 4/10 (40%)`, `cache 0/0`, database unchanged | `cli-projects` "Sample and user projects are listed" | Covered |
+| DIS-69 AC5: vectors, `response`/`reviews` unchanged, `db:seed` stores them, live rephrasing hit, `cache:embed` errors | `golden-answers` "Golden embeddings command" (5 scenarios), "The versioned golden file is coherent", MODIFIED "Signatures…"; `seed-load` (2 modified scenarios and "A rephrased golden question is a similarity hit after the seed") | Covered |
+
+No inherited criterion is missing. The sub-issue and the parent do not disagree on scope.
+
+## 3. Missing scenarios
+
+Clean. Every MUST or SHALL clause of the seven deltas has a scenario, or refers to an existing one: the pooled-connection clause points to "Opening a pooled store from a URL".
+
+## 4. Ambiguity
+
+Clean. A search for «fast», «easy», «secure», «efficient», «many», «appropriate» and «robust» finds only:
+- "how many" (`graph-store`, line 5);
+- "small integer components", which "exact in single precision" qualifies;
+- "a small exported check" (design S6), which is descriptive and pinned by no test.
+
+## 5. Open decisions
+
+- **B1 (blocking): the new `saveCacheEntry` call of design S9 breaks two existing unit assertions that no task names.**
+  - Design S9 and task 7.5 fix this call: `saveCacheEntry(projectId, entry.questionNormalized, entry.response, entry.questionEmbedding ?? undefined)`. It always passes a fourth argument, `undefined` for a `null` vector.
+  - `tests/unit/cli/seed-load.spec.ts` records every call with `saveCacheEntry: async (...args: unknown[]) => { saves.push(args); }` (lines 422–424 and 519–521).
+  - It then asserts three-element arrays:
+    - "saves every golden entry after the seed, through the cache store on the transaction client" (line 433): `expect(saves).toEqual(file.entries.map((entry) => [ACME_ID, entry.questionNormalized, entry.response]))`;
+    - "saves every golden drift entry under its key after the golden answers, in the same transaction" (line 529): `...golden.entries.map((entry) => [ACME_ID, entry.questionNormalized, entry.response])`.
+  - Vitest's `toEqual` compares array lengths, so `[id, key, response, undefined]` does not equal `[id, key, response]`. Both tests turn red at 7.5.
+  - No task covers this:
+    - task 7.7 names this file only for fixtures, "assertions unchanged";
+    - task 7.5 only edits `tests/integration/cli/seed-load.spec.ts`;
+    - task 10.2 says "Update only the existing tests this change names".
+  - So the implementer would have to decide alone between two options. One is to edit an unnamed assertion. The other is to change the call shape that S9 pins, for example by calling with three arguments when the vector is `null`.
+  - **Correction:** keep S9's call and name the edit.
+    - Task 7.5 adds: "in `tests/unit/cli/seed-load.spec.ts`, the expected golden saves of 'saves every golden entry after the seed, through the cache store on the transaction client' and 'saves every golden drift entry under its key after the golden answers, in the same transaction' gain the fourth element `entry.questionEmbedding ?? undefined`. The drift saves keep three elements. No assertion is removed: the assertion now also pins the vector argument."
+    - Task 10.2 lists 7.5's unit edit.
+
+## 6. Contradictions inside the change
+
+- **I1 (improvable): the RED step of task 9.4, and task 9.1's reference to it, sit in the wrong order.**
+  - Task 9.4 says its vector assertion is "seen failing on the 9.1 files, green on the 9.3 files". But 9.4 runs after 9.3, and by then the files already hold the vectors. Seeing it fail would need a revert.
+  - Task 9.1 says "green except the vector check of 9.3", a check that does not exist until 9.4.
+  - **Correction:**
+    - Move the writing of 9.4's assertion before 9.3, as a new task 9.2b: "RED: add the usable-vector assertion to the two tests of `tests/unit/seed/golden-coherence.spec.ts`; see it fail on the `null` vectors of the 7.3b/9.1 files".
+    - Leave 9.4 as the GREEN step after 9.3.
+    - In 9.1, replace "except the vector check of 9.3" with "(the vector check is added in 9.2b)".
+- **I2 (improvable): task 4.4 and the scenario "The usage carries the project's cache hit rate over the seed" save the golden answers differently.**
+  - The scenario says the golden answers are saved "as the seed load saves them", which includes the vector after S9.
+  - Task 4.4 says "saved with `saveCacheEntry` from `seeds/cache/*.json`" and does not mention the vector.
+  - The result does not change, because evaluation mode never embeds. **Correction:** task 4.4 should say "with `entry.questionEmbedding ?? undefined` as the fourth argument, as the seed load passes it".
+
+Everything else in the proposal, the design and the specs agrees. I checked:
+- the arithmetic of 13.2 (3/3 → 3/4) and 14.2 (1/1 → 2/2 → 3/4);
+- the six calls of the in-memory scenario;
+- the six `"questionEmbedding": null` lines of 7.3b (3 entries per file, confirmed by the `MATCHING` list of `tests/integration/cli/verify.spec.ts:48-57`).
+
+## 7. Contradictions with the project
+
+Clean.
+- Seed fingerprints (`docs/project-context.md:1351-1358`): the analyzer inputs include `packages/core/src/knowledge` and `packages/adapters/store-postgres/src`, so design S11's refresh is needed. The contract fingerprint (`AnalyzerPort.ts` and `migrations/*.up.sql`) does not change, because there is no migration, so copying only `analyzerFingerprint` is correct.
+- `ANSWER_FINGERPRINT_FILES` (`packages/cli/src/cache/answer-fingerprint.ts:13-27`) does not include `similarity-cache.ts`, `hit-rate.ts`, `cache/index.ts`, `knowledge/query-log.ts` or `golden-file.ts`. So the `isUsableVector` export (7.3) and the new modules do not stale the golden answers.
+- `DRIFT_FINGERPRINT_FILES` (`drift-golden-file.ts:160-171`) has no input this change edits. Design S11's skip of `drift:build` holds.
+- ADRs 20261017 and 20261103 (drift freshness, embeddings on `LlmPort`) are cited and respected. `docs/backend-standards.md` is respected: the route holds no SQL (`GUARD_DB_IN_HTTP`) and no dependency is added.
+- No main spec is duplicated. The MODIFIED requirements copy their unchanged scenarios (checked in run 2, and the text has not changed since).
+
+## 8. Contrast with the real code
+
+- `runProjectQuery` (`postgres-store.ts:244-254`) checks the id form, sends one statement, and treats zero rows as `ProjectNotFound`. This matches S2 and the scenario "each read sent exactly one statement".
+- `app.deps.store` is a full `StorePort` (`packages/api/src/app.ts:36`). The route calls `explain` with `app.deps` on the same store (`ask.ts:139-153`), so a read after `explain` sees the row it logged. This matches S3.
+- `toPublicAnswer(answer)` (`ask.ts:72`) builds `usage` field by field (lines 103–114). S3's second parameter slots in.
+- `groupDigits` exists (`packages/web/src/components/project-display.ts:68`) and `usage-display.ts` already imports it. This matches S4.
+- `tests/e2e/ask-flow.spec.ts:32-36` only checks patterns inside the «Uso» region, so the new line does not break it. Task 5.4 correctly leaves it out.
+- `tests/unit/seed/golden-coherence.spec.ts:13-14` leaves fingerprint freshness to `verify`. `tests/integration/cli/verify.spec.ts:22-23` stubs the fingerprint seams. So the 7.3b test run is not made red by the stale analyzer fingerprint before 9.1. Good.
+- See B1: `packages/cli/src/seed-load.ts:235` against `tests/unit/cli/seed-load.spec.ts:422-433, 519-531`.
+
+## 9. Task size
+
+Clean. Every task fits in one agent turn. B1's fix adds two expected-value edits to 7.5; I1 moves one assertion into a new small task, 9.2b.
+
+## 10. Mandatory steps
+
+Clean.
+- Step 0 is the branch (`feature/dis-69-cache-hit-rate`, 0.1), with its verification (0.2) and a baseline (0.3).
+- The labelled groups are all present:
+  - 10 Review and Update Existing Tests;
+  - 11 Docs (its order is justified by the docs gate);
+  - 12 Run Tests and Verify Data State (report path given);
+  - 13 Manual Interface Testing (AGENT MUST EXECUTE);
+  - 14 End-to-End (AGENT MUST EXECUTE);
+  - 16 Pre-merge Review, last: the three checks in order, fixes on the same PR, the archive commit (16.7) before the merge (16.8, autonomous run only).
+- Mutating tasks restore state:
+  - 9.1 restores `sample-projects.ts`;
+  - 12.6 checks the post-test counts;
+  - 13.6 and 14.5 drop the scratch database and stop the servers;
+  - `db:seed` never runs on the shared database (S13).
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| semantic-cache: Project cache hit rate | The hit rate is rounded to one decimal and null without queries | 1.1, 1.2 |
+| | Impossible counts are rejected | 1.3 |
+| graph-store: Explain query counts | Explain queries and cache hits are counted per project | 3.1, 3.2 |
+| | Counting the queries of an unknown project fails | 3.3 |
+| | The in-memory double counts explain queries like the database | 2.1, 2.2, 2.3 |
+| http-ask: Ask answered response | An answered question returns only the public fields over the seed | 4.4 |
+| | Evidence ids are renumbered in evidence order (unchanged) | 10.3 |
+| | Internal fields of the answer are not sent (unchanged) | 10.3 |
+| | A statement citing an unknown evidence id answers INTERNAL | 4.3, 10.3 |
+| | The usage carries the project's cache hit rate over the seed | 4.4 |
+| | The hit rate is read only for an answered question and its failure answers INTERNAL | 4.1, 4.2 |
+| http-ask: Ask in the OpenAPI document | The document lists ask with its parameter, body and responses | 4.3 |
+| ask-page: Usage panel | An answer from the model shows its usage panel | 5.3a, 5.3c |
+| | A cache hit shows its usage panel | 5.3a, 5.3c |
+| | No saving is not shown as a saving | 5.3b |
+| | A project without logged queries shows no hit rate | 5.3b, 5.3c |
+| | The usage panel and the states follow the wireframe | 14.2, 14.3 |
+| ask-page: How usage figures and notice details are written | The 7 unchanged scenarios | 10.3 |
+| | The project cache line is written with its counts | 5.1, 5.2 |
+| cli-projects: Project listing | Sample and user projects are listed | 6.4 |
+| | An empty database lists no projects (unchanged) | 6.4 |
+| | Configuration, connection and usage errors (unchanged) | 10.3 |
+| | The cache field writes the hit rate with at most one decimal | 6.1, 6.2 |
+| | A failing count read is an unexpected error | 6.1, 6.2 |
+| golden-answers: Golden embeddings command | Golden question embeddings are written without touching the answers | 8.3 |
+| | Embedding arguments and configuration are checked before any file | 8.1, 8.2 |
+| | An invalid golden file stops the embedding before any request | 8.3 |
+| | A failed embedding leaves the golden file intact | 8.3 |
+| | A failed write leaves the golden files intact | 8.3 |
+| golden-answers: Signatures of the reviewed golden answers | Every golden answer judged correct or partial carries both panel signatures | 9.4, 10.3 |
+| | A golden answer judged incorrect carries no signature (unchanged) | 9.4, 10.3 |
+| golden-answers: Golden file format | The canonical render is stable | 7.2, 7.3 |
+| | Golden files with an invalid shape are rejected | 7.2, 7.3 |
+| golden-answers: Partial regeneration | Only the named question is regenerated | 7.4 |
+| | A stale golden file is not partially regenerated (unchanged) | 10.3 |
+| golden-answers: The versioned golden file is coherent | The versioned golden file matches the seed, the questions and the code | 9.3, 9.4 (9.2b after I1) |
+| | The versioned task-api golden file matches the seed, the questions and the code | 9.3, 9.4 (9.2b after I1) |
+| seed-load: Golden answers are loaded with the seed | Golden answers are loaded and served in evaluation mode | 7.5 |
+| | A seed without golden files loads only the graph (unchanged) | 10.3 |
+| | Loading golden answers again does not duplicate them | 7.5 |
+| | A failed golden save leaves the database unchanged (unchanged) | 10.3 |
+| | A rephrased golden question is a similarity hit after the seed | 7.6 (green after 9.3) |
+
+No row is empty. The requirement "Golden answers are loaded with the seed" is implemented in 7.5. Its unit-level side effect (B1) is the only missing task edit.
+
+---
+
+## Corrections to apply
+
+### `openspec/changes/cache-hit-rate/tasks.md`
+
+1. **(B1)** In 7.5, after "`packages/cli/src/seed-load.ts` passes the vector to `saveCacheEntry` (design S9)", add:
+   "; in `tests/unit/cli/seed-load.spec.ts`, the expected golden saves of 'saves every golden entry after the seed, through the cache store on the transaction client' and 'saves every golden drift entry under its key after the golden answers, in the same transaction' gain the fourth element `entry.questionEmbedding ?? undefined` (the drift saves keep three elements); no assertion removed".
+2. **(B1)** In 10.2, add "7.5 (`tests/unit/cli/seed-load.spec.ts`, the two expected-saves edits)" to the list of named edits.
+3. **(I1)** Insert before 9.3:
+   "- [ ] 9.2b RED: in `tests/unit/seed/golden-coherence.spec.ts`, the existing tests 'The versioned golden file matches the seed, the questions and the code' and 'The versioned task-api golden file matches the seed, the questions and the code' also assert that every `questionEmbedding` is a usable vector; see them fail on the `null` vectors of the 7.3b/9.1 files; no assertion removed".
+   In 9.4, replace "RED → GREEN: … also assert that every `questionEmbedding` is a usable vector (seen failing on the 9.1 files, green on the 9.3 files)" with "GREEN: the 9.2b assertions pass on the 9.3 files". In 9.1, replace "green except the vector check of 9.3" with "green (the vector check is added in 9.2b)".
+4. **(I2)** In 4.4, replace "golden answers of both projects saved with `saveCacheEntry` from `seeds/cache/*.json` read with `readGoldenFile`" with "golden answers of both projects saved with `saveCacheEntry` from `seeds/cache/*.json` read with `readGoldenFile`, passing `entry.questionEmbedding ?? undefined` as the seed load does".
+
+### `openspec/changes/cache-hit-rate/design.md`
+
+5. **(B1)** In S9, after the `saveCacheEntry(...)` call, add: "The unit test of `seed-load` that records the calls expects this four-argument call (task 7.5)."
+6. In Follow-ups, add a table "Spec audit, run 3" with B1, I1 and I2, each with destination **A**, this change.
+
+### Linear DIS-69 (Spanish; the `[original]` block is never edited)
+
+7. Add a comment:
+   > *Texto del agente (auditoría de spec del cambio `cache-hit-rate`, ronda 3, 2026-11-04).* Veredicto: CHANGES REQUIRED, con 1 hallazgo bloqueante y sin preguntas para la autora.
+   >
+   > (B1) La nueva llamada `saveCacheEntry(projectId, clave, respuesta, entry.questionEmbedding ?? undefined)` de la decisión S9 siempre pasa un cuarto argumento. Por eso fallan dos aserciones de `tests/unit/cli/seed-load.spec.ts`: «saves every golden entry after the seed…» y «saves every golden drift entry under its key…», que esperan tres argumentos. Ninguna tarea las nombraba. La tarea 7.5 añade el cuarto elemento esperado y la 10.2 lo registra. No se elimina ninguna aserción.
+   >
+   > Mejorables:
+   > - el RED de la comprobación de vectores de `golden-coherence.spec.ts` pasa a una tarea 9.2b, antes de la ejecución de `cache:embed`;
+   > - la tarea 4.4 guarda las golden con su vector, como lo hace la carga de la semilla.
