@@ -47,8 +47,9 @@ export const askBodySchema = z.strictObject({
     .meta({
       default: true,
       description:
-        'Whether to answer from the answer cache of the project when it holds the question (exact match of its normalized form). ' +
-        'false skips the lookup and asks the model; the new answer still replaces the cached one.',
+        'Whether to answer from the answer cache of the project when it holds the question: an exact match of its normalized form or, ' +
+        'in live mode with an embedding model configured, a stored question at least 0.85 similar (cosine). ' +
+        'false skips both lookups and asks the model; the new answer still replaces the cached one.',
     }),
 });
 

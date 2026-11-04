@@ -20,8 +20,10 @@ evaluación el 5 sep 2026: coste, dominio y un único punto de fallo (`readme.md
 - **Node 22.12 o posterior** (una línea LTS: 22 o 24) y npm.
 - Cualquier terminal: los comandos son los mismos en PowerShell y en Bash. **GNU make** es opcional:
   `make up` y `make down` son atajos de `npm run up` y `npm run down` para Git Bash o WSL.
-- **Git 2.45.1 o posterior** (o 2.43.4 / 2.44.1) solo para indexar un repositorio propio (ver
-  [Indexar un repositorio](#indexar-un-repositorio-cli)); la muestra ya viene indexada.
+- **Git**: `npm run up` lo usa para construir el historial de Git de las dos muestras. Para indexar un
+  repositorio propio hace falta **Git 2.45.1 o posterior** (o 2.43.4 / 2.44.1) (ver
+  [Indexar un repositorio](#indexar-un-repositorio-cli)); las dos muestras, `acme-shop` y `task-api`, ya
+  vienen indexadas.
 - Sin cuenta de LLM: sin `LLM_*` el sistema funciona en modo evaluación, respondiendo desde la caché.
 
 ## Entorno local
@@ -39,9 +41,10 @@ repositorio:
 |---|---|
 | `docker compose up -d --wait` | Arranca el servicio `postgres` (`pgvector/pgvector:pg16`, usuario, contraseña y base de datos `codemind`, puerto del host `POSTGRES_PORT`, `5432` por defecto, datos en el volumen `pgdata`) y espera a que su healthcheck diga que acepta conexiones |
 | `npm install` | Instala los workspaces |
-| `npm run db:migrate` | Aplica las migraciones de `packages/adapters/store-postgres/migrations` |
-| `npm run db:seed` | Carga el grafo precalculado de la muestra (`seeds/graph-dump.sql`) y sus respuestas golden (`seeds/cache/`) |
-| `node fixtures/build-history.mjs acme-shop` | Construye el historial de Git de la muestra (`fixtures/acme-shop/.git`, que no viaja con el clon), en unos 11 s y siempre igual: su `HEAD` es el commit que indexó la semilla. Solo lo leen las respuestas en vivo (con un modelo); el modo evaluación y `npm run verify` no lo necesitan. Un Ctrl+C durante el paso no deja modificados los ficheros versionados del fixture |
+| `npm run db:migrate` | Aplica las migraciones de `packages/adapters/store-postgres/migrations` (de `0001_graph-l1` a `0005_embedding-768`) |
+| `npm run db:seed` | Carga el grafo precalculado de las dos muestras, `acme-shop` y `task-api` (`seeds/graph-dump.sql`), sus respuestas golden con el vector de cada pregunta (`seeds/cache/`) y el informe golden de deriva de `acme-shop` (`seeds/drift/`) |
+| `node fixtures/build-history.mjs acme-shop` | Construye el historial de Git de `acme-shop` (`fixtures/acme-shop/.git`, que no viaja con el clon), en unos 11 s y siempre igual: su `HEAD` es el commit que indexó la semilla. Solo lo leen las respuestas en vivo (con un modelo); el modo evaluación y `npm run verify` no lo necesitan. Un Ctrl+C durante el paso no deja modificados los ficheros versionados del fixture |
+| `node fixtures/build-history.mjs task-api` | Lo mismo para `task-api` (`fixtures/task-api/.git`) |
 | `npm run dev` | Arranca la API en `127.0.0.1:3000` y la web en `localhost:5173`, y se queda en primer plano |
 
 Si un paso falla, `up` no ejecuta los siguientes, escribe `[up] "<comando>" failed with exit code <n>`
@@ -60,15 +63,17 @@ describen en `readme.md` §1.4.
 En cada pull request se ejecutan dos workflows (`.github/workflows/`). `CI` también se ejecuta en los
 push a `main` y a las ramas de entrega (`feature/entrega-*`, `final-project-*`), y a mano
 (`workflow_dispatch`: Actions → CI → Run workflow, o `gh workflow run CI --ref <rama>`); `Frontend`, en
-los push a `main`.
+los push a `main`. Los otros dos ficheros del directorio (`claude-auto-review.yml` y
+`claude-interactive.yml`) son revisiones con Claude que solo se ejecutan con la variable del repositorio
+`CLAUDE_ENABLED` a `true`; no comprueban el artefacto.
 
 | Workflow → job | Qué ejecuta | Notas |
 |---|---|---|
 | `CI` → `scope` | Decide si se ejecutan `quality`, `verify`, `mutation` y `e2e` | Un push a un PR abierto que solo toca `docs/`, `openspec/` o `*.md` se los salta cuando los cuatro estaban en verde en el head anterior |
-| `CI` → `quality` | `npm ci`, `npm run lint`, `npm run typecheck`, `npx depcruise --config .dependency-cruiser.cjs packages`, migraciones up, down y otra vez up, `npx vitest run --coverage` (sin los specs con presupuesto de tiempo, que corren después en `Timing budgets`), resumen de cobertura por paquete | Servicio Postgres con su propia base de datos `test`; las migraciones y los tests solo se ejecutan cuando cambiaron ficheros de runtime. La cobertura es informativa: el resumen va al resumen del job y nunca falla la ejecución (`docs/TESTING.md` → Cobertura) |
+| `CI` → `quality` | `npm ci`, `npm run lint`, `npm run typecheck`, `npx depcruise --config .dependency-cruiser.cjs packages`, migraciones up, down y otra vez up, `npx vitest run --coverage` (sin los specs con presupuesto de tiempo, que corren después en `Timing budgets`), resumen de cobertura por paquete y `Hook timing` (los specs de tiempo de los hooks de `tests/harness`, un fichero cada vez) | Servicio Postgres con su propia base de datos `test`; las migraciones y los tests solo se ejecutan cuando cambiaron ficheros de runtime. La cobertura es informativa: el resumen va al resumen del job y nunca falla la ejecución (`docs/TESTING.md` → Cobertura) |
 | `CI` → `verify` | `npm run db:migrate`, `npm run db:seed`, `npm run verify` | Servicio Postgres con su propia base de datos `verify`, nunca la de `test`; sin `LLM_*` |
 | `CI` → `e2e` | `npm ci`, `npx playwright install --with-deps chromium`, `npm run db:migrate`, `npm run db:seed`, `npm run test:e2e` | Servicio Postgres con su propia base de datos `e2e`; la suite arranca su API (modo evaluación, sin `LLM_*`) y su web; si falla, sube `playwright-report/` y `test-results/` como artefacto (7 días) |
-| `CI` → `mutation` | `npm run test:mutation` (incremental) en los pull requests y en los push; `npm run test:mutation:full` solo en la ejecución manual | Sin base de datos; falla por debajo de una puntuación de mutación de 80; solo cuando cambiaron `packages/core`, `packages/cli`, `packages/api`, `tests` o su configuración (la ejecución manual muta siempre); límite de 60 min |
+| `CI` → `mutation` | `npm run test:mutation` (incremental) en los pull requests y en los push; `npm run test:mutation:full` solo en la ejecución manual | Sin base de datos; falla por debajo de una puntuación de mutación de 80; solo cuando cambiaron `packages/core`, `packages/cli`, `packages/api`, `packages/adapters/llm/src/long-fetch.ts`, `tests` o su configuración (la ejecución manual muta siempre); límite de 60 min |
 | `CI` → `secrets` | gitleaks 8.30.1 sobre el árbol de trabajo y los commits del evento | Se ejecuta siempre, también en los push que solo tocan documentación |
 | `Frontend` → `frontend` | `npm run lint`, `npm run typecheck`, `npx vitest run tests/unit tests/harness tests/a11y packages/web`, `npm run test:a11y` | Sin base de datos: con Vitest 4 y posteriores el `--exclude` de la línea de comandos no llega a los proyectos de `test.projects`, así que el paso lista los directorios (DIS-105 D14). Solo cuando cambiaron ficheros del front-end (`dorny/paths-filter`: ficheros `.tsx`/`.css`, `packages/web/**`, `tests/a11y/**`, `tests/unit/web/**`, `tests/support/jsdom-setup.ts`, el lock file y las configuraciones de Vite/Vitest/TS); `test:a11y` ejecuta la puerta de accesibilidad (ver `docs/TESTING.md`) |
 
@@ -107,7 +112,7 @@ coinciden. Cuando falla:
 | `MISSING_CONFIG` | `DATABASE_URL` no está definida | Copia `.env.example` a `.env` o define la variable (ver el paso 0 de `docs/DEMO.md`) |
 | `DATABASE_UNAVAILABLE` | No se llega a la base de datos | Comprueba que el contenedor está en marcha (`docker compose ps`) y la URL |
 | `SEED_NOT_LOADED` | La base de datos no tiene la semilla actual | `npm run db:seed` |
-| `FINGERPRINT_MISMATCH` | La semilla o las respuestas golden ya no corresponden al código (`details.reason` es `seed` o `golden`) | No se arregla en una instalación: la autora las regenera con `npm run seed:build` y después `npm run cache:build` (`reason: seed`), o solo `npm run cache:build` (`reason: golden`), y las sube |
+| `FINGERPRINT_MISMATCH` | La semilla o las respuestas golden ya no corresponden al código (`details.reason` es `seed` o `golden`) | No se arregla en una instalación: la autora las regenera con `npm run seed:build` y después `npm run cache:build` (`reason: seed`), o solo `npm run cache:build` (`reason: golden`), rellena después los vectores de las preguntas regeneradas con `npm run cache:embed` (DIS-69) y las sube |
 | `GOLDEN_MISSING` | Un proyecto de la semilla no tiene respuestas golden | La autora ejecuta `npm run cache:build` |
 
 Una línea `✗` con código de salida `1` y sin código de error es una discrepancia estructural: las
@@ -126,9 +131,11 @@ push.
 
 ## Indexar un repositorio (CLI)
 
-El indexado se ejecuta desde la CLI, `npm run cli -- index <ruta> --name <nombre> --language php`
-(DIS-86). Necesita tres variables de entorno; `npm run cli` las lee de `.env` (una variable ya definida
-en el entorno gana):
+El indexado se ejecuta desde la CLI, `npm run cli -- index <ruta> --name <nombre> --language <php|typescript>`
+(DIS-86). Un proyecto ya creado por la CLI se puede reindexar desde su raíz guardada con
+`POST /api/projects/{projectId}/index` (DIS-9), que lee las mismas variables (ver
+[Ejecutar la API](#ejecutar-la-api)). Necesita tres variables de entorno; `npm run cli` las lee de `.env`
+(una variable ya definida en el entorno gana):
 
 | Variable | Obligatoria | Significado |
 |---|---|---|
@@ -154,8 +161,12 @@ lleva el informe.
 
 `npm run dev` (o `npx tsx --tsconfig packages/api/tsconfig.run.json packages/api/src/server.ts`)
 arranca la API (DIS-76). Necesita `DATABASE_URL`; `PORT`, `HOST`, `RATE_LIMIT_MAX` y
-`RATE_LIMIT_WINDOW_MS` son opcionales (ver `.env.example` y `readme.md` §2.5). `npm run dev` las lee de
-`.env`; el comando `npx tsx` directo, no. Un fallo de arranque es una línea JSON en stderr y código de
+`RATE_LIMIT_WINDOW_MS` son opcionales (ver `.env.example` y `readme.md` §2.5). También lee las variables
+`LLM_*` (sin ellas, modo evaluación; `LLM_EMBED_MODEL` activa el acierto por similitud de la caché) y
+`DAILY_BUDGET_USD`, y, para `POST /api/projects/{projectId}/index`, `ALLOWED_REPOS_DIR` y
+`AUTHOR_HASH_SALT`: sin las dos, esa ruta responde `403` `INDEXING_DISABLED`. Un `ALLOWED_REPOS_DIR`
+relativo se resuelve contra el directorio de trabajo del proceso (`packages/api` con `npm run dev`), así
+que conviene una ruta absoluta. `npm run dev` las lee de `.env`; el comando `npx tsx` directo, no. Un fallo de arranque es una línea JSON en stderr y código de
 salida `1`.
 
 **La API no tiene autenticación.** Escucha en `127.0.0.1` por defecto; `HOST=0.0.0.0` la expone a la

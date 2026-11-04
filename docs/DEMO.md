@@ -1,9 +1,11 @@
 # Guion de la demo
 
-Los seis pasos de `readme.md` §1.3, ejecutados desde una terminal contra el proyecto de muestra
-`acme-shop`, más un recorrido por la web. Cada paso da el comando exacto y, debajo, la salida de una
-ejecución real pegada tal como se capturó. Donde la Entrega 2 todavía no llega a lo que describe §1.3,
-el paso lo dice y muestra lo que hace hoy el sistema.
+Los seis pasos del recorrido de `readme.md` §1.3 y un séptimo, `drift` (F6), ejecutados desde una
+terminal contra los proyectos de muestra `acme-shop` y `task-api` (el paso 6), más un recorrido por la
+web. La guía describe el sistema de la entrega final (Entrega 3, 12-11-2026, rama
+`final-project-CRN`). Cada paso da el comando exacto y, debajo, la salida de una ejecución real pegada
+tal como se capturó. Donde lo que describe §1.3 necesita un modelo real (el acierto por similitud del
+paso 5, las preguntas libres), el paso lo dice y muestra lo que hace el sistema en modo evaluación.
 
 **Los comandos son los mismos en PowerShell y en Bash** (Windows, macOS o Linux): se escriben tal cual,
 sin exportar variables ni definir funciones. Los comandos que lee `.env` lo cargan solos, y una
@@ -37,6 +39,9 @@ Los únicos cambios hechos a la salida pegada:
   sistema (`\` en Windows, en las dos terminales; `/` en Linux y macOS).
 - **(c)** se quitan los códigos de color de la terminal.
 - **(d)** el nombre de la máquina en la línea de arranque de la API se sustituye por `<host>`.
+- **(e)** en la salida de `npm run db:migrate` del paso 0 se añadieron a mano las dos líneas de la
+  migración `0005_embedding-768` (DIS-67, posterior a la captura), con el formato de las otras cuatro;
+  ese bloque no se ha vuelto a capturar.
 
 Lo que no sale de la ejecución literal de la guía: no se creó `.env` (quien capturó la guía no podía
 escribir ficheros `.env`); `POSTGRES_PORT` y su `DATABASE_URL`, con un puerto libre distinto en cada
@@ -156,10 +161,12 @@ npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install
 > - 0002_history-claims
 > - 0003_indexes-stale
 > - 0004_query-log-verification
+> - 0005_embedding-768
 ### MIGRATION 0001_graph-l1 (UP) ###
 ### MIGRATION 0002_history-claims (UP) ###
 ### MIGRATION 0003_indexes-stale (UP) ###
 ### MIGRATION 0004_query-log-verification (UP) ###
+### MIGRATION 0005_embedding-768 (UP) ###
 [up] npm run db:seed
 
 > codemind@0.0.1 db:seed
@@ -357,11 +364,12 @@ HTTP 200
 }
 ```
 
-> **Entrega 2.** En modo evaluación cada pregunta contestada sale de las respuestas golden que cargó
+> **Modo evaluación.** En modo evaluación cada pregunta contestada sale de las respuestas golden que cargó
 > `db:seed`, así que esta primera llamada ya es un acierto de caché: `cacheHit: true`, `costUsd: 0`,
 > `inputTokens: 0`. `savingsPct: 100` es el ahorro de una respuesta servida desde la caché frente a la
 > línea base guardada de contexto en bruto (`baselineTokens`, estimada como caracteres / 4). El ahorro
-> de una generación en vivo se mide en la Entrega 3 (`readme.md` §2.6).
+> de una generación en vivo está medido en `readme.md` §2.6 (Tabla 1). Esta salida es anterior a DIS-69:
+> hoy la respuesta lleva además `usage.projectCache` (ver el paso 5).
 
 ## Paso 2 — Abrir una evidencia
 
@@ -800,7 +808,7 @@ wireframes de `readme.md` §1.3 (`images/pantalla-1-seleccion.svg`, `images/pant
 3. El enlace «Explorar proyecto →» de cada tarjeta abre la pantalla 2 de ese proyecto, con sus tres
    preguntas sugeridas (las golden de ese proyecto).
 4. Debajo de la tarjeta, «+ Indexar mi propio repositorio» es una indicación, no un botón: muestra el
-   comando de la CLI (`npm run cli -- index <carpeta> --name <nombre> --language php`) y sus
+   comando de la CLI (`npm run cli -- index <carpeta> --name <nombre> --language <php|typescript>`) y sus
    requisitos.
 
 **Pantalla 2 — Consulta con evidencia verificada** (`/p/<id del proyecto>`):
@@ -819,6 +827,9 @@ wireframes de `readme.md` §1.3 (`images/pantalla-1-seleccion.svg`, `images/pant
 9. Debajo, el panel de uso: «Confianza» con su valor (0.71 con las respuestas golden de DIS-104; DIS-107 las regeneró el 2026-10-28 y esta cifra no se ha vuelto a capturar), los tokens («0 tokens»), el
    coste («$0»), la latencia en milisegundos, «ahorro 100 % vs bruto», «caché ✓» y la línea base («7 123
    tokens sin selección de contexto → 0 con CODEMIND»). En modo evaluación todas las preguntas sugeridas son aciertos de caché.
+   Bajo la línea base, la línea de la tasa de aciertos del proyecto (DIS-69), «Caché del proyecto: <tasa> %
+   de aciertos (<aciertos> de <consultas> consultas)», o «Caché del proyecto: sin consultas» si el proyecto
+   aún no tiene ninguna (ver el paso 5).
 10. Una pregunta libre escrita en el campo, como «¿Qué hace ShippingService con los pedidos
     internacionales?», muestra en modo evaluación el aviso «Hace falta un modelo de lenguaje», que
     explica que la API solo responde las preguntas que tiene en caché y que para preguntas libres hay
@@ -859,7 +870,7 @@ wireframes de `readme.md` §1.3 (`images/pantalla-1-seleccion.svg`, `images/pant
 npm -w packages/web run dev
 ```
 
-12. En `http://localhost:5173/` las dos tarjetas siguen visibles, sin «listo», y entre el subtítulo
+19. En `http://localhost:5173/` las dos tarjetas siguen visibles, sin «listo», y entre el subtítulo
     y las tarjetas aparece la alerta «La API de CODEMIND no está disponible. Puedes ver los proyectos, pero
     no preguntar hasta que vuelva. Arráncala con npm run up y pulsa Reintentar.» con el botón
     «Reintentar». Pulsarlo vuelve a comprobar la API una sola vez; si sigue parada, la alerta se queda.
@@ -867,8 +878,8 @@ npm -w packages/web run dev
 
 **Diferencias con los wireframes**, por los datos de la semilla: hay dos tarjetas, `acme-shop` y
 `task-api`, los recuentos son los del grafo de la semilla y no los ilustrativos
-del wireframe, la pantalla 2 no tiene el botón «⟳» ni evidencias de PR (el historial de Git como
-evidencia llega en la Entrega 3), las preguntas sugeridas son las golden y no las del wireframe, y el
+del wireframe, la pantalla 2 no tiene el botón «⟳» ni evidencias de PR (el historial de Git, con sus
+PR, sale en la sección «Historial» de la pantalla 3), las preguntas sugeridas son las golden y no las del wireframe, y el
 indexado de un repositorio propio es una indicación del comando de la CLI en lugar de un botón. Los
 valores del panel de uso son los de una respuesta servida desde la caché (0 tokens, «$0»), no los del
 wireframe, que ilustra una generación en vivo.
@@ -941,6 +952,11 @@ LLM_TIMEOUT_MS=1200000
 minutos (la tabla de tiempos de `readme.md` → «Probar con un modelo real»); admite hasta `3600000` (una
 hora). Con GPU puedes dejar `LLM_TIMEOUT_MS` vacía (120 000 ms por defecto). Usa `qwen2.5-coder`:
 `llama3.2` no produce el JSON estricto que exige la respuesta y responde `invalid-model-output`.
+
+Para el acierto por similitud del paso 5 (DIS-67), descarga además el modelo de embeddings
+(`ollama pull nomic-embed-text`) y añade `LLM_EMBED_MODEL=nomic-embed-text` a esas líneas. Sus vectores
+tienen las 768 dimensiones del esquema (migración `0005_embedding-768`); sin `LLM_EMBED_MODEL`, la caché
+solo acierta con la misma pregunta normalizada.
 
 **Después de editar `.env`, reinicia el sistema**: en la terminal 1, pulsa Ctrl+C y vuelve a lanzar
 `npm run up`. La API lee `.env` solo al arrancar, así que hasta entonces sigue en modo evaluación;
