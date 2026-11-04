@@ -12,7 +12,7 @@ import type {
   TraversalDirection,
 } from '../knowledge/graph-read.js';
 import type { NewProject, Project } from '../knowledge/project.js';
-import type { CacheEntry } from '../knowledge/cache-entry.js';
+import type { CacheEntry, SimilarCacheEntry } from '../knowledge/cache-entry.js';
 import type { QueryLogEntry } from '../knowledge/query-log.js';
 import type { ClaimItem, ClaimRefresh, ClaimSpan, SavedClaim, StoredClaim } from '../knowledge/stored-claim.js';
 
@@ -249,23 +249,49 @@ export interface StorePort {
   findCacheEntry(projectId: string, questionNormalized: string): Promise<CacheEntry | undefined>;
 
   /**
+   * Finds the project's answer cache entry whose stored embedding is the most similar to `embedding`
+   * (DIS-67 design S3, S5): among the project's entries with an embedding, the one with the greatest
+   * cosine similarity (1 minus the cosine distance), resolved only when that similarity is at least
+   * `minSimilarity`. Equal similarities go to the most recently created entry, then to the greatest
+   * id. The search is exact over the project's entries, whatever other projects hold (it does not
+   * walk the global HNSW index). Checks, in this order, before any statement: `projectId` well
+   * formed, `embedding` (`assertValidEmbedding`), `minSimilarity` (`assertValidMinSimilarity`); then
+   * the project exists. One parameterised statement; the embedding is one text parameter cast to
+   * `vector`. Writes nothing; a database failure propagates unchanged.
+   *
+   * @throws ProjectNotFound when `projectId` is malformed (before any statement) or names no project.
+   * @throws InvalidStoreQuery naming `embedding` or `minSimilarity` when the argument is invalid; its
+   *   message never holds a component.
+   */
+  findSimilarCacheEntry(
+    projectId: string,
+    embedding: readonly number[],
+    minSimilarity: number,
+  ): Promise<SimilarCacheEntry | undefined>;
+
+  /**
    * Saves `response` as the project's only answer cache entry under `questionNormalized`: deletes
-   * every entry of the pair and inserts the new one (hit count 0, no last hit, no embedding) as one
-   * atomic write; saves of one pair are serialised, so concurrent saves leave exactly one entry.
-   * Checks, in this order, before any statement: `projectId` well formed, the key
-   * (`assertValidCacheKey`), the response (`assertValidCacheResponse`); then, inside the write, the
-   * project exists. On its own connections the write commits before returning; on a caller-owned
+   * every entry of the pair and inserts the new one (hit count 0, no last hit, the given `embedding`
+   * or none) as one atomic write; saves of one pair are serialised, so concurrent saves leave exactly
+   * one entry. Checks, in this order, before any statement: `projectId` well formed, the key
+   * (`assertValidCacheKey`), the response (`assertValidCacheResponse`), the embedding when given
+   * (`assertValidEmbedding`); then, inside the write, the project exists. On its own connections the write commits before returning; on a caller-owned
    * transaction it neither commits nor rolls it back, and on failure undoes only its own write.
    *
    * @throws ProjectNotFound when `projectId` is malformed (before any statement) or names no project
    *   (nothing is written).
-   * @throws InvalidStoreQuery naming `question` or `response` when the argument is invalid; its message
+   * @throws InvalidStoreQuery naming `question`, `response` or `embedding` when the argument is invalid; its message
    *   never holds a value given.
    * @throws CacheWriteFailed when the database fails once the write has started, rollback included; it
    *   carries no text of the database error. A failure to obtain a connection, or to open the savepoint
    *   on a caller-owned transaction, propagates unchanged.
    */
-  saveCacheEntry(projectId: string, questionNormalized: string, response: object): Promise<void>;
+  saveCacheEntry(
+    projectId: string,
+    questionNormalized: string,
+    response: object,
+    embedding?: readonly number[],
+  ): Promise<void>;
 
   /**
    * Records one hit of an entry of the project: adds 1 to its hit count and sets its last hit instant

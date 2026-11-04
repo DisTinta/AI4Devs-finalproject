@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest';
 import {
   assertValidCacheKey,
   assertValidCacheResponse,
+  assertValidEmbedding,
   assertValidEntryId,
   assertValidHitInstant,
+  assertValidMinSimilarity,
+  EMBEDDING_DIMENSIONS,
   InvalidStoreQuery,
 } from '@codemind/core';
+import { embeddingVector } from '../../support/embedding-vector';
 
 // The checks every answer cache call of the store runs before any statement (DIS-21 design C3; spec
 // graph-store "Answer cache entries"). Not scenarios of their own: they back "Invalid cache arguments
@@ -66,5 +70,55 @@ describe('answer cache argument checks', () => {
       'Invalid store query: at must be a valid date',
     ]);
     for (const error of errors) expect(error.message).not.toContain(SENTINEL);
+  });
+});
+
+// DIS-67 (change semantic-cache): the checks of the embedding and of the minimum similarity.
+describe('similarity argument checks', () => {
+  it('accepts an embedding of the schema dimension and every minimum from 0 to 1', () => {
+    // Act / Assert
+    expect(() => assertValidEmbedding(embeddingVector(1))).not.toThrow();
+    expect(() => assertValidEmbedding(embeddingVector(-0.5, 2e-7))).not.toThrow();
+    for (const minimum of [0, 0.85, 1]) expect(() => assertValidMinSimilarity(minimum)).not.toThrow();
+  });
+
+  it('rejects every other embedding, naming it and quoting no component', () => {
+    // Arrange
+    const oneNonZeroShort = [1, ...new Array<number>(EMBEDDING_DIMENSIONS - 2).fill(0)];
+    const oneTooLong = [...embeddingVector(1), 0.5];
+    const bad: unknown[] = [
+      oneNonZeroShort,
+      oneTooLong,
+      embeddingVector(Number.NaN),
+      embeddingVector(Number.POSITIVE_INFINITY),
+      embeddingVector(1, Number.NEGATIVE_INFINITY),
+      embeddingVector(),
+      embeddingVector(1).map(String),
+      '[1,2]',
+      null,
+    ];
+
+    // Act
+    const errors = bad.map((embedding) => rejectionOf(() => assertValidEmbedding(embedding as number[])));
+
+    // Assert
+    expect(errors.map((error) => error.argument)).toEqual(bad.map(() => 'embedding'));
+    expect([...new Set(errors.map((error) => error.message))]).toEqual([
+      `Invalid store query: embedding must be ${EMBEDDING_DIMENSIONS} finite numbers, not all zero`,
+    ]);
+  });
+
+  it('rejects a minimum similarity outside 0 to 1 or not a finite number', () => {
+    // Arrange
+    const bad: unknown[] = [-0.1, 1.1, Number.NaN, Number.POSITIVE_INFINITY, '0.5', null];
+
+    // Act
+    const errors = bad.map((minimum) => rejectionOf(() => assertValidMinSimilarity(minimum as number)));
+
+    // Assert
+    expect(errors.map((error) => error.argument)).toEqual(bad.map(() => 'minSimilarity'));
+    expect([...new Set(errors.map((error) => error.message))]).toEqual([
+      'Invalid store query: minSimilarity must be a number between 0 and 1',
+    ]);
   });
 });

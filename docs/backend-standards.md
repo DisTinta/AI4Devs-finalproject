@@ -98,8 +98,10 @@ network access belong in an adapter.
   rule matters, a `CHECK` should make it impossible to violate from any client.
 - Prefer **pgvector** inside Postgres for embeddings and similarity search. Introduce a dedicated
   vector database only after a measured benchmark shows Postgres is the bottleneck. Embedding
-  dimensions are fixed to the model in use: changing the model means re-embedding and reindexing
-  everything. HNSW (and any other vector index) SQL lives only in `packages/adapters/store-postgres`,
+  dimensions are fixed to the model in use: a model of another dimension needs a migration of the
+  `vector(n)` columns; a model of the same dimension needs every stored vector discarded by
+  invalidating each project's cache (a full reindex or `invalidateCache`); re-embedding is not done
+  (see [ADR 20261103](adr/20261103-embeddings-stay-on-llm-port.md)). HNSW (and any other vector index) SQL lives only in `packages/adapters/store-postgres`,
   like every other query.
 - Avoid N+1: a graph traversal is one recursive query, not a loop of queries.
 - Transactions for any operation writing to more than one table.

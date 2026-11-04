@@ -576,12 +576,18 @@ HTTP 200
 }
 ```
 
-> **Entrega 2.** `readme.md` §1.3 pide *reformular* la pregunta y obtener un acierto de caché por
-> similitud. Eso es CM-HU-19 (PH-05); hoy un acierto de caché necesita la misma pregunta normalizada,
-> como arriba. Y como el paso 1 ya se sirvió desde la caché (modo evaluación), lo que muestra este paso
-> es que la pregunta repetida resuelve a la misma entrada, con `cacheHit: true` y `costUsd: 0`. El
-> fallo de caché de una primera pregunta solo se ve en modo vivo, con `LLM_*` definidas, que esta
-> captura no usa.
+> **Acierto por similitud (DIS-67, PH-05).** `readme.md` §1.3 pide *reformular* la pregunta y obtener
+> un acierto de caché por similitud. Existe solo en modo vivo con `LLM_EMBED_MODEL=nomic-embed-text`
+> (Ollama, 768 dimensiones, 0 $): se responde la pregunta original en vivo (se guarda con el vector de
+> su clave) y después una reformulación cercana, como «¿Cómo se calcula el precio total de un pedido?»
+> (similitud medida 0,926 con `nomic-embed-text`), sale con `cacheHit: true` y `costUsd: 0`, sin llamada
+> al modelo de respuesta. El umbral es 0,85: «Explícame el cálculo del precio final» (0,832) no lo
+> alcanza, y una pregunta con la misma estructura y otro sustantivo («…el envío de un pedido», 0,875)
+> sí lo supera (informe `…-11-manual-interface-testing.md` de `semantic-cache`). Sin `LLM_EMBED_MODEL`, o en modo evaluación (esta
+> captura), un acierto de caché necesita la misma pregunta normalizada, como arriba: como el paso 1 ya
+> se sirvió desde la caché, este paso muestra que la pregunta repetida resuelve a la misma entrada, con
+> `cacheHit: true` y `costUsd: 0`. Si el modelo de embeddings falla, la respuesta sigue llegando con el
+> evento `semantic_cache_skipped` en stderr.
 
 ## Paso 6 — Cambiar a `task-api` y repetir el paso 1
 

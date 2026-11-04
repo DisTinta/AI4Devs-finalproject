@@ -24,7 +24,7 @@ Proyecto Final del Máster AI4Devs · Cristina Rodríguez Núñez
 > |---|---|---|
 > | Medir la latencia y las llamadas del verificador en cada consulta | Aplicado tras la revisión (14-10-2026) | `query_log.verify_latency_ms` y `verify_calls`, DIS-74 ([3.2](#32-descripción-de-entidades-principales)) |
 > | Alinear el contrato OpenAPI con la decisión de indexar solo por CLI | Aplicado tras la revisión | [4](#4-especificación-de-la-api): `/index` sale del contrato |
-> | Decidir qué pasa con los embeddings | Aplicado tras la revisión: se documenta el estado | Nota de [2.2](#22-descripción-de-componentes-principales); la decisión del puerto la tomará DIS-46 |
+> | Decidir qué pasa con los embeddings | Aplicado tras la revisión: se documenta el estado | Nota de [2.2](#22-descripción-de-componentes-principales); la decisión del puerto la tomó DIS-67 ([ADR](docs/adr/20261103-embeddings-stay-on-llm-port.md)) |
 > | Mostrar la IA en las fases de Pruebas, Despliegue y Mantenimiento | Aplicado tras la revisión | [8.3](#83-ia-en-las-seis-fases-del-ciclo) |
 > | Medir el verificador | Aplicado (DIS-81) | Tabla 1 de [2.6](#26-tests) e [informe de la medición](docs/measurements/context-savings.md); la Tabla 2 la midió DIS-79 |
 > | Aristas con un extremo polimórfico sin clave foránea | Ya resuelto antes de la revisión | Dos FK por extremo y `CHECK` (ADR `20260928-edge-endpoints-as-fk-pairs`) |
@@ -146,7 +146,7 @@ Desarrolladores que trabajan sobre código que no escribieron: incorporaciones a
 
 - **Local, en cuatro comandos.** Se clona el repositorio, se copia `.env.example` a `.env` (sin obligar a una API key) y se levanta con `npm run up`, el mismo comando en PowerShell y en Bash (`make up` es su atajo en Git Bash o WSL). Los dos proyectos de muestra quedan consultables. **Sin PHP instalado, sin clonar repositorios ajenos, sin esperar ningún indexado**, porque los grafos y las respuestas de evaluación van versionados como semillas SQL / caché.
 
-*Estado en la Entrega 2:* la semilla carga `acme-shop` (174 nodos y 170 aristas) y `task-api` (102 nodos y 100 aristas, analizador TypeScript, CM-HU-18), cada uno con tres respuestas *golden*. F1, F2, F4 y F5 funcionan por CLI y por `POST /ask`; F3 (impacto) funciona por la CLI `impact` y por `POST /impact` (DIS-95) y tiene ya su pantalla web (Pantalla 3, DIS-14); F6 (deriva documental) es de la Entrega 3, y F7 tiene hoy el acierto exacto por pregunta normalizada, sin similitud de embedding (CM-HU-19).
+*Estado en la Entrega 2:* la semilla carga `acme-shop` (174 nodos y 170 aristas) y `task-api` (102 nodos y 100 aristas, analizador TypeScript, CM-HU-18), cada uno con tres respuestas *golden*. F1, F2, F4 y F5 funcionan por CLI y por `POST /ask`; F3 (impacto) funciona por la CLI `impact` y por `POST /impact` (DIS-95) y tiene ya su pantalla web (Pantalla 3, DIS-14); F6 (deriva documental) es de la Entrega 3, y F7 tiene el acierto exacto por pregunta normalizada y, desde DIS-67, el acierto por similitud de embedding con `LLM_EMBED_MODEL` configurado.
 
 **Modo híbrido LLM (parte de F4):**
 
@@ -284,7 +284,7 @@ Cada elemento del informe de impacto indica su **origen**: `[grafo]` para lo der
 | 2 | Pulsar una evidencia | La cita resuelve a un fragmento real del código |
 | 3 | Preguntar algo que el repositorio no puede responder | **El sistema responde `UNKNOWN` en lugar de inventar** |
 | 4 | Pedir el impacto de cambiar los descuentos | Separación entre grafo determinista y señal histórica |
-| 5 | Repetir el paso 1 reformulando la pregunta | Acierto de caché por similitud, coste 0 |
+| 5 | Repetir el paso 1 reformulando la pregunta | Acierto de caché por similitud, coste 0 (solo con `LLM_EMBED_MODEL` configurado; sin él, o en modo evaluación, solo hay acierto exacto) |
 | 6 | Cambiar a `task-api` y repetir el paso 1 | **El mismo núcleo sobre TypeScript**, con grafo más preciso |
 
 El paso 3 es el más característico: un sistema que sabe callarse.
@@ -479,7 +479,7 @@ Hace cada pregunta golden de los repositorios de muestra (versionadas en `seeds/
 | `LLM_BASE_URL` | no | Base URL compatible OpenAI (`http`/`https`); **decide el modo**: con URL → modo vivo; sin URL ni clave → **modo evaluación** (solo caché / verify). En desarrollo: Ollama (`http://localhost:11434/v1`) |
 | `LLM_MODEL` | sí en modo vivo | Modelo para generación; con `LLM_BASE_URL` y sin `LLM_MODEL`, el arranque falla |
 | `LLM_MODEL_VERIFY` | no | Modelo económico para la verificación de evidencias en vivo; sin él se usa `LLM_MODEL` |
-| `LLM_EMBED_MODEL` | no | Modelo de embeddings; sin él, los embeddings no están disponibles (sin usar `LLM_MODEL`). Sus vectores deben tener 1536 dimensiones, las de `vector(1536)` del esquema: `nomic-embed-text` (768) falla hasta que CM-HU-19 elija el modelo |
+| `LLM_EMBED_MODEL` | no | Modelo de embeddings; sin él, los embeddings no están disponibles (sin usar `LLM_MODEL`). Sus vectores deben tener 768 dimensiones, las de `vector(768)` del esquema (DIS-67): `nomic-embed-text` funciona; un modelo de 1536 falla con `dimension-mismatch`, lo que solo salta el paso de similitud de la caché. Tras cambiar de modelo hay que invalidar la caché de cada proyecto (reindexado completo) |
 | `LLM_TIMEOUT_MS` | no | Tiempo máximo por petición al LLM, en ms (entero de 1 a 3600000). Por defecto `120000`, para el arranque en frío de Ollama; en CPU, `1200000` (ver [Probar con un modelo real](#probar-con-un-modelo-real)) |
 | `DATABASE_URL` | **sí** (scripts `db:*`, `index` y la API) | Cadena de conexión de PostgreSQL. La API no arranca sin ella (`INVALID_CONFIG`). `.env.example` trae la del contenedor local. Los comandos `npm run` de la guía (`up`, `dev`, `db:*`, `cli`, `verify`, `cache:build`, `seed:build` y `demo:ask`) la leen de `.env`, y una variable ya definida en la terminal gana sobre `.env`; sin ella en ninguno de los dos sitios, `db:migrate` / `db:rollback` salen con error |
 | `POSTGRES_PORT` | no | Puerto del host en el que `docker compose` publica PostgreSQL. Por defecto `5432`. Si lo cambias (otro programa ya usa el 5432), cambia también el puerto de `DATABASE_URL`: los dos van juntos |
@@ -595,13 +595,13 @@ flowchart TB
 | Extractor de Git | `simple-git` | Commits, ficheros modificados, co-cambio, número de PR |
 | Context Engine | TypeScript | Anclaje de entidades, expansión por grafo, ranking híbrido, presupuesto de tokens. El texto de los spans se lee de git en el commit indexado (la base de datos no guarda contenido), todos los ficheros del paquete en una sola lectura por lotes con un número fijo de procesos git (DIS-39), y los tokens se estiman en local como `ceil(caracteres / 4)`, declarado como `chars-div-4` |
 | Verificador de evidencias | TypeScript + LLM acotado | Validación sintáctica (git en el commit del paquete) y semántica (*entailment* con `LLM_MODEL_VERIFY`, salida `{"entails": boolean}`, caché en memoria por par) de cada cita |
-| Caché de respuestas | TypeScript (+ pgvector en CM-HU-19) | Reutiliza la respuesta de una pregunta ya respondida, por su forma normalizada (DIS-21); sostiene el modo demo. El acierto por similitud de embedding llega con CM-HU-19 |
+| Caché de respuestas | TypeScript (+ pgvector) | Reutiliza la respuesta de una pregunta ya respondida, por su forma normalizada (DIS-21) o, con `LLM_EMBED_MODEL` configurado, por similitud de embedding (DIS-67); sostiene el modo demo |
 | Security Gateway | Reglas propias en proceso + `gitleaks` en CI | Secretos antes de indexar, sanitización, aislamiento por proyecto; escaneo de secretos del repositorio en cada PR y cada push a `main` |
 | Persistencia | **PostgreSQL 16 + pgvector** | Nodos, aristas, embeddings, afirmaciones, evidencias, uso |
 
 **Caso de uso `explain` (DIS-39).** Responde una pregunta sobre un proyecto indexado en **una sola pasada** Context Engine → modelo, en este orden: valida la entrada (pregunta de 1 a 1 000 code points que no sea solo espacios; un error, no un `UNKNOWN`), ancla la pregunta una vez, y responde `UNKNOWN` sin construir el paquete si no hay ancla (`no-anchor`) o si el modelo está en modo evaluación (`llm-required`, con el mensaje PH-08). Entre ambos pasos (DIS-21), salvo con `useCache: false`, busca la pregunta normalizada en la caché de respuestas del proyecto: una entrada válida responde, en los dos modos, la respuesta guardada sin construir el paquete, sin llamar al modelo y sin escribir afirmaciones, con `usage.cacheHit: true` y coste 0, y suma un acierto a la entrada; una entrada que no supera la validación cuenta como fallo de caché. Después construye el paquete (`over-budget` si no cabe ningún span), lee las afirmaciones ya guardadas que se solapan con sus spans (como mucho las 20 más recientes, antes de llamar al modelo), llama al modelo una vez, pasa su salida por la cuarentena (`invalid-model-output`) y, si no trae ninguna afirmación, responde `UNKNOWN` con `no-evidence` en lugar de devolver el texto del modelo. Cada afirmación se tipa `FACT` o `INFERENCE` por las citas y se guarda como `CLAIM` con su evidencia y su procedencia, todo en una transacción. Si el proyecto se reindexó a otro commit mientras se respondía, las afirmaciones se guardan `stale` y la respuesta las muestra con aviso, nunca como `FACT`. Si la escritura falla, la respuesta se devuelve igual, con `persisted: false` y un evento `claims_not_persisted` que no lleva ningún texto. Core devuelve los eventos y no escribe en ningún log.
 
-**Nota sobre los embeddings (estado en la Entrega 2).** El esquema reserva columnas `vector(1536)` en `FILE`, `SYMBOL` y `CACHE_ENTRY`, con sus índices HNSW ([3.2](#32-descripción-de-entidades-principales) → Índices), y `LlmPort` declara `embed()` (`packages/core/src/ports/LlmPort.ts:18`). Pero hoy **nada escribe ni lee esos vectores**: ningún caso de uso llama a `embed()`, que solo se reenvía en los envoltorios de medición (`packages/core/src/explain/usage-meter.ts:62`) y de presupuesto (`packages/core/src/llm/budget.ts:62`); el almacén no escribe nunca `embedding` (`packages/adapters/store-postgres/src/queries.ts:36-39`), y el anclaje de la pregunta es léxico, sin embeddings (`packages/core/src/context/anchor.ts`). Se deja como nota y no como ADR porque hoy no se elige entre alternativas, solo se constata el estado. La decisión real —si se separa un `EmbeddingPort` y qué modelo de 1536 dimensiones se usa— la tomará DIS-46 (caché por similitud, CM-HU-19), con su propio ADR.
+**Nota sobre los embeddings (DIS-67).** El esquema tiene columnas `vector(768)` en `FILE`, `SYMBOL` y `CACHE_ENTRY`, con sus índices HNSW ([3.2](#32-descripción-de-entidades-principales) → Índices); la migración `0005` las movió de 1536 a 768, la dimensión de `nomic-embed-text` (Ollama, 0 $). `LlmPort.embed()` lo usa por primera vez el paso de similitud de la caché de `explain` (`packages/core/src/cache/similarity-cache.ts`): en modo vivo, con `LLM_EMBED_MODEL` configurado y tras no acertar la clave exacta, embebe la clave normalizada una vez y busca la entrada más parecida del proyecto (`findSimilarCacheEntry`); la respuesta en vivo cacheable guarda ese vector en `cache_entry.question_embedding`. Siguen sin escribirse `file.embedding` y `symbol.embedding`, y el anclaje de la pregunta es léxico (`packages/core/src/context/anchor.ts`). Sin modelo de embeddings, en modo evaluación o con un fallo del endpoint, el paso se salta sin error; un fallo configurado o un techo agotado añaden el evento `semantic_cache_skipped` (código `embedding-unavailable` o `budget-exhausted`) a los eventos de `/ask` y `ask`. La decisión del puerto (los embeddings siguen en `LlmPort.embed()`, sin `EmbeddingPort`), de la dimensión y de la regla de cambio de modelo (otra dimensión exige migración; el mismo número de dimensiones exige invalidar la caché de cada proyecto) está en el ADR [`20261103-embeddings-stay-on-llm-port.md`](docs/adr/20261103-embeddings-stay-on-llm-port.md).
 
 **Sobre `drift`.** Es el comando de la funcionalidad F6, que era *should-have* y vivía en la reserva del calendario. Desde DIS-73 está **entregado**: `codemind drift <proyecto> [--doc <ruta>]` imprime, por documento, las afirmaciones que el código contradice, con la cita de los dos lados, y cada ejecución deja una fila `drift` en `QUERY_LOG`. Sin `LLM_*` (modo evaluación) imprime el informe *golden* versionado en `seeds/drift/acme-shop.json` (que `npm run db:seed` carga y `npm run drift:build` regenera con un modelo real). Con un modelo configurado, `drift acme-shop` sobre el proyecto entero también sirve ese informe *golden* sin llamar al modelo (la salida termina con `note: golden report (answer cache)`); `--doc <ruta>` no tiene informe *golden* y ejecuta el modelo sobre ese documento. La distinción entre lo previsto y lo entregado no era cosmética: un README que anuncia un comando que el código no tiene es exactamente la divergencia entre documentación y código que F6 existe para detectar.
 
@@ -748,7 +748,7 @@ Cada pull request y cada push a una rama de entrega ejecutan, en `.github/workfl
 |---|---|---|
 | Una de las ~12 preguntas sugeridas (sin LLM) | Se sirve desde las respuestas *golden* versionadas en `seeds/cache/`, que `db:seed` carga en la caché (DIS-26 y DIS-32: hoy Q1, Q3 y Q4 de acme-shop y Q1, Q2 y Q3 de task-api; el resto llega con las HU de impacto y deriva documental) | **0 $** |
 | Pregunta ya respondida, escrita igual salvo mayúsculas, tildes, signos o espacios | Acierto de caché exacto por la pregunta normalizada (DIS-21), en modo vivo y en modo evaluación; `useCache: false` lo salta | **0 $** |
-| Pregunta libre semánticamente equivalente a una cacheada | Acierto de caché por similitud de embedding: solo con CM-HU-19 (hoy no hay acierto por similitud) | **0 $** |
+| Pregunta libre semánticamente equivalente a una cacheada | Acierto de caché por similitud de embedding (DIS-67): solo en modo vivo con `LLM_EMBED_MODEL` configurado, tras no acertar la clave exacta, con similitud coseno ≥ 0,85 sobre las entradas del proyecto; en modo evaluación solo hay acierto exacto; `useCache: false` lo salta | **0 $** |
 | Pregunta libre nueva | Requiere LLM configurado (Ollama u otro); opcionalmente con presupuesto si el proveedor es de pago | 0 $ con Ollama; acotado con cloud |
 | Sin LLM y pregunta no cacheada | Aviso claro: modo solo-caché / configurar `LLM_*` | 0 $ |
 
@@ -959,7 +959,7 @@ erDiagram
         int loc
         text content_hash "sha256 — detecta cambios en reindexado"
         boolean redacted "true si contenía secretos"
-        vector embedding "pgvector(1536), nullable"
+        vector embedding "pgvector(768), nullable"
     }
 
     SYMBOL {
@@ -970,7 +970,7 @@ erDiagram
         int start_line "not null, check > 0"
         int end_line "not null, check >= start_line"
         text signature
-        vector embedding "pgvector(1536), nullable"
+        vector embedding "pgvector(768), nullable"
     }
 
     EDGE {
@@ -1051,7 +1051,7 @@ erDiagram
         uuid id PK
         uuid project_id FK "not null, on delete cascade"
         text question_normalized "not null"
-        vector question_embedding "pgvector(1536) — acierto por similitud"
+        vector question_embedding "pgvector(768) — acierto por similitud"
         jsonb response "respuesta completa serializada"
         int hit_count "default 0"
         timestamptz created_at
@@ -1154,7 +1154,7 @@ Desde DIS-74 `explain` escribe **una fila por llamada**: en toda respuesta, tamb
 
 #### CACHE_ENTRY
 
-Sostiene F7 y el modo demo. Desde DIS-21 el acierto es **exacto por la pregunta normalizada** (`question_normalized`: descomposición NFKD, sin tildes, en minúsculas, signos y símbolos como espacios y espacios colapsados), de modo que «¿Cómo se calcula el precio final de un pedido?» y «COMO SE CALCULA EL PRECIO FINAL DE UN PEDIDO» comparten entrada; el acierto por similitud de embedding (que «explícame el cálculo del precio final» comparta entrada) llega con CM-HU-19, y hasta entonces `question_embedding` queda vacío. Hay **una entrada por proyecto y pregunta normalizada**, pero no la garantiza una clave única (no hay migración nueva): la mantiene el almacén, que al guardar bloquea el par con un *advisory lock*, borra sus entradas y escribe la nueva; si alguien escribe duplicados por fuera, la lectura toma la más reciente. `response` guarda la respuesta sin sus eventos y se valida al leerla (si no la supera, es un fallo de caché, no un error). Solo se guardan las respuestas con afirmaciones guardadas y todas vigentes, y los `UNKNOWN` `no-evidence`. `hit_count` y `last_hit_at` registran cada acierto y alimentan la métrica de acierto que se muestra en la interfaz. `invalidateCache(projectId)` borra la caché de un proyecto; la llama el reindexado de `POST /api/projects/{projectId}/index` (DIS-9), en la misma transacción que guarda el grafo nuevo. Desde DIS-26, `db:seed` guarda en ella las respuestas *golden* de `seeds/cache/*.json` para los proyectos de muestra, en la misma transacción que la semilla: en cada carga se sustituyen por entradas con ids nuevos y `hit_count` 0.
+Sostiene F7 y el modo demo. Desde DIS-21 el acierto es **exacto por la pregunta normalizada** (`question_normalized`: descomposición NFKD, sin tildes, en minúsculas, signos y símbolos como espacios y espacios colapsados), de modo que «¿Cómo se calcula el precio final de un pedido?» y «COMO SE CALCULA EL PRECIO FINAL DE UN PEDIDO» comparten entrada; el acierto por similitud de embedding (DIS-67: que «¿Cómo se calcula el precio total de un pedido?» sirva la entrada de la pregunta original; con `nomic-embed-text`, una pregunta con la misma estructura y otro sustantivo también puede superar el umbral) solo ocurre en modo vivo con `LLM_EMBED_MODEL` configurado, tras no acertar la clave exacta, con similitud coseno ≥ 0,85 sobre las entradas del proyecto que tienen `question_embedding`; toda respuesta en vivo cacheable guarda el vector de su clave (la búsqueda es exacta sobre las entradas del proyecto, no usa el índice HNSW). Hay **una entrada por proyecto y pregunta normalizada**, pero no la garantiza una clave única (no hay migración nueva): la mantiene el almacén, que al guardar bloquea el par con un *advisory lock*, borra sus entradas y escribe la nueva; si alguien escribe duplicados por fuera, la lectura toma la más reciente. `response` guarda la respuesta sin sus eventos y se valida al leerla (si no la supera, es un fallo de caché, no un error). Solo se guardan las respuestas con afirmaciones guardadas y todas vigentes, y los `UNKNOWN` `no-evidence`. `hit_count` y `last_hit_at` registran cada acierto y alimentan la métrica de acierto que se muestra en la interfaz. `invalidateCache(projectId)` borra la caché de un proyecto; la llama el reindexado de `POST /api/projects/{projectId}/index` (DIS-9), en la misma transacción que guarda el grafo nuevo. Desde DIS-26, `db:seed` guarda en ella las respuestas *golden* de `seeds/cache/*.json` para los proyectos de muestra, en la misma transacción que la semilla: en cada carga se sustituyen por entradas con ids nuevos y `hit_count` 0.
 
 #### Índices
 
@@ -1184,7 +1184,7 @@ CREATE INDEX ON cache_entry USING hnsw (question_embedding vector_cosine_ops);
 
 Los índices de travesía **empiezan por el extremo, no por `project_id`**: un id de símbolo o de fichero pertenece a un único proyecto, así que anteponer `project_id` no filtra nada más, y un índice que empieza por el extremo sirve además al borrado en cascada desde `symbol` o `file`. Son parciales porque cada columna de extremo solo está rellena en las aristas que la usan. El resto de índices de claves foráneas existe para que borrar un proyecto, un fichero o una afirmación no recorra tablas enteras: PostgreSQL no indexa las claves foráneas por su cuenta. Las que ya encabezan una PK o una restricción UNIQUE (`file.project_id`, `commit.project_id`, `file_commit.file_id`) no necesitan índice propio.
 
-Los tres índices HNSW existen desde DIS-13, pero en la Entrega 2 están vacíos: ninguna columna `vector(1536)` se escribe todavía (ver la nota sobre los embeddings en [2.2](#22-descripción-de-componentes-principales)).
+Los tres índices HNSW existen desde DIS-13 (reconstruidos sobre `vector(768)` por la migración `0005`, DIS-67). Solo `cache_entry.question_embedding` se escribe (una respuesta en vivo cacheable guarda el vector de su clave); `file.embedding` y `symbol.embedding` siguen sin escribirse, y la búsqueda por similitud de la caché es exacta sobre las entradas del proyecto, no usa el índice (ver la nota sobre los embeddings en [2.2](#22-descripción-de-componentes-principales)).
 
 ---
 

@@ -1,3 +1,4 @@
+import { LlmUnavailable } from '@codemind/core';
 import type { CompletionRequest, CompletionResult, CompletionUsage, EmbeddingResult, LlmPort } from '@codemind/core';
 
 // A scripted LlmPort double for the explain tests (DIS-39 design D13). It records every request and
@@ -65,6 +66,13 @@ export interface ScriptedLlmOptions {
   verifyModel?: string;
   /** The model an `answer` request reports; `SCRIPTED_MODEL` when absent (DIS-74). */
   answerModel?: string;
+  /**
+   * The embedding model: the vectors an `embed` request answers (DIS-67 design S9); may throw or
+   * reject to fail the request. Without it `embed` throws `LlmUnavailable('not-configured')`.
+   */
+  embed?: (texts: readonly string[]) => number[][] | Promise<number[][]>;
+  /** The input tokens an `embed` request reports; 0 when absent. */
+  embedInputTokens?: number;
 }
 
 /** The double and what it recorded. */
@@ -72,6 +80,8 @@ export interface ScriptedLlm {
   llm: LlmPort;
   /** Every completion request, in order, `answer` and `verify` alike. */
   requests: CompletionRequest[];
+  /** The texts of every embedding request, in order (DIS-67). */
+  embeddings: string[][];
 }
 
 /** The model name the double reports. */
@@ -118,6 +128,7 @@ export function createScriptedLlm(
   options: ScriptedLlmOptions = {},
 ): ScriptedLlm {
   const requests: CompletionRequest[] = [];
+  const embeddings: string[][] = [];
   const verify = options.verify ?? (() => '{"entails":true}');
   const llm: LlmPort = {
     mode,
@@ -136,11 +147,17 @@ export function createScriptedLlm(
         usage: { ...(options.answerUsage ?? NO_USAGE) },
       };
     },
-    async embed(): Promise<EmbeddingResult> {
-      throw new Error('not used by explain');
+    async embed(texts: readonly string[]): Promise<EmbeddingResult> {
+      // Without an `embed` option the double has no embedding model, as a live model without
+      // `LLM_EMBED_MODEL` (DIS-67 design S9).
+      if (options.embed === undefined) throw new LlmUnavailable('not-configured');
+      embeddings.push([...texts]);
+      order?.push('embed');
+      const vectors = await options.embed(texts);
+      return { vectors, usage: { inputTokens: options.embedInputTokens ?? 0 } };
     },
   };
-  return { llm, requests };
+  return { llm, requests, embeddings };
 }
 
 /** The JSON text of a model output with `answer` and statements citing the given ids. */

@@ -1,6 +1,7 @@
 import { copyFileSync, existsSync, mkdtempSync, rmSync, rmdirSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { Client } from 'pg';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   type ColumnShape,
@@ -24,7 +25,15 @@ const HISTORY_MIGRATIONS = ['0001_graph-l1', '0002_history-claims'];
 /** The migrations left applied once the latest one is rolled back. */
 const INDEX_MIGRATIONS = [...HISTORY_MIGRATIONS, '0003_indexes-stale'];
 /** Every migration, in order: what a fully migrated database records. */
-const ALL_MIGRATIONS = [...INDEX_MIGRATIONS, '0004_query-log-verification'];
+const ALL_MIGRATIONS = [...INDEX_MIGRATIONS, '0004_query-log-verification', '0005_embedding-768'];
+/** The migrations left applied once the embedding dimension migration (0005) is rolled back. */
+const QUERY_LOG_MIGRATIONS = [...INDEX_MIGRATIONS, '0004_query-log-verification'];
+/** The three embedding columns whose dimension migration 0005 changes. */
+const EMBEDDING_COLUMNS = [
+  ['file', 'embedding'],
+  ['symbol', 'embedding'],
+  ['cache_entry', 'question_embedding'],
+];
 /** The `query_log` columns the query log verification migration (0004) adds. */
 const QUERY_LOG_VERIFICATION_COLUMNS = [
   'verify_input_tokens',
@@ -65,7 +74,7 @@ const L1_COLUMNS: ColumnShape[] = [
   col('file', 'loc', 'integer', false),
   col('file', 'content_hash', 'text', false),
   col('file', 'redacted', 'boolean', true, 'false'),
-  col('file', 'embedding', 'vector(1536)', false),
+  col('file', 'embedding', 'vector(768)', false),
   col('symbol', 'id', 'uuid', true, 'gen_random_uuid()'),
   col('symbol', 'file_id', 'uuid', true),
   col('symbol', 'name', 'text', true),
@@ -73,7 +82,7 @@ const L1_COLUMNS: ColumnShape[] = [
   col('symbol', 'start_line', 'integer', true),
   col('symbol', 'end_line', 'integer', true),
   col('symbol', 'signature', 'text', false),
-  col('symbol', 'embedding', 'vector(1536)', false),
+  col('symbol', 'embedding', 'vector(768)', false),
   col('edge', 'id', 'uuid', true, 'gen_random_uuid()'),
   col('edge', 'project_id', 'uuid', true),
   col('edge', 'source_symbol_id', 'uuid', false),
@@ -147,7 +156,7 @@ const HISTORY_COLUMNS: ColumnShape[] = [
   col('cache_entry', 'id', 'uuid', true, 'gen_random_uuid()'),
   col('cache_entry', 'project_id', 'uuid', true),
   col('cache_entry', 'question_normalized', 'text', true),
-  col('cache_entry', 'question_embedding', 'vector(1536)', false),
+  col('cache_entry', 'question_embedding', 'vector(768)', false),
   col('cache_entry', 'response', 'jsonb', false),
   col('cache_entry', 'hit_count', 'integer', true, '0'),
   col('cache_entry', 'created_at', 'timestamp with time zone', true, 'now()'),
@@ -210,6 +219,16 @@ const byTableAndColumn = (a: ColumnShape, b: ColumnShape) =>
 /** The columns of `columns` that belong to `tables`, so each contract checks only its own tables. */
 function onlyTables(columns: ColumnShape[], tables: string[]): ColumnShape[] {
   return columns.filter((c) => tables.includes(c.table));
+}
+
+/** The contract with the three embedding columns typed `vector(1536)`, as before migration 0005. */
+function withOldEmbeddingDimension(contract: ColumnShape[]): ColumnShape[] {
+  return contract.map((c) => (EMBEDDING_COLUMNS.some(([t, n]) => t === c.table && n === c.column) ? { ...c, type: 'vector(1536)' } : c));
+}
+
+/** A pgvector text literal of `length` components, all `value`. */
+function vectorLiteral(length: number, value: number): string {
+  return `[${Array.from({ length }, () => value).join(',')}]`;
 }
 
 /** Asserts that the columns of the contract's tables equal the contract, no more and no less. */
@@ -444,15 +463,46 @@ describeWithDatabase('graph-schema: migration lifecycle', () => {
   );
 
   // Proves rollback reverts ONE migration per call (count: 1). The snapshot must EQUAL a database
-  // migrated with 0001 + 0002 + 0003 only: a column left behind by 0004's down section would survive
+  // migrated with 0001 to 0004 only: a column type left behind by 0005's down section would survive
   // here, while a full rollback would drop it together with its table.
   it(
     'Roll back only the latest migration',
     async () => {
       const reference = await createThrowawayDatabase(databaseUrl as string);
       try {
-        await migrateUpTo(reference.url, INDEX_MIGRATIONS);
+        await migrateUpTo(reference.url, QUERY_LOG_MIGRATIONS);
         expect(migrate().status).toBe(0);
+
+        const result = rollback();
+
+        expect(result.status, result.stderr).toBe(0);
+        const schema = await snapshotSchema(throwaway.url);
+        expect(schema).toEqual(await snapshotSchema(reference.url));
+        expectColumnContract(schema.columns, withOldEmbeddingDimension(HISTORY_COLUMNS));
+        expectColumnContract(schema.columns, withOldEmbeddingDimension(L1_COLUMNS));
+        expect(tablesOf(schema.columns)).toEqual(ALL_TABLES);
+        expect(schema.enums).toEqual(ALL_ENUMS);
+        // Every index of the contract, the three HNSW ones included, with `vector_cosine_ops`.
+        expect(await secondaryIndexShapes(throwaway.url)).toEqual(EXPECTED_INDEXES);
+        expect(schema.triggers.map((t) => t.name)).toEqual(['file_content_hash_marks_claims_stale']);
+        expect(schema.functions.map((f) => f.name)).toEqual(['mark_claims_stale_on_content_change']);
+        expect(await appliedMigrations(throwaway.url)).toEqual(QUERY_LOG_MIGRATIONS);
+      } finally {
+        await reference.drop();
+      }
+    },
+    LIFECYCLE_TIMEOUT_MS,
+  );
+
+  // The former "latest migration" scenario, now reached with the embedding migration not applied.
+  it(
+    'Roll back the query log verification migration',
+    async () => {
+      const reference = await createThrowawayDatabase(databaseUrl as string);
+      try {
+        await migrateUpTo(reference.url, INDEX_MIGRATIONS);
+        await migrateUpTo(throwaway.url, QUERY_LOG_MIGRATIONS);
+        expect(await appliedMigrations(throwaway.url)).toEqual(QUERY_LOG_MIGRATIONS);
 
         const result = rollback();
 
@@ -461,7 +511,9 @@ describeWithDatabase('graph-schema: migration lifecycle', () => {
         expect(schema).toEqual(await snapshotSchema(reference.url));
         expectColumnContract(
           schema.columns,
-          HISTORY_COLUMNS.filter((c) => !(c.table === 'query_log' && QUERY_LOG_VERIFICATION_COLUMNS.includes(c.column))),
+          withOldEmbeddingDimension(
+            HISTORY_COLUMNS.filter((c) => !(c.table === 'query_log' && QUERY_LOG_VERIFICATION_COLUMNS.includes(c.column))),
+          ),
         );
         expect(tablesOf(schema.columns)).toEqual(ALL_TABLES);
         expect(schema.enums).toEqual(ALL_ENUMS);
@@ -471,6 +523,32 @@ describeWithDatabase('graph-schema: migration lifecycle', () => {
         expect(await appliedMigrations(throwaway.url)).toEqual(INDEX_MIGRATIONS);
       } finally {
         await reference.drop();
+      }
+    },
+    LIFECYCLE_TIMEOUT_MS,
+  );
+
+  it(
+    'An embedding of another dimension is rejected by the column',
+    async () => {
+      expect(migrate().status).toBe(0);
+      const client = new Client({ connectionString: throwaway.url });
+      await client.connect();
+      try {
+        const project = await client.query<{ id: string }>(
+          "INSERT INTO project (name, root_path, language) VALUES ('dim-probe', '/tmp/dim-probe', 'typescript') RETURNING id",
+        );
+        const insert = (length: number) =>
+          client.query("INSERT INTO cache_entry (project_id, question_normalized, question_embedding) VALUES ($1, $2, $3::vector)", [
+            project.rows[0]!.id,
+            `dim ${length}`,
+            vectorLiteral(length, 0.1),
+          ]);
+
+        await expect(insert(1536)).rejects.toThrow(/expected 768 dimensions, not 1536/);
+        await expect(insert(768)).resolves.toBeDefined();
+      } finally {
+        await client.end();
       }
     },
     LIFECYCLE_TIMEOUT_MS,

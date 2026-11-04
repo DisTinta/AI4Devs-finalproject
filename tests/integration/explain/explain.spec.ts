@@ -21,6 +21,7 @@ import type { OpenTransaction } from '../../../packages/cli/src/compose-index';
 import { describeWithDatabase, useTransactionPerTest } from '../helpers/db';
 import { unique } from '../helpers/factories';
 import { rejectingWrites } from '../helpers/rejecting-writes';
+import { embeddingVector } from '../../support/embedding-vector';
 import { createScriptedLlm, modelOutput, SCRIPTED_MODEL } from '../../support/scripted-llm';
 import type { PromptView } from '../../support/scripted-llm';
 
@@ -413,6 +414,67 @@ describeWithDatabase('explain over the indexed acme-shop (DIS-39)', () => {
       ]);
       expect(await count('claim')).toBe(claimsBefore);
       expect(await count('cache_entry')).toBe(1);
+    },
+    TIMEOUT_MS,
+  );
+
+  // DIS-67 (change semantic-cache), spec explain → "Answer cache" over the real store.
+  it(
+    'A similarity hit over the database counts in its entry and its row',
+    async () => {
+      // Arrange: the price question answered live and saved with its embedding; its rephrasing embeds
+      // to a vector at a cosine similarity of 0.92.
+      const { store, projectId, pack } = await indexed();
+      const calculator = pack.spans.find((s) => s.path === 'app/Services/PriceCalculator.php' && s.origin === 'anchor')!;
+      const rephrased = 'Explícame el cálculo del precio final';
+      const vectors: Record<string, number[]> = {
+        'como se calcula el precio final de un pedido': embeddingVector(1),
+        'explicame el calculo del precio final': embeddingVector(0.92, Math.sqrt(1 - 0.92 * 0.92)),
+      };
+      const live = createScriptedLlm(
+        'live',
+        (prompt) =>
+          modelOutput('El precio final lo calcula PriceCalculator::compute.', [
+            { text: 'PriceCalculator::compute calcula el precio final.', evidenceIds: [idOf(prompt, calculator)] },
+          ]),
+        undefined,
+        { embed: (texts) => texts.map((text) => vectors[text]!) },
+      );
+      const deps = {
+        store,
+        source: createGitSourceTree(),
+        workspaceRoot: WORKSPACE_ROOT,
+        verificationCache: createInMemoryVerificationCache(),
+      };
+      const first = await explain({ ...deps, llm: live.llm, now: () => NOW }, { projectId, question: Q1 });
+      const completions = live.requests.length;
+      const hitAt = new Date('2026-10-17T12:00:00.000Z');
+
+      // Act
+      const answer = await explain({ ...deps, llm: live.llm, now: () => hitAt }, { projectId, question: rephrased });
+
+      // Assert
+      expect(first).toMatchObject({ kind: 'answered', persisted: true });
+      if (first.kind !== 'answered') return;
+      expect(answer).toMatchObject({
+        kind: 'answered',
+        answer: first.answer,
+        statements: first.statements,
+        events: [],
+        usage: { cacheHit: true, costUsd: 0, inputTokens: 0, outputTokens: 0 },
+      });
+      expect(live.requests).toHaveLength(completions);
+      expect(live.embeddings).toEqual([Object.keys(vectors).slice(0, 1), Object.keys(vectors).slice(1)]);
+      const { rows: entries } = await db().query<{ hit_count: number; last_hit_at: Date; stored: boolean }>(
+        'SELECT hit_count, last_hit_at, question_embedding IS NOT NULL AS stored FROM cache_entry WHERE project_id = $1',
+        [projectId],
+      );
+      expect(entries).toEqual([{ hit_count: 1, last_hit_at: hitAt, stored: true }]);
+      const { rows: logged } = await db().query<{ cache_hit: boolean }>(
+        'SELECT cache_hit FROM query_log WHERE project_id = $1 ORDER BY cache_hit',
+        [projectId],
+      );
+      expect(logged).toEqual([{ cache_hit: false }, { cache_hit: true }]);
     },
     TIMEOUT_MS,
   );

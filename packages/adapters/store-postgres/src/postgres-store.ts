@@ -2,6 +2,8 @@ import type { ClientBase, Pool, QueryResultRow } from 'pg';
 import {
   assertValidCacheKey,
   assertValidCacheResponse,
+  assertValidEmbedding,
+  assertValidMinSimilarity,
   assertValidClaimItems,
   assertValidClaimSpans,
   assertValidCostSince,
@@ -23,6 +25,7 @@ import {
 } from '@codemind/core';
 import type {
   CacheEntry,
+  SimilarCacheEntry,
   ClaimItem,
   ClaimRefresh,
   ClaimSpan,
@@ -53,6 +56,7 @@ import {
   FILE_COMMITS,
   DELETE_CACHE_KEY,
   FIND_CACHE_ENTRY,
+  FIND_SIMILAR_CACHE_ENTRY,
   FIND_CLAIMS_OVERLAPPING,
   FIND_SYMBOLS,
   INDEX_STATE_DEPENDENCIES,
@@ -249,6 +253,14 @@ async function runProjectQuery<R extends QueryResultRow>(
   return rows;
 }
 
+/**
+ * An embedding as the one text parameter of a `vector` cast, `[x,y,…]` (DIS-67 design S5). Only finite
+ * numbers reach it (`assertValidEmbedding`), so the text holds digits, signs, `.` and `e`.
+ */
+function vectorText(embedding: readonly number[]): string {
+  return `[${embedding.map((component) => component.toString()).join(',')}]`;
+}
+
 function isUniqueViolation(error: unknown, constraint: string): boolean {
   const pgError = error as { code?: string; constraint?: string };
   return pgError.code === UNIQUE_VIOLATION && pgError.constraint === constraint;
@@ -435,10 +447,34 @@ export function createPostgresStore(connection: StoreConnection): StorePort {
       return row!.id === null ? undefined : { id: row!.id, response: row!.response };
     },
 
-    async saveCacheEntry(projectId: string, questionNormalized: string, response: object): Promise<void> {
+    async findSimilarCacheEntry(
+      projectId: string,
+      embedding: readonly number[],
+      minSimilarity: number,
+    ): Promise<SimilarCacheEntry | undefined> {
+      // Order of design S5: the id form, the embedding, the minimum, before any statement; then the project.
+      if (!isWellFormedId(projectId)) throw new ProjectNotFound(projectId);
+      assertValidEmbedding(embedding);
+      assertValidMinSimilarity(minSimilarity);
+      const [row] = await runProjectQuery<{ id: string | null; response: unknown; similarity: number | null }>(
+        connection,
+        projectId,
+        FIND_SIMILAR_CACHE_ENTRY,
+        [vectorText(embedding), minSimilarity],
+      );
+      return row!.id === null ? undefined : { id: row!.id, response: row!.response, similarity: Number(row!.similarity) };
+    },
+
+    async saveCacheEntry(
+      projectId: string,
+      questionNormalized: string,
+      response: object,
+      embedding?: readonly number[],
+    ): Promise<void> {
       if (!isWellFormedId(projectId)) throw new ProjectNotFound(projectId);
       assertValidCacheKey(questionNormalized);
       assertValidCacheResponse(response);
+      if (embedding !== undefined) assertValidEmbedding(embedding);
       await atomically(
         connection,
         async (client) => {
@@ -446,7 +482,12 @@ export function createPostgresStore(connection: StoreConnection): StorePort {
           // serialised, and each deletes the pair's entries before inserting its own.
           await client.query(LOCK_CACHE_KEY, [projectId, questionNormalized]);
           await client.query(DELETE_CACHE_KEY, [projectId, questionNormalized]);
-          const { rowCount } = await client.query(INSERT_CACHE_ENTRY, [projectId, questionNormalized, JSON.stringify(response)]);
+          const { rowCount } = await client.query(INSERT_CACHE_ENTRY, [
+            projectId,
+            questionNormalized,
+            JSON.stringify(response),
+            embedding === undefined ? null : vectorText(embedding),
+          ]);
           if (rowCount === 0) throw new ProjectNotFound(projectId);
         },
         toCacheWriteError,

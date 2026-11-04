@@ -251,11 +251,13 @@ Verified against `package.json` (root and per package). If a command is not here
 - Migrations: `npm run db:migrate` (apply all pending) / `npm run db:rollback` (revert the latest
   one) — `tsx packages/adapters/store-postgres/src/migrate.ts up|down`, node-pg-migrate with SQL
   files `NNNN_name.up.sql` / `NNNN_name.down.sql` in `packages/adapters/store-postgres/migrations/`
-  (bookkeeping table `pgmigrations`). Four migrations exist: `0001_graph-l1` (project, file,
+  (bookkeeping table `pgmigrations`). Five migrations exist: `0001_graph-l1` (project, file,
   symbol, edge), `0002_history-claims` (commit, file_commit, claim, evidence, query_log,
   cache_entry), `0003_indexes-stale` (secondary and HNSW indexes, and the trigger that marks
   claims `stale` when a file's `content_hash` changes) and `0004_query-log-verification` (DIS-74:
-  the five nullable `verify_*` columns of `query_log`). Each `db:rollback` reverts **one** migration, the latest. Both need `DATABASE_URL` (non-zero exit without it); locally
+  the five nullable `verify_*` columns of `query_log`) and `0005_embedding-768` (DIS-67: the three
+  embedding columns from `vector(1536)` to `vector(768)`, `USING NULL`, HNSW indexes rebuilt; its
+  `down` discards stored vectors). Each `db:rollback` reverts **one** migration, the latest. Both need `DATABASE_URL` (non-zero exit without it); locally
   `postgres://codemind:codemind@localhost:5432/codemind` with the compose defaults.
 - `npm run seed:build` (DIS-91; two samples since DIS-32) rebuilds the history of acme-shop and
   task-api, indexes each one in its own never-committed transaction (acme-shop as `php`, task-api as
@@ -420,9 +422,14 @@ Verified against `package.json` (root and per package). If a command is not here
   store and return a JSON round trip of each response (as `jsonb`), count in `calls.*`, and throw
   what `failCacheCall: { find?, save?, touch?, invalidate? }` returns; `cacheEntries(projectId?)`
   reads the entries and `seedCacheEntry({ projectId, key, response, hitCount?, createdAt? })` stores
-  one unchecked (an invalid response included). `doubles()` of `tests/support/explain-doubles.ts`
-  forwards `failCacheCall` and records `findCacheEntry`, `touchCacheEntry` and `saveCacheEntry` in
-  `order`; stored responses for tests come from the factories of `tests/support/cached-answer.ts`.
+  one unchecked (an invalid response included). Since DIS-67 it also keeps the embedding of each
+  entry (`StoredCacheEntry.embedding`, optional `embedding` of `seedCacheEntry` and of
+  `saveCacheEntry`) and `findSimilarCacheEntry` searches by cosine similarity in double precision (same
+  checks and order as the adapter, ties by creation order then id, `failCacheCall.similar`,
+  `calls.findSimilarCacheEntry`); `tests/support/embedding-vector.ts` builds vectors of
+  `EMBEDDING_DIMENSIONS` components from a few leading ones. `doubles()` of
+  `tests/support/explain-doubles.ts` forwards `failCacheCall` and records `findCacheEntry`,
+  `findSimilarCacheEntry`, `touchCacheEntry` and `saveCacheEntry` in `order`; stored responses for tests come from the factories of `tests/support/cached-answer.ts`.
   Graph writes and `sumCostSince` throw. It runs the `graph-store` read scenarios in
   `tests/unit/store/in-memory-store.spec.ts` (tests named `… (in-memory double)`). Known limit:
   case-insensitivity uses `toLowerCase`, which can differ from `ILIKE` on non-ASCII names. It lives
@@ -435,7 +442,10 @@ Verified against `package.json` (root and per package). If a command is not here
   recorded in `calls.readFilesAt` and `batchReads`; the pack now reads only through it, so "no file
   was read" means both counters are 0. `readFiles`/`realPath` throw. Context pack unit tests pair it
   with the store double. `tests/support/scripted-llm.ts` is the `LlmPort` double of the explain tests:
-  it reads the evidence ids and spans from the prompt and builds the output from them. Since DIS-41 the
+  it reads the evidence ids and spans from the prompt and builds the output from them. Since DIS-67 its
+  `embed` throws `LlmUnavailable('not-configured')` unless the option `embed(texts)` gives the vectors
+  (each request is recorded in `embeddings` and pushes `embed` into the shared `order`; `embedInputTokens`
+  sets the reported tokens). Since DIS-41 the
   `question` and each evidence `text` it sees are wrapped in `<<<UNTRUSTED_DATA <id>>>>` markers, and a
   cut span ends at its kept last line: match spans by path and lines, never by text. Since DIS-42 the
   `PromptView` a script receives has `kind: 'answer' | 'refresh'`: a refresh prompt (its user message
@@ -804,9 +814,11 @@ services that must be started first, quirks of the local environment.
   no response body, so a key echoed by a server cannot leak. Failures are classified by error name
   both on `fetch` and on the body read: a stalled body is `timeout`, a body cut mid-way is `network`.
   `usage` (or one of its fields) absent or `null` counts as `0`; a present field that is not a
-  non-negative integer is `invalid-response`; only `choices[0]` is validated. `embed()` rejects any vector whose length is not `EMBEDDING_DIMENSIONS` (1536, the
-  `vector(1536)` columns): Ollama's `nomic-embed-text` (768) always fails with `dimension-mismatch`
-  until DIS-46 picks the model and migrates the columns. `llmConfigFromEnv(env)` is the only reader
+  non-negative integer is `invalid-response`; only `choices[0]` is validated. `embed()` rejects any vector whose length is not `EMBEDDING_DIMENSIONS` (768, the
+  `vector(768)` columns of migration `0005`, DIS-67): Ollama's `nomic-embed-text` is the reference model, and
+  a 1536-component model fails with `dimension-mismatch`, which only skips the cache's similarity step.
+  After changing `LLM_EMBED_MODEL`, invalidate every project's cache (a full reindex): stored vectors
+  of another model are not comparable. `llmConfigFromEnv(env)` is the only reader
   of the `LLM_*` variables and `DAILY_BUDGET_USD`; the CLI's `ask` (DIS-40) and the API's
   `composeFromEnv` (DIS-76) call it, before any connection. Tests fake `fetch` (`tests/unit/llm/`), and
   `tests/unit/llm/default-transport.spec.ts` drives the default transport against a local `node:http`
@@ -1069,7 +1081,15 @@ services that must be started first, quirks of the local environment.
     `touchCacheEntry(…, startedAt)` and answered by `answerFromCache` (`events: []`, zero tokens and
     cost, stored baseline, `cacheHit: true`) in both modes: no pack, no prior claims, no model, no
     claim; its row has the cache flag and zero counters. A failure of the lookup or the hit record
-    propagates with no row. A cacheable answer (`isCacheable`: persisted with every statement
+    propagates with no row. Since DIS-67, in live mode and on an exact miss with a non-empty key,
+    `answerQuestion` embeds the key once (`usableVector`, `skipCode` in `cache/similarity-cache.ts`;
+    always, even with `useCache: false`, for the save) and, unless the cache is off, calls
+    `findSimilarCacheEntry(projectId, vector, SEMANTIC_CACHE_MIN_SIMILARITY)` (0.85 cosine, inclusive; an
+    exact search over the project's entries through a `MATERIALIZED` CTE, not the HNSW index); a hit
+    goes through the same `recordHit` path as an exact hit. `not-configured` skips silently, any other
+    `LlmUnavailable` or a spent budget skips with the first event `semantic_cache_skipped`
+    (`embedding-unavailable` / `budget-exhausted`), another error propagates before the pack; the embedding
+    is never counted in the usage or the row, and the vector is saved with the cacheable answer. A cacheable answer (`isCacheable`: persisted with every statement
     `current`, or `UNKNOWN` `no-evidence`) is saved (`saveCacheEntry`, replacing the key's entry,
     whatever `useCache` is) after `saveClaims` and the second clock read, before the row:
     `CacheWriteFailed` / `ProjectNotFound` → `{ type: 'answer_not_cached', code }` before

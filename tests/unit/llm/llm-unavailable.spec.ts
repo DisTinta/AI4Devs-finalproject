@@ -30,12 +30,12 @@ describe('LlmUnavailable', () => {
 
   it('keeps both dimensions of a dimension mismatch', () => {
     // Arrange / Act
-    const error = new LlmUnavailable('dimension-mismatch', { expected: EMBEDDING_DIMENSIONS, received: 768 });
+    const error = new LlmUnavailable('dimension-mismatch', { expected: EMBEDDING_DIMENSIONS, received: 1536 });
 
     // Assert
-    expect(error.expected).toBe(1536);
-    expect(error.received).toBe(768);
-    expect(error.message).toBe('LLM unavailable: dimension-mismatch (expected 1536, received 768)');
+    expect(error.expected).toBe(768);
+    expect(error.received).toBe(1536);
+    expect(error.message).toBe('LLM unavailable: dimension-mismatch (expected 768, received 1536)');
   });
 
   it('prints the dimensions only as a complete pair', () => {
@@ -65,9 +65,9 @@ describe('LlmUnavailable', () => {
     expect('cause' in error).toBe(false);
   });
 
-  it('fixes the embedding dimension to the schema columns', () => {
+  it('The schema dimension is 768', () => {
     // Assert
-    expect(EMBEDDING_DIMENSIONS).toBe(1536);
+    expect(EMBEDDING_DIMENSIONS).toBe(768);
   });
 });
 

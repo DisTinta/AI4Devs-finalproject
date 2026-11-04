@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { CacheWriteFailed, InvalidStoreQuery, ProjectNotFound } from '@codemind/core';
 import type { StorePort } from '@codemind/core';
 import { createPostgresStore } from '../../../packages/adapters/store-postgres/src/index';
+import { embeddingVector } from '../../support/embedding-vector';
 import { connect, databaseUrl, describeWithDatabase, useTransactionPerTest } from '../helpers/db';
 import { createProject, unique } from '../helpers/factories';
 import { rejectingWrites, valuesInclude } from '../helpers/rejecting-writes';
@@ -35,6 +36,11 @@ async function rejection(promise: Promise<unknown>): Promise<unknown> {
     },
     (error: unknown) => error,
   );
+}
+
+/** The components of a pgvector text value such as `[1,0,0]`. */
+function vectorOf(text: string): number[] {
+  return (JSON.parse(text) as number[]).map(Number);
 }
 
 const KEY = 'como se calcula el precio';
@@ -177,17 +183,120 @@ describeWithDatabase('graph store answer cache entries (DIS-21)', () => {
       expect(await entriesOf(b.id)).toHaveLength(1);
     });
 
+    // DIS-67 (change semantic-cache, specs/graph-store/spec.md → "Answer cache entries").
+    it('A saved embedding is found by similarity within its project', async () => {
+      // Arrange
+      const { store } = stores();
+      const first = await createProject(db());
+      const second = await createProject(db());
+      const e1 = embeddingVector(1);
+      const q = embeddingVector(17, 10, 3, 1, 1);
+      await store.saveCacheEntry(first.id, KEY, R1, e1);
+      await store.saveCacheEntry(first.id, 'otra pregunta', R2);
+      await store.saveCacheEntry(second.id, KEY, R1, e1);
+      const r1 = (await entriesOf(first.id)).find((entry) => entry.question_normalized === KEY)!;
+
+      // Act
+      const exact = await store.findSimilarCacheEntry(first.id, e1, 0.85);
+      const boundary = await store.findSimilarCacheEntry(first.id, q, 0.8);
+      const above = await store.findSimilarCacheEntry(first.id, q, 0.9);
+      const orthogonal = await store.findSimilarCacheEntry(first.id, embeddingVector(0, 1), 0);
+
+      // Assert
+      expect(exact).toMatchObject({ id: r1.id, response: R1 });
+      expect(exact!.similarity).toBeCloseTo(1, 6);
+      expect(boundary).toMatchObject({ id: r1.id, response: R1 });
+      expect(boundary!.similarity).toBeCloseTo(0.85, 6);
+      expect(above).toBeUndefined();
+      expect(orthogonal).toMatchObject({ id: r1.id });
+      expect(orthogonal!.similarity).toBeCloseTo(0, 6);
+      expect(vectorOf(r1.question_embedding!)).toEqual(e1);
+      const { rows } = await db().query<{ hits: string }>('SELECT sum(hit_count)::text AS hits FROM cache_entry WHERE project_id = $1', [first.id]);
+      expect(rows[0]!.hits).toBe('0');
+    });
+
+    it('The most similar entry wins and ties go to the most recent', async () => {
+      // Arrange
+      const { store } = stores();
+      const project = await createProject(db());
+      const insert = (key: string, embedding: number[], createdAt: string, id: string | null = null) =>
+        db().query(
+          `INSERT INTO cache_entry (id, project_id, question_normalized, response, question_embedding, created_at)
+           VALUES (COALESCE($6::uuid, gen_random_uuid()), $1, $2, $3::jsonb, $4::vector, $5)`,
+          [project.id, key, JSON.stringify({ key }), `[${embedding.join(',')}]`, createdAt, id],
+        );
+      const unit = (cosine: number) => embeddingVector(cosine, Math.sqrt(1 - cosine * cosine));
+      const idD = '00000000-0000-4000-8000-00000000000d';
+      const idE = '00000000-0000-4000-8000-00000000000e';
+      await insert('a', unit(0.88), '2026-09-01T00:00:00Z');
+      await insert('b', unit(0.95), '2026-09-02T00:00:00Z');
+      await insert('c', unit(0.5), '2026-10-01T00:00:00Z', '00000000-0000-4000-8000-00000000000c');
+      await insert('d', unit(0.5), '2026-10-02T00:00:00Z', idD);
+
+      // Act
+      const best = await store.findSimilarCacheEntry(project.id, embeddingVector(1), 0.85);
+      const tie = await store.findSimilarCacheEntry(project.id, unit(0.5), 0.99);
+      // E: D's embedding and creation instant, an id greater than D's; only the id breaks the tie.
+      await insert('e', unit(0.5), '2026-10-02T00:00:00Z', idE);
+      const idTie = await store.findSimilarCacheEntry(project.id, unit(0.5), 0.99);
+
+      // Assert
+      expect(best?.response).toEqual({ key: 'b' });
+      expect(tie?.response).toEqual({ key: 'd' });
+      expect(idTie?.id).toBe(idE);
+    });
+
+    it('The similarity search is exact whatever the other projects hold', async () => {
+      // Arrange
+      const { store } = stores();
+      const first = await createProject(db());
+      const second = await createProject(db());
+      const unit = (cosine: number) => embeddingVector(cosine, Math.sqrt(1 - cosine * cosine));
+      await store.saveCacheEntry(first.id, KEY, R1, unit(0.9));
+      for (let i = 0; i < 200; i += 1) {
+        await store.saveCacheEntry(second.id, `pregunta ${i}`, R2, unit(0.95 + (i / 200) * 0.049));
+      }
+
+      // Act
+      const found = await store.findSimilarCacheEntry(first.id, embeddingVector(1), 0.85);
+
+      // Assert
+      expect(found?.response).toEqual(R1);
+      expect(found!.similarity).toBeCloseTo(0.9, 5);
+    });
+
+    // Not a scenario of its own: it pins the requirement text of "Answer cache entries" (an entry is
+    // resolved only when its similarity is at least the minimum) against pgvector's `NaN` distance,
+    // which Postgres orders after every number and compares as greater (adversarial review V2).
+    it('An entry whose similarity is not a number is never found', async () => {
+      // Arrange
+      const { store } = stores();
+      const project = await createProject(db());
+      // Finite, so valid for the store, but their products overflow single precision: `<=>` is NaN.
+      await store.saveCacheEntry(project.id, KEY, R1, embeddingVector(3e38, 3e38));
+
+      // Act
+      const found = await store.findSimilarCacheEntry(project.id, embeddingVector(1, 1), 0.85);
+      const anyMinimum = await store.findSimilarCacheEntry(project.id, embeddingVector(1, 1), 0);
+
+      // Assert
+      expect(found).toBeUndefined();
+      expect(anyMinimum).toBeUndefined();
+    });
+
     it('Invalid cache arguments are rejected before querying', async () => {
       // Arrange
       const { counted, statements } = stores();
       const project = await createProject(db());
       const id = project.id;
       const SENTINEL = 'SENTINEL-cache-key-9b1c';
+      const E = embeddingVector(1);
       const before = statements();
 
       // Act
       const malformed = [
         await rejection(counted.findCacheEntry('not-a-uuid', KEY)),
+        await rejection(counted.findSimilarCacheEntry('not-a-uuid', E, 0.85)),
         await rejection(counted.saveCacheEntry('not-a-uuid', KEY, R1)),
         await rejection(counted.touchCacheEntry('not-a-uuid', randomUUID(), new Date())),
         await rejection(counted.invalidateCache('not-a-uuid')),
@@ -199,6 +308,20 @@ describeWithDatabase('graph store answer cache entries (DIS-21)', () => {
       }
       for (const response of [null, [], 'x']) {
         invalid.push([await rejection(counted.saveCacheEntry(id, KEY, response as unknown as object)), 'response']);
+      }
+      const embeddings: unknown[] = [
+        embeddingVector(1).slice(1),
+        embeddingVector(Number.NaN),
+        embeddingVector(Number.POSITIVE_INFINITY),
+        embeddingVector(),
+        '[1,2]',
+      ];
+      for (const embedding of embeddings) {
+        invalid.push([await rejection(counted.findSimilarCacheEntry(id, embedding as number[], 0.85)), 'embedding']);
+        invalid.push([await rejection(counted.saveCacheEntry(id, KEY, R1, embedding as number[])), 'embedding']);
+      }
+      for (const minimum of [-0.1, 1.1, Number.NaN]) {
+        invalid.push([await rejection(counted.findSimilarCacheEntry(id, E, minimum)), 'minSimilarity']);
       }
       invalid.push([await rejection(counted.touchCacheEntry(id, 'x', new Date())), 'entryId']);
       invalid.push([await rejection(counted.touchCacheEntry(id, randomUUID(), new Date('x'))), 'at']);
@@ -221,6 +344,10 @@ describeWithDatabase('graph store answer cache entries (DIS-21)', () => {
         'response',
         'response',
         'response',
+        ...Array.from({ length: 5 }, () => ['embedding', 'embedding']).flat(),
+        'minSimilarity',
+        'minSimilarity',
+        'minSimilarity',
         'entryId',
         'at',
       ]);
@@ -235,7 +362,9 @@ describeWithDatabase('graph store answer cache entries (DIS-21)', () => {
       // Act
       const errors = [
         await rejection(store.findCacheEntry(unknown, KEY)),
+        await rejection(store.findSimilarCacheEntry(unknown, embeddingVector(1), 0.85)),
         await rejection(store.saveCacheEntry(unknown, KEY, R1)),
+        await rejection(store.saveCacheEntry(unknown, KEY, R1, embeddingVector(1))),
         await rejection(store.touchCacheEntry(unknown, randomUUID(), new Date())),
         await rejection(store.invalidateCache(unknown)),
       ];

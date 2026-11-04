@@ -92,7 +92,11 @@ Explain SHALL decide its answer in this order, and each step SHALL make exactly 
 3. Unless the request sets `useCache: false`, look the question's cache key up once in the answer
    cache of the project (requirement "Answer cache"). An entry whose stored response is accepted
    SHALL answer from the cache, in live and in evaluation mode, without building the pack, and its hit
-   SHALL be recorded; anything else is a miss and goes on to step 4.
+   SHALL be recorded. After a miss, or when the request sets `useCache: false`, in live mode only, run
+   the similarity step (`semantic-cache`, "Similarity lookup in explain"): request the key's embedding
+   once and, with a usable vector and unless the request sets `useCache: false`, look the most similar
+   entry up once; an accepted similar entry SHALL answer from the cache in the same way. Anything else
+   is a miss and goes on to step 4.
 4. When the model is in evaluation mode, answer `UNKNOWN` with reason `llm-required` and the message
    `evaluation mode (cache-only): set LLM_* to enable free-form asks`, without building the pack.
 5. Build the context pack from the anchor already computed. A pack with no span SHALL answer
@@ -121,23 +125,30 @@ Explain SHALL decide its answer in this order, and each step SHALL make exactly 
 
 A cacheable answer of steps 10 and 14 SHALL be saved in the answer cache after the claim write and,
 for an answered answer, after the stale claim refresh, and before its `query_log` row (requirement
-"Answer cache").
+"Answer cache"), with the embedding of step 3 when one was obtained (`semantic-cache`, "Embedding of a
+saved answer").
 
 Before returning any answer of the steps above, `UNKNOWN` included, explain SHALL send its
 `query_log` row to the store (requirement "Query log").
 
 The prior-claims read SHALL therefore be called 0 times for an invalid request, `no-anchor`, a cache
 hit, `llm-required` and `over-budget`, and once, before the model, for `invalid-model-output`,
-`no-evidence`, `broken-evidence` and an answer with statements. The model SHALL be called 0 times up
-to step 7 (a cache hit included), once with the purpose `answer` at step 8, with the purpose `verify`
-at step 12, and at step 14 only for an answered answer with due stale prior claims (at most one
-`answer` call per refreshed claim, each followed by its own `verify` calls): 0 times with the purpose
-`verify` for `invalid-model-output`, `no-evidence` and `broken-evidence`. The source reader SHALL
+`no-evidence`, `broken-evidence` and an answer with statements. The model SHALL receive no completion
+up to step 7 (a cache hit included), one with the purpose `answer` at step 8, those with the purpose
+`verify` at step 12, and at step 14 only for an answered answer with due stale prior claims (at most
+one `answer` call per refreshed claim, each followed by its own `verify` calls): 0 with the purpose
+`verify` for `invalid-model-output`, `no-evidence` and `broken-evidence`. The model SHALL receive at
+most one embedding request per call, at step 3, in live mode only, and none for an invalid request,
+`no-anchor`, an exact cache hit or evaluation mode. In the scenarios of `explain`, the calls or
+requests a model "received" are its completions (`answer` and `verify`); embedding requests are
+counted only where a scenario names them as embedding requests. The source reader SHALL
 receive no call for a cache hit (no pack is built). Otherwise it SHALL receive the pack's batched
 read and, for `broken-evidence` and an answer with statements only, the verification reads of step
 11 after the model (and, for an answered answer, those of each refresh at step 14);
-`invalid-model-output` and `no-evidence` get no verification read. The answer cache SHALL be looked up 0 times for an invalid request, `no-anchor` and a
-request with `useCache: false`, and once otherwise.
+`invalid-model-output` and `no-evidence` get no verification read. The answer cache SHALL be looked up
+by its exact key 0 times for an invalid request, `no-anchor` and a request with `useCache: false`, and
+once otherwise; it SHALL be looked up by similarity at most once, only in live mode, after an exact
+miss and with a usable vector.
 
 An `UNKNOWN` answer SHALL have exactly `kind: 'unknown'`, `answer: 'UNKNOWN'`, `reason` (one of the
 closed set `no-anchor`, `llm-required`, `over-budget`, `invalid-model-output`, `no-evidence`,
@@ -150,9 +161,12 @@ evidence SHALL be written for it; only its `query_log` row is written and, for a
 Errors SHALL propagate unchanged and write no claim and no evidence (a `query_log` row is written
 before an error only when a model call resolved before it, requirement "Query log"): `ProjectNotFound`, `SourceUnavailable`, the
 `LlmUnavailable` and `BudgetExhausted` of the `answer` call, any failure of the answer cache lookup
-or of the recording of a hit (then no pack is built and the model SHALL NOT have been called), any
-failure of the prior-claims read (then the model SHALL NOT have been called), any failure of the verification reads that the syntactic
+(by exact key or by similarity) or of the recording of a hit, and any failure of the embedding request
+other than `LlmUnavailable` and `BudgetExhausted` (then no pack is built and the model SHALL NOT have
+received a completion), any failure of the prior-claims read (then the model SHALL NOT have been called), any failure of the verification reads that the syntactic
 check propagates, and any failure of a `verify` call that the semantic check propagates. An
+`LlmUnavailable` or `BudgetExhausted` of the embedding request SHALL NOT propagate: it skips the
+similarity step (`semantic-cache`, "Degradation without embeddings"). An
 `LlmUnavailable` or `BudgetExhausted` of a `verify` call SHALL NOT propagate: it degrades the
 citations it could not check (`evidence-verification`, "Semantic citation check"). The failures of
 step 14 follow requirement "Stale claim refresh": the `LlmUnavailable` and `BudgetExhausted` of a
@@ -279,6 +293,15 @@ answer's own claim write, which it does not undo.
 - **WHEN** a question without an anchor is explained, and a question is explained with an output
   whose every citation is `broken`
 - **THEN** each answer is `UNKNOWN` and has no `confidence` property
+
+#### Scenario: A live miss requests one embedding before the pack
+
+- **GIVEN** acme-shop loaded in the in-memory store with no cache entry, and a live scripted model with
+  usable embeddings that answers one statement and accepts every verification, recording its calls in
+  a shared order with the store's
+- **WHEN** the price question is explained
+- **THEN** the order starts with the anchoring searches, the exact lookup, one embedding request and
+  one similarity lookup, and only then the pack's reads and the `answer` completion
 
 ### Requirement: Untrusted content sanitization
 
@@ -934,9 +957,13 @@ without warning; otherwise it is shown as read.
 The events of an answer SHALL be of the type `ExplainEvent`, the union of the schema-violation event,
 the `claims_not_persisted` event, the two sanitisation events, the `evidence_broken` event, the
 `entailment_unverified` event, the `answer_language_mismatch` event, the `stale_claim_not_refreshed`
-event, the `answer_not_cached` event and the `query_not_logged` event, separate from the audit events
-of indexing:
+event, the `semantic_cache_skipped` event, the `answer_not_cached` event and the `query_not_logged`
+event, separate from the audit events of indexing:
 
+- `{ type: 'semantic_cache_skipped', code }`, once when the similarity step was skipped for a reason
+  other than a missing embedding model (`semantic-cache`, "Degradation without embeddings"), where
+  `code` is one code of the exported closed set `SEMANTIC_CACHE_SKIPPED_CODES`
+  (`embedding-unavailable`, `budget-exhausted`), declared once;
 - `{ type: 'untrusted_content_flagged', source: 'question', pattern }`, once per code that matched
   the question;
 - `{ type: 'untrusted_content_flagged', source: 'evidence', evidenceId, path, line, pattern }`, once
@@ -970,6 +997,7 @@ of indexing:
   `project-not-found`, `invalid-entry`), declared once (requirement "Query log").
 
 `pattern` SHALL be one code of `INSTRUCTION_PATTERNS`. The events of an answer SHALL be ordered: the
+`semantic_cache_skipped` event, if any (the step runs before any other that adds an event), then the
 question's flagged events, then for each span in evidence-id order its flagged events in the order of
 the list followed by its truncated event, then the `evidence_broken` events in evidence-id order, then
 the `entailment_unverified` events in statement order then citation order, then the
@@ -978,18 +1006,21 @@ schema-violation event or the `claims_not_persisted` event, if any, then the
 `stale_claim_not_refreshed` events in prior-claims order, then the `answer_not_cached`
 event, if any, and last the `query_not_logged` event, if any. An answer that did not reach step 6 of
 "Precedence and UNKNOWN answers" (`no-anchor`, a cache hit, `llm-required`, `over-budget`) SHALL
-carry no sanitisation event (only, when its row was not written, the `query_not_logged` event), and when the
-`answer` call fails the error propagates without events.
+carry no sanitisation event (only, for a live `over-budget` after a skipped similarity step, the
+`semantic_cache_skipped` event, and, when its row was not written, the `query_not_logged` event); a
+cache hit and `no-anchor` SHALL never carry a `semantic_cache_skipped` event, and when the `answer`
+call fails the error propagates without events.
 
 Explain SHALL return its events and SHALL write nothing to any log; neither the question, nor a span's
 text, nor a statement, nor a stored claim's object, nor the output of any model call SHALL be written
 to any log, event or error.
 The `question` column of the `query_log` row (requirement "Query log") is the one place the question
 is stored, as data of the local database, never as a log line; its normalized form is stored only as
-the key of its cache entry (requirement "Answer cache"), never in a log, an event or an error. An
+the key of its cache entry (requirement "Answer cache"), and its embedding only as that entry's stored
+embedding, never in a log, an event or an error. A `semantic_cache_skipped`, an
 `answer_not_cached`, a `query_not_logged` or a `stale_claim_not_refreshed` event SHALL carry no
-message, no detail, no cause, no part of the question, no part of a claim or of a model output and no
-text of the store's error. An
+message, no detail, no cause, no part of the question, no part of a claim or of a model output, no
+component of an embedding and no text, reason or status of the model's or the store's error. An
 `answer_language_mismatch` event SHALL carry only its type and `expected`: no part, prefix or hash of
 the question or of the answer, and no count of the signals the rule found. A
 sanitisation event SHALL NOT hold any part of the text that matched or was cut, nor a prefix or a hash
@@ -1071,6 +1102,17 @@ content, of the excerpt, of the statement or of the verifier's output, nor a pre
   `{ type: 'stale_claim_not_refreshed', claimId: c1, code: 'no-evidence' }` and the
   `query_not_logged` event
 - **AND** the serialised events hold neither sentinel
+
+#### Scenario: The skip event comes before the sanitisation events
+
+- **GIVEN** a flagged question that anchors in acme-shop, and a live model whose embedding request
+  fails with `LlmUnavailable` reason `timeout`, that answers one statement and accepts every
+  verification, and a `query_log` row write that rejects with `QueryLogWriteFailed`
+- **WHEN** it is explained, and again with a budget where nothing fits
+- **THEN** the first answer's events are `{ type: 'semantic_cache_skipped', code:
+  'embedding-unavailable' }`, then the question's flagged event, then the `query_not_logged` event
+- **AND** the second answer is `UNKNOWN` `over-budget` whose events are exactly the
+  `semantic_cache_skipped` event followed by the `query_not_logged` event
 
 ### Requirement: Answer usage
 
@@ -1165,7 +1207,7 @@ latency of requirement "Answer usage":
   `invalid-model-output`, `no-evidence` and `broken-evidence`, the `answer` call; verification
   tokens, cost, calls and latency 0, since no semantic check ran);
   `baseline_tokens` the pack's (0 for `over-budget`), or none for `no-anchor` and `llm-required`,
-  which build no pack; every counter and cost 0 when no call was made;
+  which build no pack; every counter and cost 0 when no completion was made;
 - before propagating an error raised after at least one model call resolved (the verification reads,
   a `verify` call, the claim write other than `ClaimWriteFailed`, a failure of the stale claim
   refresh that propagates, the cache save other than
@@ -1180,11 +1222,14 @@ latency of requirement "Answer usage":
   The error SHALL then propagate unchanged, whatever happened to the row: a failure of the row write
   never replaces it.
 
-A call resolves when the model returns a result (an output the quarantine or the verifier then
-rejects counts; a call that fails does not). No row SHALL be written when explain fails before any
-call resolved: an invalid request, the `ProjectNotFound` of anchoring or of the pack, a failure of
-the answer cache lookup or of the recording of a hit, the `SourceUnavailable` of the pack's read, a failure of the prior-claims read, or the `LlmUnavailable`
-and `BudgetExhausted` of the `answer` call.
+A call resolves when a completion (`answer` or `verify`) returns a result (an output the quarantine
+or the verifier then rejects counts; a call that fails does not); an embedding request never counts
+as a resolved call, whatever it returns (`semantic-cache`, "Degradation without embeddings"). No row
+SHALL be written when explain fails before any call resolved: an invalid request, the
+`ProjectNotFound` of anchoring or of the pack, a failure of the answer cache lookup (by exact key or
+by similarity) or of the recording of a hit, a failure of the embedding request other than
+`LlmUnavailable` and `BudgetExhausted`, the `SourceUnavailable` of the pack's read, a failure of the
+prior-claims read, or the `LlmUnavailable` and `BudgetExhausted` of the `answer` call.
 
 When the row write of a returned answer rejects with `QueryLogWriteFailed`, with `ProjectNotFound`
 (a `no-anchor` question with no search terms is answered without checking the project, requirement
@@ -1352,17 +1397,24 @@ it cannot happen after anchoring, which needs a letter or digit token that the n
   and SHALL return the answer of the hit (`answer-cache`, "Answer of a cache hit"), in live and in
   evaluation mode, without building the pack, reading the prior claims, reading the source, calling
   the model or writing a claim; it then writes its `query_log` row (requirement "Query log"). No entry,
-  or an entry whose stored response is rejected, is a miss: explain goes on to step 4 without an
-  event, so a miss in evaluation mode answers exactly the `UNKNOWN` `llm-required` of step 4.
+  or an entry whose stored response is rejected, is a miss of the key. In live mode a miss of the key
+  goes on to the similarity step (`semantic-cache`, "Similarity lookup in explain"), whose accepted
+  entry is a hit answered and recorded in the same way. After a similarity miss explain goes on to
+  step 4 without an event; after a skipped similarity step it goes on with the
+  `semantic_cache_skipped` event of `semantic-cache`, "Degradation without embeddings", when that
+  requirement adds one; in evaluation mode a miss of the key answers exactly the `UNKNOWN`
+  `llm-required` of step 4.
 - **Save.** A cacheable answer (`answer-cache`, "Cacheable answers") SHALL be saved as its stored
   response under its key, after the claim write and the clock's second read and before its
-  `query_log` row, whatever `useCache` is; the save replaces any entry of the key, so the project keeps
-  exactly one entry for it, with a hit count of 0. An answer served from the cache SHALL NOT be saved
-  again (its entry keeps its hit count). An answer that is not cacheable SHALL NOT be saved
+  `query_log` row, whatever `useCache` is, with the embedding obtained at step 3 when there is one
+  (`semantic-cache`, "Embedding of a saved answer") and without one otherwise; the save replaces any
+  entry of the key, so the project keeps exactly one entry for it, with a hit count of 0. An answer
+  served from the cache SHALL NOT be saved again (its entry keeps its hit count and its embedding). An
+  answer that is not cacheable SHALL NOT be saved
   and SHALL leave any entry of the key as it is. Nothing is saved in evaluation mode, where no answer
   reaches the model.
-- **Failures.** A failure of the lookup or of the recording of a hit SHALL propagate unchanged, before
-  any pack, model call or `query_log` row. When the save rejects with `CacheWriteFailed` or with
+- **Failures.** A failure of the lookup (by exact key or by similarity) or of the recording of a hit
+  SHALL propagate unchanged, before any pack, model completion or `query_log` row. When the save rejects with `CacheWriteFailed` or with
   `ProjectNotFound`, explain SHALL still return the answer, with the same fields, and append to its
   events `{ type: 'answer_not_cached', code }` with `code` `store-write-failed` or
   `project-not-found` (requirement "Explain events and logging"). Any other rejection of the save
@@ -1533,6 +1585,19 @@ it cannot happen after anchoring, which needs a letter or digit token that the n
 - **WHEN** the price question is explained, and then again with `useCache: false`
 - **THEN** the first answer is served from the cache with `usage.cacheHit` `true`
 - **AND** the second call fails with `BudgetExhausted`, and the inner model received no call
+
+#### Scenario: A similarity hit over the database counts in its entry and its row
+
+- **GIVEN** acme-shop indexed in the database with its history built, and its answer to the price
+  question saved in the cache, with its embedding, by a first explain with a live model that answers
+  one statement citing the anchor span, accepts every verification and embeds the price question's key
+  and the key of `Explícame el cálculo del precio final` with a similarity of 0.92
+- **WHEN** `Explícame el cálculo del precio final` is explained with the same model
+- **THEN** the answer is the first answer with `usage.cacheHit` `true` and cost 0, and the model
+  received one embedding request and no completion in this second explain
+- **AND** acme-shop has exactly one `cache_entry`, whose `question_embedding` is not `NULL`, whose
+  `hit_count` is 1 and whose `last_hit_at` is the clock's first read of the second explain
+- **AND** the newest `query_log` row of acme-shop has `cache_hit` true and `cost_usd` 0
 
 ### Requirement: Question and answer language
 
