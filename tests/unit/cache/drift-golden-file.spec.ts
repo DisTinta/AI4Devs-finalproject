@@ -92,6 +92,42 @@ describe('Requirement: Golden drift file format', () => {
     expect(checkDriftGoldenFile(nul, CONTEXT)).toBeUndefined();
   });
 
+  it('checks fingerprints, ids, review dates, reviewers and keys to the character', () => {
+    const accepted: Array<(v: Loose) => void> = [
+      (v) => (v.entries[0].id = 'Q55'),
+      (v) => (v.entries[0].key = `drift:${'p'.repeat(1000)}`),
+      (v) => (v.entries[0].key = `drift:${'😀'.repeat(1000)}`),
+      (v) => (v.entries[0].reviews = [{ by: 'agent:model-x', date: '2026-11-03' }]),
+      (v) => (v.entries[0].reviews = [{ by: 'a', date: '2024-02-29' }]),
+    ];
+    const rejected: Array<(v: Loose) => void> = [
+      (v) => (v.driftFingerprint = `sha256:${'a'.repeat(63)}`),
+      (v) => (v.driftFingerprint = `sha256:${'a'.repeat(65)}`),
+      (v) => (v.driftFingerprint = `x${`sha256:${'a'.repeat(64)}`}`),
+      (v) => (v.seed.analyzerFingerprint = `sha256:${'a'.repeat(64)}\n`),
+      (v) => (v.entries[0].id = 'Q'),
+      (v) => (v.entries[0].id = 'XQ5'),
+      (v) => (v.entries[0].id = 'Q5x'),
+      (v) => (v.entries[0].key = `drift:${'p'.repeat(1001)}`),
+      (v) => (v.entries[0].key = `drift:${'😀'.repeat(1001)}`),
+      (v) => (v.entries[0].key = 'xdrift:'),
+      (v) => (v.entries[0].key = 'drift'),
+      (v) => (v.entries[0].reviews = [{ by: '', date: '2026-11-03' }]),
+      (v) => (v.entries[0].reviews = [{ by: 'a', date: '2026-02-30' }]),
+      (v) => (v.entries[0].reviews = [{ by: 'a', date: '2026-1-03' }]),
+      (v) => (v.entries[0].reviews = [{ by: 'a', date: '26-11-03' }]),
+      (v) => (v.entries[0].reviews = [{ by: 'a', date: '2026-11-033' }]),
+      (v) => (v.entries[0].reviews = [{ by: 'a', date: 'x2026-11-03' }]),
+      (v) => (v.entries[0].reviews = [{ by: 'a', date: '2026-11-0a' }]),
+      (v) => (v.entries[0].reviews = [{ by: 'a', date: 'abcd-11-03' }]),
+      (v) => (v.entries[0].reviews = [{ by: 'a', date: '2026-ab-03' }]),
+      (v) => (v.entries[0].reviews = [{ by: 'a', date: '2025-02-29' }]),
+      (v) => (v.entries[0].reviews = [{ by: 'a', date: '2026-11-03', extra: 1 }]),
+    ];
+    for (const change of accepted) expect(checkDriftGoldenFile(mutated(change), CONTEXT)).toBeDefined();
+    for (const change of rejected) expect(checkDriftGoldenFile(mutated(change), CONTEXT)).toBeUndefined();
+  });
+
   it('declares the golden drift report of acme-shop', () => {
     expect(DRIFT_GOLDEN).toEqual({ project: 'acme-shop', id: 'Q5', key: 'drift:' });
   });
