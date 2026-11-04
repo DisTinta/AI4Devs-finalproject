@@ -480,3 +480,25 @@ No row is empty. Two rows depend on the B1 migration task, which does not exist 
     > - la redacción de `DAILY_BUDGET_USD` en `cache:embed`;
     > - el alcance del requisito de firmas frente a su escenario.
 19. Optional, in the `[enhanced]` part, Contexto técnico → Golden: replace "lee la configuración del modelo como `cache:build`" with "lee la configuración del modelo como `ask` (sin `longFetch`; decisión S7 del cambio)".
+
+---
+
+## Resolution of run 2
+
+- Date: 2026-11-04 (correction round 2 of the autonomous run).
+- *Agent's text: every finding was resolved by the agent as lead engineer, without the author. Run 2 had no question for the author. Each decision is in `design.md` → Follow-ups, table "Spec audit, run 2", with its destination; none has destination C.*
+- `openspec validate cache-hit-rate --strict`: the change is valid after the corrections.
+
+### Findings
+
+| Id | Resolution |
+|---|---|
+| B1 | Fixed. New task 7.3b, right after 7.3 and before 7.5, 7.6 and 8.x, migrates `seeds/cache/acme-shop.json` and `seeds/cache/task-api.json` with `questionEmbedding: null` through `renderGoldenFile`. It checks that the diff only adds the six key lines, runs the tests that read the versioned files, and records the hashes for 9.3. Task 7.6 now fails on the `null` vectors of the 7.3b files, 8.4 names the 7.3b files, and 9.3 compares against the file after 7.3b and 9.1. Design S6 describes the two-step migration, the Migration Plan gains the step, and the proposal states it. |
+| I1 | Fixed. Proposal → What Changes → API states the `404 PROJECT_NOT_FOUND` of a `ProjectNotFound` read and the `500 INTERNAL` of any other failure. Capabilities → `http-ask` says "the `404`/`500` of a failing read". Capabilities → `golden-answers` lists the MODIFIED "Signatures of the reviewed golden answers". |
+| I2 | Fixed, at full strength: `ask-page` "No saving is not shown as a saving" now reads "no text «ahorro -», «ahorro 0» nor «%» before the project cache line". Task 5.3b keeps the «%» check scoped to the text before that line, so no assertion is weakened and 10.2 holds without exception. |
+| I3 | Fixed. Design S11 cites ADR `20261103-drift-golden-freshness-in-unit-suite` and `docs/project-context.md`: `drift:build` is skipped because no `DRIFT_FINGERPRINT_FILES` input and no seed row changes. Neither ADR is amended. Task 9.1 runs `tests/unit/seed/drift-golden-coherence.spec.ts` green with the copied fingerprint. |
+| I4 | Fixed. Task 13.3 observes the live similarity hit in SQL: the call's `query_log` row has `cache_hit = true` and zero tokens, and `Q1`'s `cache_entry.hit_count` is 1. The CLI `ask` prints no usage. |
+| I5 | Decided by the agent: option (a), the narrower one. "Signatures of the reviewed golden answers" now requires unchanged `id`, `question`, `questionNormalized` and the parts of `response` the panel judged, as "Blind panel input of the golden review" projects them. The THEN clause added in run 1 is removed, because the existing test "The panel input projects the golden answers without their verification" (`tests/unit/seed/golden-reviews.spec.ts:100`) already compares the input file with the projection of the current golden files. The scenario is back to the main spec's text, and `golden-reviews.spec.ts` is no longer edited (tasks 9.4, 10.2). The full-value comparison stays the scratch check of 9.3, recorded in the step 12 report. |
+| I6 | Fixed. "Golden embeddings command": `DAILY_BUDGET_USD` is not applied (no budget meter), but a value the model configuration rejects still fails with `LLM_CONFIG_INVALID`, as `ask` reports it. Checked: `nomic-embed-text` is priced in `COST_TABLE` (`packages/core/src/llm/cost-table.ts:22`), so a valid budget does not block the 9.3 run. |
+| Linear 18 | Done: a Spanish comment summarises run 2 and this round's decisions. |
+| Linear 19 (optional) | Done. In the `[enhanced]` part of DIS-69, Contexto técnico → Golden now says `cache:embed` reads the model configuration as `ask` does (no `longFetch`, decision S7). The `[original]` part is untouched. |

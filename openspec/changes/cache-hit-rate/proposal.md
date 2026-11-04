@@ -25,7 +25,8 @@ would need a new signed independent review.
 - **API.** The answered response of `POST /api/projects/{projectId}/ask` gains
   `usage.projectCache = { queries, cacheHits, hitRatePct }`, read by the route after the use case
   answered, so it includes the current call's row. Core's `AnswerUsage`, the stored response and
-  `explain` do not change. An `UNKNOWN` answer still carries no usage. A failing read answers
+  `explain` do not change. An `UNKNOWN` answer still carries no usage. A `ProjectNotFound` of the read
+  (project deleted after the answer) answers `404 PROJECT_NOT_FOUND`; any other failing read answers
   `500 INTERNAL`. The OpenAPI document publishes the field.
 - **Web.** The `UsagePanel` shows a line under the baseline line: «Caché del proyecto: 40 % de aciertos
   (4 de 10 consultas)», «… (0 de 1 consulta)», or «Caché del proyecto: sin consultas» when `hitRatePct`
@@ -38,7 +39,8 @@ would need a new signed independent review.
   A new command `npm run cache:embed [-- --project <name>]` fills the vectors of the versioned golden
   files with the configured embedding model (live mode and `LLM_EMBED_MODEL` required, no database),
   keeping every response and review unchanged. `cache:build` writes `null` for the entries it
-  regenerates and keeps the vector of the entries it keeps. The versioned files carry
+  regenerates and keeps the vector of the entries it keeps. The two versioned files are first
+  migrated with `questionEmbedding: null`, then filled by `cache:embed`; they carry
   `nomic-embed-text` vectors (768). `db:seed` saves each golden entry's vector with its cache entry, so
   on freshly seeded sample projects a rephrasing of a golden question is a similarity hit in live mode
   with `LLM_EMBED_MODEL` configured (evaluation mode stays exact-key only, PH-04). The demo rephrasing
@@ -74,13 +76,14 @@ None. The metric belongs to `semantic-cache`, the read to `graph-store`, the com
   pure function).
 - `graph-store`: ADDED "Explain query counts" (`countExplainQueries`, its checks, the in-memory double).
 - `http-ask`: MODIFIED "Ask answered response" (`usage.projectCache`, the read after the use case, the
-  `500` of a failing read) and "Ask in the OpenAPI document" (the published field).
+  `404`/`500` of a failing read) and "Ask in the OpenAPI document" (the published field).
 - `ask-page`: MODIFIED "Usage panel" (the project cache line) and "How usage figures and notice details
   are written" (how the line is written).
 - `cli-projects`: MODIFIED "Project listing" (the `cache` field and its read).
 - `golden-answers`: MODIFIED "Golden file format" (`questionEmbedding`), "Partial regeneration" (what
-  `cache:build` writes for the key) and "The versioned golden file is coherent" (every versioned entry
-  has a usable vector); ADDED "Golden embeddings command" (`cache:embed`).
+  `cache:build` writes for the key), "The versioned golden file is coherent" (every versioned entry
+  has a usable vector) and "Signatures of the reviewed golden answers" (only `reviews`, the `seed`
+  fingerprints and `questionEmbedding` may change); ADDED "Golden embeddings command" (`cache:embed`).
 - `seed-load`: MODIFIED "Golden answers are loaded with the seed" (the vector saved with the entry,
   and a rephrasing of a seeded golden question is a similarity hit in live mode).
 

@@ -58,7 +58,7 @@ usage nor confidence with it).
   in the first run and `0` in the second
 - **WHEN** the person presses «¿Cómo se calcula el precio final de un pedido?» in each run
 - **THEN** in each run the region «Uso» holds «sin ahorro vs bruto» and no text «ahorro -», «ahorro 0»
-  nor «% vs bruto»
+  nor «%» before the project cache line
 
 #### Scenario: A project without logged queries shows no hit rate
 

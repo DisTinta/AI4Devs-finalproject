@@ -20,7 +20,9 @@ the `ask` command reads it (an invalid one fails with `LLM_CONFIG_INVALID` and `
 (unset, empty or only whitespace) fails with `MISSING_CONFIG` and `details.variable` =
 `LLM_EMBED_MODEL`. `DATABASE_URL` SHALL NOT be read, and no database connection SHALL be opened. Each
 embedding request SHALL be limited by the model configuration's time limit, as the `ask` command's
-requests are; the daily ceiling `DAILY_BUDGET_USD` SHALL NOT be applied.
+requests are; the daily ceiling `DAILY_BUDGET_USD` SHALL NOT be applied (no budget meter), while a
+`DAILY_BUDGET_USD` value that the model configuration rejects still fails with `LLM_CONFIG_INVALID`,
+as `ask` reports it.
 
 It SHALL then read the golden file `seeds/cache/<project>.json` of every requested project, before any
 embedding request: a file that does not exist, or that fails the checks `db:seed` applies to a golden
@@ -136,19 +138,18 @@ stay in its file (it is not retired by this change), and SHALL be named in the r
 section as the requirement "Golden review report" states. No review in a versioned golden file SHALL
 start with `author:`. Each file SHALL stay the canonical render of its value, and, against the
 version committed by the r2 regeneration commit (task-api `Q1` alone regenerated; acme-shop untouched
-by it), every entry's `id`, `question`, `questionNormalized` and `response` SHALL be unchanged: only
+by it), every entry's `id`, `question`, `questionNormalized`, and the parts of its `response` the panel
+judged (as "Blind panel input of the golden review" projects them) SHALL be unchanged: only
 `reviews`, the `seed` fingerprints (refreshed without regenerating any answer, as in DIS-67 E1 and
 DIS-69) and `questionEmbedding` (filled by "Golden embeddings command") may change, so nothing
 `verify` compares and nothing the panel judged changes.
 
 #### Scenario: Every golden answer judged correct or partial carries both panel signatures
 
-- **GIVEN** the versioned golden files, the panel input, the panel outputs and the resolution
+- **GIVEN** the versioned golden files, the panel outputs and the resolution
 - **WHEN** the final verdict of each golden entry is computed
 - **THEN** every entry judged `correct` or `partial` has exactly the two panel signatures above, in
-  that order, and no review of either file starts with `author:`; and each judged entry's `question`
-  and `response` project exactly onto its item of the panel input (`answer`, statements and
-  evidence), whatever its `questionEmbedding` and the file's `seed` fingerprints hold
+  that order, and no review of either file starts with `author:`
 
 #### Scenario: A golden answer judged incorrect carries no signature
 

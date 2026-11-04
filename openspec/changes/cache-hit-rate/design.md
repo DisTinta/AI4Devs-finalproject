@@ -116,7 +116,10 @@ between `questionNormalized` and `response` (usability shared with `usableVector
 `questionEmbedding: number[] | null`. The canonical render is unchanged in its rule: two-space JSON,
 so each component sits on its own line (about 768 lines per entry). `format` stays `1`: the only files
 of the format are the two versioned ones, migrated in this change, and no reader of another version
-exists. *Alternatives rejected:* an optional key (two shapes for one meaning and a canonical render
+exists. They are migrated in two steps: first with `questionEmbedding: null` in every entry (task
+7.3b, right after the schema change: a canonical re-render that only adds the key, so every test and
+command that reads them, `cache:embed` included, keeps loading them), then with the vectors of
+`cache:embed` (S10). *Alternatives rejected:* an optional key (two shapes for one meaning and a canonical render
 that depends on presence); a compact one-line vector (a second render rule for one key); `format: 2`
 (touches every format check and the seed-load scenario that rejects `2`, for no reader).
 
@@ -166,7 +169,11 @@ vectors.
 ADR `docs/adr/20261017-stale-fingerprint-fails-verify.md` asks for `seed:build` then `cache:build`;
 `cache:build` is skipped because the seed rows do not change (checked in 9.1) and no
 `ANSWER_FINGERPRINT_FILES` input changes, so a rebuild would answer over the same seed (precedent
-DIS-67 E1). The ADR is not amended.
+DIS-67 E1). ADR `docs/adr/20261103-drift-golden-freshness-in-unit-suite.md` and
+`docs/project-context.md` add `drift:build` to the recipe; it is skipped for the same reason: no
+`DRIFT_FINGERPRINT_FILES` input changes and the seed rows do not change, so
+`tests/unit/seed/drift-golden-coherence.spec.ts` stays green with the copied fingerprint (checked in
+9.1; precedent DIS-67 E1). Neither ADR is amended.
 
 **S12 — Demo rephrasing.** The ticket's AC5 names «Explícame el cálculo del precio final», which
 measured 0.8321 with `nomic-embed-text` in DIS-67 (below 0.85); the demo and the manual check use
@@ -213,8 +220,9 @@ Main specs change only through `/opsx:archive` of these deltas; no direct edit o
 
 ## Migration Plan
 
-No schema migration. Deploy order inside the PR: code and tests → seed fingerprints refreshed (S11) →
-`cache:embed` run (S10) → docs. Rollback: revert the PR; old golden files without the key are the
+No schema migration. Deploy order inside the PR: code and tests → versioned golden files migrated with
+`questionEmbedding: null` (S6, task 7.3b) → seed fingerprints refreshed (S11) → `cache:embed` run
+(S10) → docs. Rollback: revert the PR; old golden files without the key are the
 previous commit's.
 
 ## Follow-ups
@@ -269,7 +277,7 @@ author.*
 | Q1 | The demo rephrasing of S12 is accepted: «Explícame el cálculo del precio final» measured 0.8321 < 0.85 and cannot meet AC5; AC5 of the `[enhanced]` part of DIS-69 now names «¿Cómo se calcula el precio total de un pedido?» (the `[original]` part is untouched) | **A** — this change |
 | Q2 | R3 is read as the ADR 20261103 and the DIS-46 non-goal state: stored entries are never re-embedded, a model change invalidates the cache; rerunning `cache:embed` only applies to a new change of the versioned files' reference model | **A** — this change |
 | Q3 | The percentage `hitRatePct: 40` («40 %», `(40%)`) satisfies the DIS-46 «hit rate 0.4»: same value, the representation the `[enhanced]` part of DIS-69 already chose; no artifact change | **A** — this change |
-| B1 | MODIFIED "Signatures of the reviewed golden answers" in the `golden-answers` delta: `id`, `question`, `questionNormalized` and `response` unchanged, only `reviews`, `seed` fingerprints and `questionEmbedding` may change; the signatures scenario also checks the projection on the panel input (tasks 9.4, 10.2) | **A** — this change |
+| B1 | MODIFIED "Signatures of the reviewed golden answers" in the `golden-answers` delta: `id`, `question`, `questionNormalized` and `response` unchanged, only `reviews`, `seed` fingerprints and `questionEmbedding` may change; the signatures scenario also checked the projection on the panel input (superseded by run 2 I5) | **A** — this change |
 | B2 | A `ProjectNotFound` of the count read answers `404 PROJECT_NOT_FOUND` (route error table); any other failure `500` (spec, S3, task 4.1) | **A** — this change |
 | B3 | `toPublicAnswer(answer, projectCache?)` signature fixed in S3; throws for an answered answer without it (task 4.3) | **A** — this change |
 | I1 | Empty listing reads no count: case added to "A failing count read is an unexpected error" (task 6.1) | **A** — this change |
@@ -282,3 +290,17 @@ author.*
 | I8 | Single-precision storage noted in S9; the `seed-load` scenario uses a vector of small integer components | **A** — this change |
 | I9 | Tasks split: 5.3 → 5.3a/5.3b/5.3c, 16.7 → 16.7/16.8; 11.2 reuses the 13.5 evidence and runs after it | **A** — this change |
 | I10 | The S12 row now points to the rewritten AC5 of DIS-69 | **A** — this change |
+
+Spec audit, run 2 (`reports/2026-11-04-spec-audit.md`). *Agent's text: findings resolved by the agent
+as lead engineer in an autonomous run, without the author; the run had no question for the author.*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| B1 | New task 7.3b migrates both versioned golden files with `questionEmbedding: null` right after the schema change (7.3), so `cache:embed`, 7.6, 8.x and the existing tests that read `seeds/cache/` keep loading them; S6, the Migration Plan, 7.6, 8.4, 9.3 and the proposal state the step | **A** — this change |
+| I1 | Proposal aligned with run 1: the `404 PROJECT_NOT_FOUND` of a `ProjectNotFound` count read, and the MODIFIED "Signatures of the reviewed golden answers" listed | **A** — this change |
+| I2 | The negative check «%» of "No saving is not shown as a saving" keeps its full strength over the text before the project cache line (spec and task 5.3b); no assertion is weakened, so 10.2 holds without exception | **A** — this change |
+| I3 | S11 cites ADR 20261103-drift-golden-freshness-in-unit-suite: `drift:build` is skipped for the same reason as `cache:build`; task 9.1 runs `drift-golden-coherence.spec.ts` | **A** — this change |
+| I4 | Task 13.3 observes the live similarity hit through SQL (`query_log.cache_hit`, zero tokens, `Q1`'s `hit_count`), since the CLI `ask` prints no usage | **A** — this change |
+| I5 | Option (a), the narrower one: "Signatures…" requires unchanged only the parts of `response` the panel judged (as "Blind panel input of the golden review" projects them); the added THEN clause is removed because the existing scenario "The panel input projects the golden answers without their verification" already checks it; `golden-reviews.spec.ts` is no longer edited (9.4, 10.2). The full-value comparison stays the 9.3 scratch check | **A** — this change |
+| I6 | `DAILY_BUDGET_USD` in `cache:embed`: not applied (no budget meter), but a value the model configuration rejects still fails with `LLM_CONFIG_INVALID` (`nomic-embed-text` is priced in `COST_TABLE`, so a valid budget does not block the run) | **A** — this change |
+| L1 | `[enhanced]` of DIS-69, Contexto técnico → Golden: `cache:embed` reads the model configuration as `ask` does (no `longFetch`, S7), not as `cache:build` | **A** — this change |
