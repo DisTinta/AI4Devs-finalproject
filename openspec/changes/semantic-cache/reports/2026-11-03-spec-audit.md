@@ -1052,3 +1052,215 @@ Correction round 1 of the relaunch. *Agent's text: decided as lead engineer in a
 | I5 | Fixed: the THEN adds "hold no other `semantic_cache_skipped` event"; the assertion is task 6.11(b) |
 | I6 | Fixed: task 14.7 says the agent merges only in an autonomous run (`docs/AUTONOMOUS-RUN.md` §5) |
 | Linear | The comment of this round is posted on DIS-67 (in Spanish); the `[enhanced]` part is not touched |
+
+---
+
+## Run 2 (2026-11-04)
+
+CHANGES REQUIRED
+
+**Change:** `openspec/changes/semantic-cache` · **Ticket:** DIS-67 (CM-HU-19.1), parent DIS-46 (CM-HU-19). I loaded both from Linear, with all their comments. · **Audit:** run 2 of the relaunch, 2026-11-04. I audited the change after correction round 1 of the relaunch. The change is applied and PR #105 is open. Tasks 4.7, 5.5, 6.11, 7.4, 10.9 and 10.10 are still open.
+
+**Questions for the author:** none.
+
+Q1 of relaunch run 1 asked whether R3 (the real-model calibration) is accepted. The agent decided it: R3 stays as D, and the recalibration goes to DIS-69 as B. That decision is marked as the agent's text. It does not contradict the sub-issue: the DIS-67 DoD is "Tests: reformulación acierta, tema distinto no", and the enhanced AC1 is defined over a fake `embed`. It is also recorded in Linear, so I accept it. One consequence stays visible to the author in `design.md` → Follow-ups R3 and in the DIS-67 comments: with `nomic-embed-text`, the parent's literal pair («explícame el cálculo del precio final», 0.8321) misses.
+
+**Status of relaunch run 1.** I checked each fix in the artifacts:
+- **B1:** task 10.9, `proposal.md` → Impact (Seed), the sentence in S6, and E1–E3 in Follow-ups.
+- **B2:** S4 and task 4.3 follow R6. The TSDoc fix is planned as 6.11(a), and `packages/core/src/cache/similarity-cache.ts:19-20` still holds the old text, as expected before approval.
+- **I1:** `explain-similarity.spec.ts` is named in tasks 6.2 and 6.4–6.7 and in `proposal.md`.
+- **I2:** the scenario is split in two, and both names exist in `tests/unit/explain/explain-similarity.spec.ts:187,210`.
+- **I3 and I3b:** done.
+- **I4:** E is in both `graph-store` scenarios and in tasks 4.7 and 5.5.
+- **I5:** done.
+- **I6:** task 14.7 is fixed.
+
+This run found one new blocking defect, in the plan of the new task 10.9.
+
+---
+
+## 1. Scope against the ticket
+
+Clean. Everything traces to DIS-67 `[original]` ("SQL, umbral, orden de comprobación"; DoD: a rephrasing hits, a different topic does not, and without `embed()` the call degrades without error) or to explicit asks in the parent:
+- the 768 migration and the edit to `docs/backend-standards.md` §5 come from the DIS-46 note of 2026-10-09;
+- the ADR and the `readme.md` DIS-101 row come from the DIS-46 comment of 2026-10-16.
+
+The relaunch additions also stay within the sub-issue:
+- E1 / task 10.9 verifies the seed fingerprint refresh that this change's own edits made necessary;
+- 4.7, 5.5 and 6.11 only add assertions for clauses already in the deltas.
+
+The hit rate, `UsagePanel`, and seed and golden vectors stay with DIS-69 (D10, E2, R4). No invented scope was found.
+
+## 2. Inherited acceptance criteria
+
+Clean.
+
+| DIS-46 criterion | Requirement / scenario |
+|---|---|
+| Rephrasing hits, `embed()` once, no `complete()`, `hit_count` +1 | `semantic-cache` "Similarity lookup in explain" → "A rephrased question is answered from the similar entry"; `explain` → "A similarity hit over the database counts in its entry and its row" |
+| A different topic is answered live | → "A question on another topic is answered live and saved with its embedding"; "The threshold is inclusive at the boundary" |
+| Two projects: only the project's own `project_id` counts | → "The most similar entry of the project wins"; `graph-store` → "A saved embedding is found by similarity within its project", "The similarity search is exact whatever the other projects hold" |
+| Evaluation mode: exact key, then `llm-required`; never fails for lack of an embedding | → "Evaluation mode requests no embedding"; "Degradation without embeddings" (its scenarios) |
+| Hit rate 0.4 in CLI and `UsagePanel` | Not in the DIS-67 DoD; DIS-69 (D10). Correctly excluded |
+
+The DIS-46 review obligation (an ADR on `LlmPort.embed()` versus `EmbeddingPort`, and the DIS-101 note) is covered by S13 and tasks 9.1 and 9.4. The real-model gap on the AC1 pair is R3 (see the questions above).
+
+## 3. Missing scenarios
+
+Clean. Every MUST clause has a scenario that observes it:
+- the id tie-break of the similarity search is now pinned by E in "The most similar entry wins and ties go to the most recent" and in its double counterpart;
+- "at most once per answer" is pinned by "hold no other `semantic_cache_skipped` event";
+- "SHALL NOT be saved again, and its entry keeps its stored embedding" is pinned by the new AND of "A live answer is saved with its embedding and found by a rephrasing";
+- the operator duty after a change of `LLM_EMBED_MODEL` is now non-normative, so it needs no scenario.
+
+## 4. Ambiguity
+
+Clean. Outside `reports/`, the only matches for fast, easy, secure, efficient, many, appropriate and robust are two unchanged `explain` scenarios: "as many symbol searches as" (`specs/explain/spec.md:198`) and "however many statements cite it" (`:463`). Both are exact counts.
+
+- **Improvable (I2).** Task 4.7 says E is seeded "with D's embedding and creation instant (after D)". The words "(after D)" can be read as a creation instant later than D's, which would test the `createdAt` order instead of the id tie. The `graph-store` scenario says the same instant. Correction: "seeded after D, with D's embedding and exactly D's creation instant".
+
+## 5. Open decisions
+
+- **Blocking (B1), also point 10.** Task 10.9 leaves two decisions with side effects to the executing agent, and its restoration covers only part of what it mutates.
+  1. **`npm run seed:build` writes two tracked files.** It rewrites `packages/web/src/data/sample-projects.ts` and `seeds/graph-dump.sql` (`docs/project-context.md:262-265`). Task 10.9 checks and restores only `seeds/graph-dump.sql`. If the sample-projects file changes, nothing in the task detects or restores it, and the 10.10 commit could carry it.
+  2. **Running `npm run verify` locally needs a database loaded by `db:seed`** (`docs/project-context.md:290-291`). After the seed files change, a stale database shows field-level `✗` lines (`:1490-1493`).
+     - `db:seed` "replaces every sample project in one transaction" (`:269-270`). On the shared local database that resets the acme-shop cache, hit counts and claims that 11.7 restored, and the 0.3 indicators.
+     - The task offers "`npm run verify` green (or the CI `verify` job …)" without saying which database the local run uses, and without a snapshot or restoration if `db:seed` runs.
+
+  Correction to task 10.9:
+  - after `npm run seed:build`, `git status --porcelain` must be empty. If it is not, run `git checkout -- seeds/graph-dump.sql packages/web/src/data/sample-projects.ts` and stop with that evidence;
+  - the `verify` evidence is the CI `verify` job of PR #105 on the head commit (it runs `db:migrate` → `db:seed` → `verify` on its own `verify` database, `docs/project-context.md:224-226`);
+  - a local `npm run verify` is optional and only against a scratch database created for it (migrate and seed it, then drop it), never with `db:seed` on the shared local database;
+  - record in the 10.10 addendum which evidence was used.
+
+## 6. Contradictions inside the change
+
+Clean.
+- **Thresholds.** S4, task 4.3, R6 and the `graph-store` delta now agree: the store applies `>=` to the `minSimilarity` it receives, and `reachesThreshold` is the core statement, tested on its own.
+- **Test placement.** The proposal's Impact list, tasks 6.2–6.7 and R6 agree on `explain-similarity.spec.ts`.
+- **E1.** E1, S6, task 10.9 and `proposal.md` → Impact (Seed) agree on the list of refreshed files and on "no `cache:build`".
+- **Tie scenarios.** The two `graph-store` tie scenarios agree with each other:
+  - Postgres uses an explicit greater id and expects E;
+  - the double uses random ids and expects the greater one in byte order.
+
+## 7. Contradictions with the project
+
+Clean.
+- **Fingerprint policy.** E1 now states why the general order of `docs/project-context.md:1472-1474` and `:1486-1487` (`seed:build` → `cache:build`) is not followed: no input of `ANSWER_FINGERPRINT_FILES` or `DRIFT_FINGERPRINT_FILES` changes, the seed rows are identical, and the precedent is DIS-94. This is a documented, reasoned exception, not a silent departure.
+- **Merge.** Task 14.7 is conditioned on `docs/AUTONOMOUS-RUN.md` §5, which agrees with base-standards rule 9 and `docs/openspec-tasks-mandatory-steps.md` §3.
+- **Earlier findings still hold.** The `docs/backend-standards.md` §5 edit, the Expand → Contract exception (S6) and the budget rule are unchanged since run 3 and stay consistent.
+
+## 8. Contrast with the real code
+
+Clean.
+- **Double.** `tests/support/in-memory-store.ts:555` orders by similarity, then `createdAt`, then `byteOrder(id)`, so task 4.7 is expected to pass at once, as the task says.
+- **Postgres.** `FIND_SIMILAR_CACHE_ENTRY` (`packages/adapters/store-postgres/src/queries.ts:452-464`) orders by `s.id DESC`. Postgres compares `uuid` bytewise, which matches the explicit-id expectation of task 5.5.
+- **Test to extend.** The test that 5.5 extends (`tests/integration/store/cache-entry.spec.ts:218-241`) inserts through a helper without an `id` column, so 5.5 needs that helper extended. That is within the task.
+- **Code tasks match the code.** The tests that 6.11(b) extends exist at `tests/unit/explain/explain-similarity.spec.ts:187,357,464`. The TSDoc to fix in 6.11(a) is at `packages/core/src/cache/similarity-cache.ts:19-20`. No duplicated abstraction is introduced.
+
+## 9. Task size
+
+Clean. The open tasks are small:
+- 4.7 and 5.5: one assertion each, with a temporary red;
+- 6.11: one TSDoc line and four added assertions;
+- 7.4: a listing;
+- 10.9: one command and some checks;
+- 10.10: the suite and an addendum.
+
+The pre-merge tasks 14.2–14.7 are single procedures.
+
+## 10. Mandatory steps
+
+- **Step order.** Step 0 creates the branch and comes first (`feature/dis-67-semantic-cache`, matching `BRANCH_PREFIX`), verified in 0.2.
+- **Labels.** Groups 7, 9 and 10 are `(MANDATORY)`; 11, 12 and 14 also carry `AGENT MUST EXECUTE`. Group 9 precedes group 10, with the reason stated.
+- **Pre-merge.** Pre-merge is last, in the order 14.3 → 14.4 → 14.5, with fixes on the same PR and the archive commit before the merge.
+- **Restoration.** Restoration is present in 10.6 and 11.7.
+- **Blocking: B1.** Task 10.9 mutates a second tracked file and may reseed the shared database without restoration (point 5).
+- **Improvable (I1).** Task 10.10 re-runs the broader suite, which includes the database integration specs, but does not re-check the post-test state. `docs/openspec-tasks-mandatory-steps.md` §1 point 4 says "re-check the same indicators". Correction: add to 10.10 "re-check the 0.3 indicators (same `project`, `cache_entry` and `query_log` counts, `question_embedding IS NOT NULL` count, and no `.stryker-tmp/`), restore and document if they differ".
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| semantic-cache · Similarity threshold and embedded text | The threshold is 0.85 and inclusive | 1.1, 1.2 |
+| | Only one finite non-zero vector of the schema's dimension is usable | 1.3 |
+| | (`skipCode` classification, unit cases, no scenario of its own) | 1.4 |
+| semantic-cache · Similarity lookup in explain | A rephrased question is answered from the similar entry | 6.2, 6.3 |
+| | A question on another topic is answered live and saved with its embedding | 6.4 |
+| | The threshold is inclusive at the boundary | 6.4 |
+| | An exact hit requests no embedding | 6.4 |
+| | The most similar entry of the project wins | 6.5, 6.11(b), 7.4 |
+| | An entry without an embedding is never a similarity hit | 6.5, 7.4 |
+| | Equal similarities go to the most recent entry | 6.5 |
+| | A rejected similar entry is a miss without trying the next | 6.5 |
+| | Evaluation mode requests no embedding | 6.4 |
+| | Turning the cache off embeds only for the save (both cases) | 6.4 |
+| | A question without anchor requests no embedding | 6.4 |
+| | A failing similarity lookup or hit record stops before the model | 6.5 |
+| semantic-cache · Degradation without embeddings | Without an embedding model the call is answered as today | 6.6 |
+| | An unavailable endpoint or an unusable vector degrades with an event | 6.6, 6.11(b), 7.4 |
+| | A spent daily budget skips the lookup and the answer call still fails | 6.6 |
+| | Another embedding error propagates before the model | 6.6 |
+| | The skip event carries nothing of the question or the error | 6.7 |
+| | The embedding request is not counted in the usage or the row | 6.7 |
+| semantic-cache · Embedding of a saved answer | A live answer is saved with its embedding and found by a rephrasing | 6.7, 6.11(b), 7.4 |
+| | (non-normative model-change note) | 9.3, 9.4, 9.5 |
+| explain · Precedence and UNKNOWN answers | A live miss requests one embedding before the pack (new) | 6.8 |
+| | unchanged scenarios (the three "0 calls" scenarios count completions) | 7.3 |
+| explain · Answer cache | A similarity hit over the database counts in its entry and its row (new) | 6.9 |
+| | unchanged scenarios | 7.3 |
+| explain · Explain events and logging | The skip event comes before the sanitisation events (new) | 6.8 |
+| | unchanged scenarios | 7.3 |
+| explain · Query log | 15 unchanged scenarios; new no-row cases pinned by semantic-cache scenarios | 7.3 (6.5, 6.6) |
+| graph-store · Answer cache entries | A saved embedding is found by similarity within its project | 5.1, 5.2 |
+| | The most similar entry wins and ties go to the most recent | 5.3, 5.5, 7.4 |
+| | The similarity search is exact whatever the other projects hold | 5.3 |
+| | Invalid cache arguments are rejected before querying (modified) | 5.3 (4.6 for the double) |
+| | Cache calls on an unknown project fail without writing (modified) | 5.3 |
+| | The in-memory double searches by similarity like the database | 4.1, 4.3, 4.7, 7.4 |
+| | 10 unchanged scenarios | 5.4 |
+| graph-schema · Roll back the latest migration | Roll back only the latest migration (modified) | 3.1, 3.2 |
+| | Roll back the query log verification migration (new) | 3.1 |
+| | L1 / both / every-migration rollback (unchanged) | 3.4 |
+| graph-schema · L1 column contract | Migrated schema matches the column contract | 3.1 |
+| | An embedding of another dimension is rejected by the column | 3.3 |
+| | Defaults apply on a minimal insert (unchanged) | 3.4 |
+| graph-schema · History, claim, usage and cache column contract | Migrated schema matches the history, claim, usage and cache column contract | 3.1 |
+| | Defaults apply on a minimal claim, query log and cache entry (unchanged) | 3.4 |
+| llm-adapter · The client waits as long as the configured timeout | Without an injected fetch the request does not use the global fetch | 2.3 |
+| | timeouts/refusals/redirects; response after 300 s (unchanged) | 2.4, 7.3 |
+| llm-adapter · Completion request and response | A null usage reports zero tokens | 2.3 |
+| | other unchanged scenarios | 2.4 |
+| llm-adapter · Embedding request, order and dimension | Embeddings are returned in input order; missing or duplicated indexes; A vector of another dimension is rejected | 2.3 |
+| | The schema dimension is 768 | 2.1, 2.2 |
+| | Embeddings without usage / for no texts (unchanged) | 2.4 |
+
+The table has no empty rows.
+
+---
+
+## Corrections to apply
+
+### `openspec/changes/semantic-cache/tasks.md`
+
+1. **B1.** Replace in 10.9 the text from "Verify it on the branch:" to the end with:
+
+   > Verify it on the branch: run `npm run seed:build` (it rewrites `seeds/graph-dump.sql` and `packages/web/src/data/sample-projects.ts`, `docs/project-context.md` → Commands) and confirm `git status --porcelain` is empty; if not, `git checkout -- seeds/graph-dump.sql packages/web/src/data/sample-projects.ts` and stop with that evidence. Confirm the `seed.*` fingerprints of the three golden files and of `docs/measurements/graph-quality.json` equal the dump's header, without `cache:build` and keeping the DIS-110 signatures (precedent DIS-94). Run `npx vitest run tests/unit/seed/golden-coherence.spec.ts tests/unit/seed/drift-golden-coherence.spec.ts`. The `verify` evidence is the CI `verify` job of PR #105 on the head commit (its own `verify` database: `db:migrate` → `db:seed` → `npm run verify`). A local `npm run verify` is optional and only against a scratch database created and dropped for it, never with `db:seed` on the shared local database. Record the commands, the `git status` check, the evidence used and commit `f26c898` in the addendum of 10.10.
+
+2. **I1.** In 10.10, after the `npm run docs:coverage` run, add: "re-check the 0.3 indicators (same `project`, `cache_entry` and `query_log` counts and `question_embedding IS NOT NULL` count as in 10.1) and that no `.stryker-tmp/` is left; restore and document if they differ".
+3. **I2.** In 4.7, replace "with D's embedding and creation instant (after D)" with "seeded after D, with D's embedding and exactly D's creation instant".
+
+### `openspec/changes/semantic-cache/design.md`
+
+1. **B1.** In Follow-ups, table "Relaunch of the autonomous run (2026-11-04)", add a row for run 2 (agent's text):
+   - B1 (**A**): task 10.9 checks both files `seed:build` writes and takes its `verify` evidence from the CI job or from a scratch database, never from a reseed of the shared local database.
+   - I1 and I2: **A**.
+
+### Linear (in Spanish; the `[original]` block is not touched)
+
+- **DIS-67, new comment:**
+
+  > *Texto del agente (auditoría de spec del relanzamiento, segunda ejecución, 2026-11-04).* Veredicto `CHANGES REQUIRED` con 1 bloqueante. Los bloqueantes y mejorables de la primera ejecución del relanzamiento están resueltos, y la decisión sobre R3 (Q1) se acepta como texto del agente.
+  >
+  > - B1: la tarea 10.9 solo comprueba `seeds/graph-dump.sql`, pero `npm run seed:build` también reescribe `packages/web/src/data/sample-projects.ts`. Además, deja sin decidir si `npm run verify` se ejecuta en local, lo que exigiría `db:seed` sobre la base compartida y desharía la restauración de la prueba manual. Se corrige así: `git status --porcelain` vacío tras `seed:build` (si no, se restauran los dos ficheros y se para); la evidencia de `verify` es el job de CI del PR #105 o una base de datos temporal, nunca un `db:seed` sobre la base local compartida.
+  > - Mejoras: I1, la tarea 10.10 vuelve a comprobar los indicadores de 0.3; I2, en la tarea 4.7, E tiene exactamente el instante de creación de D.
