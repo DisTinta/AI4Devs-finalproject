@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "seed": {
     "path": "seeds/graph-dump.sql",
-    "analyzerFingerprint": "sha256:c7da76cae0637280c2b3aefbb14e0ef36bf475ffbcbb8e3796e7c924d38796df"
+    "analyzerFingerprint": "sha256:6c2180ea9e8ddc8cdb82e887dfb4170d1346671e9678881506c60a3283da8cf4"
   },
   "projects": [
     {

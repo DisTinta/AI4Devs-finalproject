@@ -2,8 +2,8 @@
   "format": 1,
   "project": "acme-shop",
   "seed": {
-    "analyzerFingerprint": "sha256:c7da76cae0637280c2b3aefbb14e0ef36bf475ffbcbb8e3796e7c924d38796df",
-    "contractFingerprint": "sha256:e94eef9665a038116a244342915af3743028225330fec41614260f1603fb392f"
+    "analyzerFingerprint": "sha256:6c2180ea9e8ddc8cdb82e887dfb4170d1346671e9678881506c60a3283da8cf4",
+    "contractFingerprint": "sha256:597c2e982c9a1099ed9d70b5b006672d3965013686a3f97ee0cad9090a07ca6f"
   },
   "driftFingerprint": "sha256:0da2c96419ddb9bc0a4684362bdec70e17e0c9cf567fa4a9d42b8dc32d4b24bb",
   "generatedWith": {
