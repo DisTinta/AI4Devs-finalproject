@@ -244,3 +244,239 @@ Every scenario of the current deltas maps to a task. The single hole is the requ
 | I9b | Fixed. Task 11.2 reuses the Git Bash captures of 13.2–13.3 and the PowerShell captures of 13.5 and is done after 13.5; no second scratch-database recapture. |
 | I9c | Fixed. Task 16.7 is the archive and its commit; the new 16.8 is the merge, autonomous run only. |
 | I10 | Fixed. The S12 row of Follow-ups points to the rewritten AC5 of DIS-69; the Linear correction was applied. |
+
+---
+
+## Run 2 (2026-11-04)
+
+CHANGES REQUIRED
+
+# Spec audit, run 2: `cache-hit-rate` (DIS-69, parent DIS-46)
+
+- Date: 2026-11-04
+- Inputs read:
+  - The change: `proposal.md`, `design.md`, `tasks.md` and the seven deltas (`semantic-cache`, `graph-store`, `http-ask`, `ask-page`, `cli-projects`, `golden-answers`, `seed-load`). Also `reports/2026-11-04-spec-audit.md` (run 1 and its resolution), read for context.
+  - Linear: DIS-69 (`[original]`, `[reality-map]`, `[enhanced]`, 6 comments) and parent DIS-46 (description, 2 comments).
+  - Project docs: `docs/base-standards.md`, `docs/openspec-tasks-mandatory-steps.md` and `docs/project-context.md` (targeted: fingerprint policy, golden files).
+  - Main specs: the MODIFIED requirements of `http-ask`, `ask-page`, `cli-projects`, `golden-answers` and `seed-load`. Every scenario of the main requirements was checked as copied.
+  - ADRs: `20261017-stale-fingerprint-fails-verify`, `20261103-drift-golden-freshness-in-unit-suite`, `20261103-embeddings-stay-on-llm-port`, `20261026-autonomous-audit-correction-rounds`.
+  - Code: `packages/api/src/routes/ask.ts`, `packages/cli/src/commands/projects.ts`, `packages/cli/src/commands/ask.ts`, `packages/cli/src/cache/golden-file.ts`, `packages/cli/src/seed-load.ts`, `packages/cli/src/cache-build.ts`, `packages/core/src/explain/explain.ts`, `packages/core/src/knowledge/query-log.ts`, `packages/adapters/llm/src/config.ts`, `tests/support/in-memory-store.ts`. Tests that read `seeds/cache/`: `tests/unit/seed/golden-coherence.spec.ts`, `tests/integration/cli/verify.spec.ts` and others.
+
+## Questions for the author
+
+None. The run 1 answers the agent recorded (Q1 to Q3) contradict neither the ticket nor the project, so they are accepted as decided.
+
+---
+
+## 1. Scope against the ticket
+
+Clean. Everything follows from the DIS-69 DoD ("Métrica visible en web y CLI; `seeds/cache` incluye vectores") and from the `[enhanced]` decisions F1 to F12:
+- the metric and the store read: F1, F2;
+- `usage.projectCache`: F3;
+- the web line: F4;
+- the CLI field: F5;
+- `questionEmbedding` and `cache:embed`: F6;
+- `db:seed` storing the vectors: F7;
+- the fingerprint refresh: F8.
+
+The MODIFIED "Signatures of the reviewed golden answers" requirement is needed: without it the change would break the main spec. It is not new scope. Nothing widens the change to the rest of DIS-46: the similarity step, the threshold and the evaluation-mode fallback are not touched.
+
+## 2. Inherited acceptance criteria
+
+| AC | Requirement → scenario | Status |
+|---|---|---|
+| DIS-46: 10 queries with 4 hits give hit rate 0.4, shown in the CLI and in `UsagePanel` | `semantic-cache` "The hit rate is rounded…" (10, 4 → 40); `ask-page` "An answer from the model shows its usage panel"; `cli-projects` "Sample and user projects are listed" (`cache 4/10 (40%)`) | Covered (Q3 of run 1: the percentage form is accepted) |
+| DIS-69 AC1: metric, `ProjectNotFound`, Postgres equals in-memory | `graph-store` "Explain query counts" (3 scenarios); `semantic-cache` (2 scenarios) | Covered |
+| DIS-69 AC2: API `{2,2,100}`, `UNKNOWN` without usage, OpenAPI, `500`, or `404` for `ProjectNotFound` | `http-ask` "The usage carries…", "The hit rate is read only…" (4 cases), "The document lists ask…" | Covered |
+| DIS-69 AC3: web line, «0 de 1 consulta», «sin consultas», accessibility | `ask-page`: the 4 usage-panel scenarios and "The project cache line is written with its counts"; the axe fixture in task 5.4 | Covered |
+| DIS-69 AC4: CLI `cache 4/10 (40%)` and `cache 0/0`, database unchanged | `cli-projects` "Sample and user projects are listed" | Covered |
+| DIS-69 AC5: vectors present, `response` and `reviews` unchanged, `db:seed` stores the vectors, live rephrasing hit, `cache:embed` errors | `golden-answers` "Golden embeddings command" (5 scenarios), "The versioned golden file is coherent", MODIFIED "Signatures…"; `seed-load` (2 modified scenarios and "A rephrased golden question is a similarity hit after the seed") | Covered. The task order breaks it, see B1 |
+
+No inherited criterion is missing, and the sub-issue and the parent do not disagree on scope.
+
+## 3. Missing scenarios
+
+- **I5 (improvable).** In `golden-answers`, the MODIFIED "Signatures of the reviewed golden answers" requires that each entry's `response` be unchanged against the r2 regeneration commit. Its scenario only checks the projection onto the panel input: `answer`, statements, and evidence paths and lines. Nothing in the suite checks `excerpt`, `verification`, `confidence` or `usage`; only the uncommitted scratch script of task 9.3 compares the whole value. That projection check also duplicates the existing scenario "The panel input projects the golden answers without their verification" (`openspec/specs/golden-answers/spec.md`, lines 550–557), which already compares the input file with the projection of the current golden files. Correction, either one:
+  - (a) Narrow the sentence to "every entry's `id`, `question`, `questionNormalized`, and the parts of `response` the panel judged (`answer`, statements and evidence, as "Blind panel input of the golden review" projects them) SHALL be unchanged". Then drop the new THEN clause, which repeats the panel-input scenario.
+  - (b) Keep the sentence, and make the 9.3 comparison a committed test assertion.
+
+Every other MUST or SHALL clause of the deltas has a scenario. The run 1 fixes I1 to I4 are in place.
+
+## 4. Ambiguity
+
+Clean. None of «fast», «easy», «secure», «efficient», «many» (only "how many"), «appropriate» or «robust» appears in the proposal, the design, the specs or the tasks. "Small integer components" is qualified with "exact in single precision". "About 768 / 770 lines" is descriptive (R5) and no test depends on it.
+
+## 5. Open decisions
+
+- **B1 (blocking): nothing migrates the two versioned golden files to the new format, so the task sequence cannot be executed.**
+  - Task 7.3 makes `questionEmbedding` a mandatory key of `goldenFileSchema` (S6). From then on, `seeds/cache/acme-shop.json` and `seeds/cache/task-api.json`, which have no such key, fail `checkGoldenFile` (`packages/cli/src/cache/golden-file.ts:127-129`).
+  - `npm run cache:embed` (task 9.3) first reads and checks every requested golden file "by the checks `db:seed` applies". By its own spec it would therefore stop with `INVALID_SEED` on exactly the files it is meant to fill.
+  - The scenario "Golden question embeddings are written without touching the answers" (task 8.3) copies the versioned files as its input, so it cannot go green.
+  - Task 7.6 would fail with `INVALID_SEED`, not "on the missing vector" as it says.
+  - From 7.3 on, every existing test that reads the versioned files turns red, and no task foresees it: `tests/unit/seed/golden-coherence.spec.ts:31-37`, `tests/integration/cli/verify.spec.ts:27-30`, `tests/integration/cli/ask-command.spec.ts`, `tests/integration/cli/drift-command.spec.ts`, `tests/unit/seed/golden-reviews.spec.ts`, `tests/unit/cli/verify.spec.ts`, `tests/unit/cli/seed-load.spec.ts`, `tests/unit/seed/suggested-questions-coherence.spec.ts`.
+  - Task 9.3 compares the result with "the 9.1 file with the key set to `null`", which assumes a migrated file exists.
+  - Design S6 says the two files are "migrated in this change", but no step does it. The implementer would have to decide alone how, when, and with what check.
+
+  Correction: add a task right after 7.3, and before 7.5, 7.6 and 8.x, that migrates both files. Also state the step in design S6 and in the Migration Plan.
+
+## 6. Contradictions inside the change
+
+- **I1 (improvable): the proposal was not updated after run 1.**
+  - `proposal.md` → What Changes → API still says "A failing read answers `500 INTERNAL`". The spec, design S3 and the ticket AC2 now say that a `ProjectNotFound` from the read answers `404 PROJECT_NOT_FOUND`.
+  - `proposal.md` → Capabilities → `http-ask` mentions only "the `500` of a failing read".
+  - `proposal.md` → Capabilities → `golden-answers` does not list the MODIFIED "Signatures of the reviewed golden answers" that the delta now holds.
+- **I2 (improvable): task 5.3b narrows an existing negative assertion, while task 10.2 says "No assertion is weakened".** "No saving is not shown as a saving" changes "no text «%»" to "no text «% vs bruto»". The region now accepts any «%» outside the savings badge, not only the one of the new line. Correction: keep the original check at full strength over the content it covered. In the scenario, write "…and no text «ahorro -», «ahorro 0» nor «%» before the project cache line" (or "outside the project cache line"). Task 5.3b then keeps the «%» check scoped to the text before that line, and 10.2 stays true. If the narrowing is kept instead, 10.2 must list it as the one deliberate exception, with its reason, in the step 12 report.
+
+Proposal, design and specs agree on everything else. Checked:
+- the arithmetic of 13.2 (3/3 → 3/4) and 14.2 (1/1 → 2/2 → 3/4) against `explain.ts:146-151, 215, 218`: every return, `UNKNOWN` included, writes a row;
+- the six calls of the in-memory scenario;
+- the rounding examples ((16, 1) → 6.3; (3, 2) → 66.7).
+
+## 7. Contradictions with the project
+
+- **I3 (improvable): the drift golden report and the regeneration recipe.**
+  - `docs/project-context.md` (lines 1472–1477) and ADR `docs/adr/20261103-drift-golden-freshness-in-unit-suite.md` (Decision: "a `seed:build` … needs `npm run drift:build` in the same change") set the order `seed:build` → `cache:build` → `drift:build`.
+  - Design S11 copies the new analyzer fingerprint into `seeds/drift/acme-shop.json` without `drift:build`. It cites only ADR 20261017, and only for skipping `cache:build`.
+  - The skip is sound for the same reason: the seed rows are unchanged and no `DRIFT_FINGERPRINT_FILES` input changes. But neither the design nor the tasks state it, and `tests/unit/seed/drift-golden-coherence.spec.ts` is the check that will judge it.
+
+  Correction: in S11, add the ADR and the condition. In 9.1, run that spec.
+- `docs/backend-standards.md`: clean. The route holds no SQL (`GUARD_DB_IN_HTTP`); `projectCache` is built field by field from the core's pure function; no dependency is added.
+- No main spec is duplicated. The MODIFIED requirements copy every scenario of their main counterparts, checked one by one:
+  - `http-ask` "Ask answered response": 4 of 4;
+  - `http-ask` "Ask in the OpenAPI document": 1 of 1;
+  - `ask-page` "Usage panel": 4 of 4;
+  - `ask-page` "How usage figures…": 7 of 7;
+  - `cli-projects`: 3 of 3;
+  - `golden-answers` "Golden file format", "Partial regeneration", "The versioned golden file is coherent" and "Signatures…": all;
+  - `seed-load`: 4 of 4.
+
+  So `/opsx:archive` removes nothing.
+
+## 8. Contrast with the real code
+
+- `ASK_DOMAIN_ERRORS` maps `PROJECT_NOT_FOUND` to `404 'project not found'` (`packages/api/src/routes/ask.ts:20`). This matches the fourth case of the `http-ask` scenario. `toPublicAnswer(answer)` (`:72`) and the event log before the return (`:152-153`) match S3.
+- `formatProjectLine(project)` (`packages/cli/src/commands/projects.ts:75`). The counts must be read inside the `try` at `:46-48`, before the `finally` rollback. S5 and task 6.2 say so.
+- `llmConfigFromEnv` returns evaluation mode only when both `LLM_BASE_URL` and `LLM_API_KEY` are absent, and accepts live mode without an API key (`packages/adapters/llm/src/config.ts:79-95`). This matches the spec and the 9.3 command line.
+- **I6 (improvable).** The same function validates `DAILY_BUDGET_USD` against `COST_TABLE` (`config.ts:96-108`), and `npm run cache:embed` loads `.env` (`--import=./scripts/load-env.mjs`). The spec sentence "the daily ceiling `DAILY_BUDGET_USD` SHALL NOT be applied" can be read as "not read". Correction: write "SHALL NOT be applied (no budget meter); a `DAILY_BUDGET_USD` that the model configuration rejects still fails with `LLM_CONFIG_INVALID`, as `ask` reports it".
+- `toFailure` of `packages/cli/src/commands/ask.ts:283-313` maps `LlmUnavailable` and `LlmConfigError` as S7 needs. `cache-build.ts:379` uses `longFetch`, and S7 deliberately uses the default request function. The `INVALID_SEED` message exists (`packages/cli/src/seed-load.ts:180`).
+- `seed-load.ts:235` calls `saveCacheEntry` without an embedding, and S9 passes it.
+- `QueryLogEntry.capability` exists (`packages/core/src/knowledge/query-log.ts:22`). The in-memory double keeps `queryLogRows` (`tests/support/in-memory-store.ts:289, 515-522`) and has the `fail…?: () => unknown` pattern (`:278`) that S2 extends.
+- `renderGoldenFile` re-parses through the schema (`golden-file.ts:98-106`), so the new key's position follows the schema order, as S6 says.
+- **I4 (improvable).** Task 13.3 expects "`usage.cacheHit: true`" from `npm run cli -- ask`, but the CLI `ask` prints no usage (`cli-ask` spec; `commands/ask.ts:109`). Correction: observe the hit through the `query_log` row of that call (`cache_hit = true`, zero tokens) and the `hit_count` of `Q1`'s `cache_entry`, both in SQL.
+- See B1: `golden-file.ts:127-129` against the versioned files, and the tests that read `seeds/cache/`.
+
+## 9. Task size
+
+Clean. Every task fits one agent turn after the run 1 splits (5.3a/b/c, 16.7/16.8). The migration task that B1 adds is one script run, one diff check and one targeted test run.
+
+## 10. Mandatory steps
+
+Clean.
+- Step 0 is the branch (`feature/dis-69-cache-hit-rate`), with verification (0.2) and a baseline (0.3).
+- The mandatory groups are present and labelled: 10 Review and Update Existing Tests, 11 Docs (its order is justified by the docs gate), 12 Run Tests and Verify Data State (report `reports/YYYY-MM-DD-12-test-and-state-verification.md`), 13 Manual Interface Testing (AGENT MUST EXECUTE), 14 End-to-End (AGENT MUST EXECUTE) and 16 Pre-merge Review, last. Group 16 has the three checks in order, fixes on the same PR, and the archive commit (16.7) before the merge (16.8, autonomous run only, `docs/AUTONOMOUS-RUN.md` §5).
+- Mutating steps restore state: 9.1 restores `sample-projects.ts`, 12.6, 13.6 and 14.5 restore theirs, and no `db:seed` runs on the shared database (S13).
+- The PowerShell checks run through `pwsh -NoProfile` and `powershell.exe -NoProfile` without `$env:` (13.5).
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| semantic-cache: Project cache hit rate | The hit rate is rounded to one decimal and null without queries | 1.1, 1.2 |
+| | Impossible counts are rejected | 1.3 |
+| graph-store: Explain query counts | Explain queries and cache hits are counted per project | 3.1, 3.2 |
+| | Counting the queries of an unknown project fails | 3.3 |
+| | The in-memory double counts explain queries like the database | 2.1, 2.2, 2.3 |
+| http-ask: Ask answered response | An answered question returns only the public fields over the seed | 4.4 |
+| | Evidence ids are renumbered in evidence order (unchanged) | 10.3 |
+| | Internal fields of the answer are not sent (unchanged) | 10.3 |
+| | A statement citing an unknown evidence id answers INTERNAL | 4.3, 10.3 |
+| | The usage carries the project's cache hit rate over the seed | 4.4 |
+| | The hit rate is read only for an answered question and its failure answers INTERNAL | 4.1, 4.2 |
+| http-ask: Ask in the OpenAPI document | The document lists ask with its parameter, body and responses | 4.3 |
+| ask-page: Usage panel | An answer from the model shows its usage panel | 5.3a, 5.3c |
+| | A cache hit shows its usage panel | 5.3a, 5.3c |
+| | No saving is not shown as a saving | 5.3b (see I2) |
+| | A project without logged queries shows no hit rate | 5.3b, 5.3c |
+| | The usage panel and the states follow the wireframe | 14.2, 14.3 |
+| ask-page: How usage figures and notice details are written | The 7 unchanged scenarios | 10.3 |
+| | The project cache line is written with its counts | 5.1, 5.2 |
+| cli-projects: Project listing | Sample and user projects are listed | 6.4 |
+| | An empty database lists no projects (unchanged) | 6.4 |
+| | Configuration, connection and usage errors (unchanged) | 10.3 |
+| | The cache field writes the hit rate with at most one decimal | 6.1, 6.2 |
+| | A failing count read is an unexpected error | 6.1, 6.2 |
+| golden-answers: Golden embeddings command | Golden question embeddings are written without touching the answers | 8.3 (needs the B1 migration first) |
+| | Embedding arguments and configuration are checked before any file | 8.1, 8.2 |
+| | An invalid golden file stops the embedding before any request | 8.3 |
+| | A failed embedding leaves the golden file intact | 8.3 |
+| | A failed write leaves the golden files intact | 8.3 |
+| golden-answers: Signatures of the reviewed golden answers | Every golden answer judged correct or partial carries both panel signatures | 9.4, 10.2 |
+| | A golden answer judged incorrect carries no signature (unchanged) | 10.3 |
+| golden-answers: Golden file format | The canonical render is stable | 7.2, 7.3 |
+| | Golden files with an invalid shape are rejected | 7.2, 7.3 |
+| golden-answers: Partial regeneration | Only the named question is regenerated | 7.4 |
+| | A stale golden file is not partially regenerated (unchanged) | 10.3 |
+| golden-answers: The versioned golden file is coherent | The versioned golden file matches the seed, the questions and the code | 9.3, 9.4 |
+| | The versioned task-api golden file matches the seed, the questions and the code | 9.3, 9.4 |
+| seed-load: Golden answers are loaded with the seed | Golden answers are loaded and served in evaluation mode | 7.5 |
+| | A seed without golden files loads only the graph (unchanged) | 10.3 |
+| | Loading golden answers again does not duplicate them | 7.5 |
+| | A failed golden save leaves the database unchanged (unchanged) | 10.3 |
+| | A rephrased golden question is a similarity hit after the seed | 7.6 (needs the B1 migration, then green after 9.3) |
+
+No row is empty. Two rows depend on the B1 migration task, which does not exist yet.
+
+---
+
+## Corrections to apply
+
+### `openspec/changes/cache-hit-rate/tasks.md`
+
+1. **(B1)** After 7.3, insert:
+   > - [ ] 7.3b Migrate the versioned golden files to the new format (design S6): with a scratchpad script (not committed), parse `seeds/cache/acme-shop.json` and `seeds/cache/task-api.json`, add `questionEmbedding: null` to every entry and write `renderGoldenFile` of the value; `git diff --numstat seeds/cache` shows only the six added `"questionEmbedding": null,` lines and no removed line; `npx vitest run tests/unit/seed tests/unit/cli tests/integration/cli/verify.spec.ts tests/integration/cli/ask-command.spec.ts tests/integration/cli/drift-command.spec.ts` green (the vector check of the coherence test only arrives in 9.4); record `git hash-object` of both files for 9.3
+2. **(B1)** In 7.6, replace "see it fail on the missing vector" with "see it fail on the `null` vectors of the 7.3b files".
+3. **(B1)** In 9.3, replace "the 9.1 file" with "the file after 7.3b and 9.1".
+4. **(B1)** In 8.4, add: "the versioned files read by these tests are the 7.3b files".
+5. **(I3)** In 9.1, add: "and `tests/unit/seed/drift-golden-coherence.spec.ts` green with the copied fingerprint (no `drift:build`: design S11)".
+6. **(I2)** In 5.3b, replace "changes its negative check from «%» to «% vs bruto» (the new line holds «%»)" with "keeps its negative check «%», scoped to the region's text before the project cache line (the new line holds «%»)". Only if the narrowing is kept instead: in 10.2, add "5.3b is the only narrowed assertion; its reason is recorded in the step 12 report".
+7. **(I4)** In 13.3, replace "(`usage.cacheHit: true`, no completion; that entry's `hit_count` 1, checked in SQL)" with "(the call's `query_log` row has `cache_hit = true` and zero tokens, and `Q1`'s `cache_entry.hit_count` is 1, both checked in SQL; the CLI `ask` prints no usage)".
+
+### `openspec/changes/cache-hit-rate/design.md`
+
+8. **(B1)** In S6, after "migrated in this change", add: "first with `questionEmbedding: null` in every entry (task 7.3b, a canonical re-render that only adds the key), then with the vectors of `cache:embed` (S10)". In the Migration Plan, change the order to: code and tests → versioned files migrated with `null` (7.3b) → seed fingerprints refreshed (S11) → `cache:embed` run (S10) → docs.
+9. **(I3)** In S11, add: "ADR 20261103-drift-golden-freshness-in-unit-suite and `docs/project-context.md` add `drift:build` to the recipe; it is skipped for the same reason: no `DRIFT_FINGERPRINT_FILES` input changes and the seed rows do not change, so `tests/unit/seed/drift-golden-coherence.spec.ts` stays green with the copied fingerprint (precedent DIS-67 E1). Neither ADR is amended."
+10. In Follow-ups, add a table "Spec audit, run 2" with rows B1, I1 to I6 and their destinations.
+
+### `openspec/changes/cache-hit-rate/proposal.md`
+
+11. **(I1)** In What Changes → API, replace "A failing read answers `500 INTERNAL`." with "A `ProjectNotFound` of the read (project deleted after the answer) answers `404 PROJECT_NOT_FOUND`; any other failing read answers `500 INTERNAL`."
+12. **(I1)** In Capabilities → `http-ask`, replace "the `500` of a failing read" with "the `404`/`500` of a failing read".
+13. **(I1)** In Capabilities → `golden-answers`, add "and "Signatures of the reviewed golden answers" (only `reviews`, the `seed` fingerprints and `questionEmbedding` may change)" to the MODIFIED list.
+14. **(B1)** In What Changes → Golden answers with vectors, add: "the two versioned files are first migrated with `questionEmbedding: null`".
+
+### `openspec/changes/cache-hit-rate/specs/ask-page/spec.md`
+
+15. **(I2)** In "No saving is not shown as a saving", THEN: replace "and no text «ahorro -», «ahorro 0» nor «% vs bruto»" with "and no text «ahorro -», «ahorro 0» nor «%» before the project cache line".
+
+### `openspec/changes/cache-hit-rate/specs/golden-answers/spec.md`
+
+16. **(I5, choose one)**
+    - (a) In "Signatures of the reviewed golden answers", replace "every entry's `id`, `question`, `questionNormalized` and `response` SHALL be unchanged" with "every entry's `id`, `question`, `questionNormalized`, and the parts of its `response` the panel judged (as "Blind panel input of the golden review" projects them) SHALL be unchanged". Then remove the added THEN clause of "Every golden answer judged correct or partial carries both panel signatures", which repeats "The panel input projects the golden answers without their verification".
+    - (b) Keep the sentence, and make the 9.3 comparison a committed assertion of `tests/unit/seed/golden-coherence.spec.ts`.
+17. **(I6)** In "Golden embeddings command", replace "the daily ceiling `DAILY_BUDGET_USD` SHALL NOT be applied" with "the daily ceiling `DAILY_BUDGET_USD` SHALL NOT be applied (no budget meter); a value the model configuration rejects still fails with `LLM_CONFIG_INVALID`, as `ask` reports it".
+
+### Linear DIS-69 (Spanish; the `[original]` block is never edited)
+
+18. Add a comment:
+    > *Texto del agente (auditoría de spec del cambio `cache-hit-rate`, ronda 2, 2026-11-04).* Veredicto: CHANGES REQUIRED, con 1 hallazgo bloqueante.
+    >
+    > (B1) Al hacer obligatoria la clave `questionEmbedding`, los ficheros versionados `seeds/cache/*.json` dejan de pasar la comprobación del formato. Entonces `npm run cache:embed` no podría leerlos, y los tests que los leen fallarían desde la tarea 7.3. Se añade una tarea 7.3b que migra los dos ficheros con `questionEmbedding: null` (un re-render canónico que solo añade la clave); después, `cache:embed` rellena los vectores.
+    >
+    > Mejorables:
+    > - la propuesta recoge el `404` de B2 y el requisito de firmas;
+    > - la comprobación negativa «%» del panel de uso se mantiene completa delante de la línea nueva;
+    > - S11 cita el ADR de frescura del informe golden de drift, que no necesita `drift:build`;
+    > - la comprobación manual 13.3 mira el acierto en `query_log`, porque `ask` de la CLI no imprime la usage;
+    > - la redacción de `DAILY_BUDGET_USD` en `cache:embed`;
+    > - el alcance del requisito de firmas frente a su escenario.
+19. Optional, in the `[enhanced]` part, Contexto técnico → Golden: replace "lee la configuración del modelo como `cache:build`" with "lee la configuración del modelo como `ask` (sin `longFetch`; decisión S7 del cambio)".
