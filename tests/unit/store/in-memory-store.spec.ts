@@ -1167,6 +1167,10 @@ describe('in-memory StorePort double', () => {
       const b = seed(third, 'b', { r: 'B' }, unit(0.95));
       seed(third, 'c', { r: 'C' }, unit(0.5), new Date('2026-10-01T00:00:00Z'));
       const d = seed(third, 'd', { r: 'D' }, unit(0.5), new Date('2026-10-02T00:00:00Z'));
+      // E: seeded after D with D's embedding and exactly D's creation instant; only the id breaks the tie.
+      const e = seed(third, 'e', { r: 'E' }, unit(0.5), new Date('2026-10-02T00:00:00Z'));
+      // Lowercase hexadecimal uuids: the code unit order of the strings is their byte order.
+      const greaterId = d > e ? d : e;
 
       // Act
       const exact = await loaded.store.findSimilarCacheEntry(first, e1, 0.85);
@@ -1186,7 +1190,7 @@ describe('in-memory StorePort double', () => {
       expect(above).toBeUndefined();
       expect(orthogonal).toEqual({ id: r1, response: { r: 1 }, similarity: 0 });
       expect(best?.id).toBe(b);
-      expect(tie?.id).toBe(d);
+      expect(tie?.id).toBe(greaterId);
       expect(atThreshold?.similarity).toBe(0.85);
       expect(short).toBeInstanceOf(InvalidStoreQuery);
       expect((short as InvalidStoreQuery).argument).toBe('embedding');

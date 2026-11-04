@@ -189,8 +189,9 @@ describe('Requirement: Similarity lookup in explain', () => {
     const d = liveDoubles(embeddingsOf({ [REPHRASED_KEY]: embeddingVector(1) }));
     seed(d, 'entry a', similarTo(0.88), cachedAnswer({ answer: 'answer of A' }));
     const b = seed(d, 'entry b', similarTo(0.95), cachedAnswer({ answer: 'answer of B' }));
+    const otherProjectId = randomUUID();
     d.loaded.seedCacheEntry({
-      projectId: randomUUID(),
+      projectId: otherProjectId,
       key: 'entry c',
       response: cachedAnswer({ answer: 'answer of C' }),
       embedding: embeddingVector(1),
@@ -205,6 +206,7 @@ describe('Requirement: Similarity lookup in explain', () => {
       [false, 0],
       [true, 1],
     ]);
+    expect(d.loaded.cacheEntries(otherProjectId).map((entry) => entry.hitCount)).toEqual([0]);
   });
 
   it('An entry without an embedding is never a similarity hit', async () => {
@@ -375,6 +377,7 @@ describe('Requirement: Degradation without embeddings', () => {
       // Assert
       expect(answer).toMatchObject({ kind: 'answered', usage: { cacheHit: false } });
       expect(answer.events[0]).toEqual({ type: 'semantic_cache_skipped', code: 'embedding-unavailable' });
+      expect(answer.events.filter((event) => event.type === 'semantic_cache_skipped')).toHaveLength(1);
       expect(d.loaded.calls.findSimilarCacheEntry).toBe(0);
       expect(entryOf(d, REPHRASED_KEY)?.embedding).toBeNull();
     }
@@ -479,5 +482,7 @@ describe('Requirement: Embedding of a saved answer', () => {
     expect(d.model.requests).toHaveLength(completionsAfterFirst);
     expect(d.model.embeddings).toEqual([[PRICE_KEY], [REPHRASED_KEY]]);
     expect(entryOf(d, PRICE_KEY)?.hitCount).toBe(1);
+    expect(d.loaded.calls.saveCacheEntry).toBe(1);
+    expect(entryOf(d, PRICE_KEY)?.embedding).toEqual(priceVector);
   });
 });

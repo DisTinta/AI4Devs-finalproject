@@ -59,3 +59,27 @@ Not applicable beyond step 11: the change has no browser UI (`packages/web` unto
 ## Outcome
 - Status: PASS
 - Blocking issues: none
+
+## Addendum: Spec audit of the relaunch
+
+*Agent's text: written by the agent of the apply step in an autonomous run, without the author. Date: 2026-11-04.*
+
+### Tests edited by the audit (task 7.4), assertions only added
+- `tests/unit/store/in-memory-store.spec.ts`, "The in-memory double searches by similarity like the database" (4.7): entry E seeded after D with D's embedding and exactly D's creation instant; the tie search expects the greater id in byte order. Seen green at once (the double already orders by id after `createdAt`); seen failing once with the smaller id expected, then restored. The former `expect(tie?.id).toBe(d)` became `toBe(greaterId)`, because with E present the greater of the two ids is the correct tie result.
+- `tests/integration/store/cache-entry.spec.ts`, "The most similar entry wins and ties go to the most recent" (5.5): C and D with explicit ids, the two searches and their assertions kept, then E inserted with D's embedding and `created_at` and a greater id; the tie search resolves to E. Seen green at once; seen failing once expecting D (received E), then restored. Run against `codemind_test`.
+- `tests/unit/explain/explain-similarity.spec.ts` (6.11): "The most similar entry of the project wins" also asserts C's hit count stays 0; "A live answer is saved with its embedding and found by a rephrasing" also asserts `calls.saveCacheEntry` is 1 and the entry still holds the price question's embedding; "An unavailable endpoint or an unusable vector degrades with an event" also asserts exactly one `semantic_cache_skipped` event per answer. Each seen green at once and failing once with a temporary wrong expectation (hit count 1, two events, two saves, the rephrasing's vector), then restored. "An entry without an embedding is never a similarity hit" keeps its assertions and now maps to its own scenario (title grep: found in `tests/unit/explain/explain-similarity.spec.ts` and in the `semantic-cache` delta).
+- `packages/core/src/cache/similarity-cache.ts`: TSDoc of `reachesThreshold` only (6.11 a); no code change.
+
+### Totals (task 10.10)
+- `npx vitest run --project dom --project seed-build --project node` with `DATABASE_URL` of `codemind_test`: 233 files passed, 0 skipped; 2492 tests passed, 0 failed (357 s). The count is higher than the 2341 of the first report because the base branch now includes DIS-73 (merged in `e12bf8b`).
+- `npm run lint`: clean. `npm run typecheck`: 0 errors. `npm run lint:architecture`: 0 errors, 1 warning (the pre-existing `no-orphans`). `npm run docs:coverage`: clean. No Stryker re-run (assertions added, no production code changed).
+
+### Fingerprint check (task 10.9)
+- `npm run seed:build` rewrote nothing: `git status --porcelain` shows only the files of this addendum's edits and the local, never staged `.claude/sdd-harness.env` (no change in `seeds/graph-dump.sql` or `packages/web/src/data/sample-projects.ts`).
+- The `seed.*` analyzer and contract fingerprints (`sha256:6c2180ea...`, `sha256:597c2e98...`) of `seeds/cache/acme-shop.json`, `seeds/cache/task-api.json`, `seeds/drift/acme-shop.json` and `docs/measurements/graph-quality.json` equal the header of `seeds/graph-dump.sql`; the answer and drift fingerprints and the DIS-110 signatures are untouched (commit `f26c898`, header fingerprint lines only).
+- `npx vitest run tests/unit/seed/golden-coherence.spec.ts tests/unit/seed/drift-golden-coherence.spec.ts`: 2 files, 3 tests passed.
+- `verify` evidence: the CI `verify` job of PR #105 on the head commit (its own `verify` database); collected in 14.2. No local `npm run verify`.
+
+### State of the local database `codemind` (task 10.10)
+- `project` 2, `cache_entry` 7, `cache_entry` with an embedding 0, `query_log` 0 (`max(created_at)` none), `claim` 0; no `.stryker-tmp/`; `node scripts/dev-processes.mjs stop` run.
+- `cache_entry` is 7 and not the 6 of the 10.1 baseline: the extra row is the key `drift:` of project acme-shop, loaded by `db:seed` at 2026-11-04 01:44 UTC (same `created_at` as every seed row) after the base branch merge brought the DIS-73 drift golden file. It is a seed row of the merged base, not a leftover of this change's tests (those run on `codemind_test`), so it is kept and the new baseline is 7. Migration `0005_embedding-768` stays applied.

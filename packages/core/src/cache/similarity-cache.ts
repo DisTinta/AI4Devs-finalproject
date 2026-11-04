@@ -17,7 +17,8 @@ export const SEMANTIC_CACHE_MIN_SIMILARITY = 0.85;
 
 /**
  * Whether a similarity reaches {@link SEMANTIC_CACHE_MIN_SIMILARITY}: the single statement of the
- * inclusive rule, applied by the in-memory store (the database applies the same `>=` in SQL).
+ * inclusive rule: the store applies the same `>=` to the minimum it receives (SQL and the in-memory
+ * double).
  *
  * @param similarity A cosine similarity.
  */

@@ -219,25 +219,31 @@ describeWithDatabase('graph store answer cache entries (DIS-21)', () => {
       // Arrange
       const { store } = stores();
       const project = await createProject(db());
-      const insert = (key: string, embedding: number[], createdAt: string) =>
+      const insert = (key: string, embedding: number[], createdAt: string, id: string | null = null) =>
         db().query(
-          `INSERT INTO cache_entry (project_id, question_normalized, response, question_embedding, created_at)
-           VALUES ($1, $2, $3::jsonb, $4::vector, $5)`,
-          [project.id, key, JSON.stringify({ key }), `[${embedding.join(',')}]`, createdAt],
+          `INSERT INTO cache_entry (id, project_id, question_normalized, response, question_embedding, created_at)
+           VALUES (COALESCE($6::uuid, gen_random_uuid()), $1, $2, $3::jsonb, $4::vector, $5)`,
+          [project.id, key, JSON.stringify({ key }), `[${embedding.join(',')}]`, createdAt, id],
         );
       const unit = (cosine: number) => embeddingVector(cosine, Math.sqrt(1 - cosine * cosine));
+      const idD = '00000000-0000-4000-8000-00000000000d';
+      const idE = '00000000-0000-4000-8000-00000000000e';
       await insert('a', unit(0.88), '2026-09-01T00:00:00Z');
       await insert('b', unit(0.95), '2026-09-02T00:00:00Z');
-      await insert('c', unit(0.5), '2026-10-01T00:00:00Z');
-      await insert('d', unit(0.5), '2026-10-02T00:00:00Z');
+      await insert('c', unit(0.5), '2026-10-01T00:00:00Z', '00000000-0000-4000-8000-00000000000c');
+      await insert('d', unit(0.5), '2026-10-02T00:00:00Z', idD);
 
       // Act
       const best = await store.findSimilarCacheEntry(project.id, embeddingVector(1), 0.85);
       const tie = await store.findSimilarCacheEntry(project.id, unit(0.5), 0.99);
+      // E: D's embedding and creation instant, an id greater than D's; only the id breaks the tie.
+      await insert('e', unit(0.5), '2026-10-02T00:00:00Z', idE);
+      const idTie = await store.findSimilarCacheEntry(project.id, unit(0.5), 0.99);
 
       // Assert
       expect(best?.response).toEqual({ key: 'b' });
       expect(tie?.response).toEqual({ key: 'd' });
+      expect(idTie?.id).toBe(idE);
     });
 
     it('The similarity search is exact whatever the other projects hold', async () => {
