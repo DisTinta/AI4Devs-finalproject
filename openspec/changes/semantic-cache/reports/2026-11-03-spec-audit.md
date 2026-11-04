@@ -1275,3 +1275,210 @@ Correction round 2 of the relaunch. *Agent's text: decided as lead engineer in a
 | I1 | Fixed. Task 10.10 re-checks the 0.3 indicators (`project`, `cache_entry`, `query_log` counts and `question_embedding IS NOT NULL` count as in 10.1) and the absence of `.stryker-tmp/`, and restores and documents any difference |
 | I2 | Fixed. Task 4.7 seeds E after D with D's embedding and exactly D's creation instant |
 | Linear | The comment of this round is posted on DIS-67 (in Spanish); the `[original]` and `[enhanced]` blocks are not touched |
+
+---
+
+## Run 3 (2026-11-04)
+
+APPROVED
+
+**Change:** `openspec/changes/semantic-cache` · **Ticket:** DIS-67 (CM-HU-19.1), parent DIS-46 (CM-HU-19). I loaded both from Linear, with all their comments (DIS-67 up to the comment of correction round 2 of the relaunch, 2026-11-04 09:45; DIS-46 including the LIDR review comment of 2026-10-16). · **Audit:** run 3 of the relaunch, 2026-11-04, on the change after correction round 2 of the relaunch (commit `222aa3a`). The change is applied and PR #105 is open. Tasks 4.7, 5.5, 6.11, 7.4, 10.9, 10.10 and 14.2–14.7 are open.
+
+**Questions for the author:** none.
+
+The earlier decisions marked as the agent's text are all acceptable answers. None contradicts the ticket or the project:
+- Q1 of relaunch run 1: R3 stays as D, and the recalibration goes to DIS-69 as B.
+- E1–E3.
+- S1, S12 and S13.
+
+One consequence of R3 stays visible in `design.md` → Follow-ups and in the DIS-67 comments: with `nomic-embed-text`, the parent's literal pair (0.8321) misses, and same-frame different-topic questions can hit.
+
+**Status of relaunch run 2.** I checked each fix against the artifacts:
+- **B1:** task 10.9 names both tracked files that `seed:build` rewrites (`seeds/graph-dump.sql`, `packages/web/src/data/sample-projects.ts`). It requires `git status --porcelain` to be empty, and otherwise restores both files and stops. It takes its `verify` evidence from the CI job of PR #105, or from a scratch database created and dropped for it, never from `db:seed` on the shared local database. The decision is recorded in Follow-ups as "Run 2 · B1".
+- **I1:** 10.10 re-checks the 0.3 indicators and the absence of `.stryker-tmp/`.
+- **I2:** 4.7 seeds E "after D, with D's embedding and exactly D's creation instant". The `graph-store` double scenario says "E seeded after them with the embedding and creation instant of D".
+
+This run found no blocking defect and one improvable finding.
+
+---
+
+## 1. Scope against the ticket
+
+Clean. Everything traces to DIS-67 `[original]` or to explicit asks in the parent:
+- **Sub-issue.** DIS-67 `[original]` asks for "SQL, umbral, orden de comprobación", with the DoD "reformulación acierta, tema distinto no; sin `embed()` se degrada sin error", and has its own `[enhanced]` part.
+- **Migration and §5 edit.** The 768 migration and the `docs/backend-standards.md` §5 edit come from the DIS-46 note of 2026-10-09.
+- **ADR and DIS-101 note.** The ADR and the DIS-101 note come from the DIS-46 comment of 2026-10-16.
+
+The relaunch additions (4.7, 5.5, 6.11, 7.4, 10.9, 10.10) stay within the sub-issue:
+- They add assertions for clauses already in the deltas.
+- They verify the fingerprint refresh that this change's own edits made necessary (E1).
+
+The hit rate, `UsagePanel`, seed and golden vectors and the recalibration stay with DIS-69 (D10, E2, R4). No invented scope was found.
+
+## 2. Inherited acceptance criteria
+
+Clean.
+
+| DIS-46 criterion | Requirement / scenario |
+|---|---|
+| Rephrasing hits, `embed()` once, no `complete()`, `hit_count` +1 | `semantic-cache` "Similarity lookup in explain" → "A rephrased question is answered from the similar entry"; `explain` → "A similarity hit over the database counts in its entry and its row" |
+| A different topic is answered live | → "A question on another topic is answered live and saved with its embedding"; "The threshold is inclusive at the boundary" |
+| Two projects: only that project's `project_id` counts | → "The most similar entry of the project wins"; `graph-store` → "A saved embedding is found by similarity within its project", "The similarity search is exact whatever the other projects hold" |
+| Evaluation mode: exact key, then `llm-required`; never fails for lack of an embedding | → "Evaluation mode requests no embedding"; "Degradation without embeddings" (its six scenarios) |
+| Hit rate 0.4 in CLI and `UsagePanel` | Not in the DIS-67 DoD; DIS-69 (D10). Correctly excluded |
+
+The DIS-46 review obligation is covered by S13 and tasks 9.1 and 9.4 (ADR `docs/adr/20261103-embeddings-stay-on-llm-port.md` and the DIS-101 note). The correction of the DIS-5 non-goal is covered by S7 and task 9.5.
+
+## 3. Missing scenarios
+
+Clean. Every MUST or SHALL clause has a scenario that observes it:
+- the id tie-break of the similarity search: E in "The most similar entry wins and ties go to the most recent" and in the double scenario;
+- "at most once per answer": "hold no other `semantic_cache_skipped` event";
+- "SHALL NOT be saved again, and its entry keeps its stored embedding": the last AND of "A live answer is saved with its embedding and found by a rephrasing";
+- "no anchor or empty key requests no embedding": "A question without anchor requests no embedding". The empty key is an unreachable guard after anchoring.
+
+The operator duty after a change of `LLM_EMBED_MODEL` is non-normative, so it needs no scenario.
+
+## 4. Ambiguity
+
+Clean. Outside `reports/`, the only matches for fast, easy, secure, efficient, many, appropriate and robust are:
+- "a small vector builder" (task 6.1), a description of test support;
+- "as many symbol searches as" and "however many statements cite it", exact counts in unchanged `explain` scenarios.
+
+## 5. Open decisions
+
+None blocking. Formats, limits, error cases, empty and absent inputs, orderings and test names are all fixed:
+- the vector text and the `::vector` cast;
+- the order of the checks;
+- `minSimilarity` in [0, 1];
+- ties by `created_at DESC`, then `id DESC` (with E for the id);
+- the closed event codes;
+- D₁, D₂ and D₃ of the manual plan;
+- 10.9 with its `git status` check and its evidence source.
+
+- **Improvable (I1).** Task 10.9 says the `verify` evidence is "the CI `verify` job of PR #105 on the head commit". But 4.7, 5.5 and 6.11 add a commit after 10.9 is written. The task does not say whether the 10.10 addendum cites the run on the latest pushed commit at that time or waits for the run on the final head, which 14.2 collects.
+  - The commits that follow touch no fingerprint input:
+    - `packages/core/src/cache/similarity-cache.ts` is not in `packages/cli/src/seed/fingerprint.ts:31-37` and not in `ANSWER_FINGERPRINT_FILES` (`packages/cli/src/cache/answer-fingerprint.ts:13-26`);
+    - the files under `tests/` are not inputs either.
+  - So either choice is sound. The text should still say which one is used.
+  - Correction: in 10.9, after "on the head commit", add "(in the 10.10 addendum, the run on the latest pushed commit, named by its SHA; 14.2 confirms it on the final head)".
+
+## 6. Contradictions inside the change
+
+Clean.
+- **Threshold.** S4, task 4.3, R6 and the `graph-store` delta agree: the store applies `>=` to the `minSimilarity` it receives, and `reachesThreshold` is the core statement, tested on its own. The stale TSDoc at `packages/core/src/cache/similarity-cache.ts:19-20` is planned in 6.11(a).
+- **Test placement.** The proposal's Impact list, tasks 6.2–6.7 and R6 agree on `tests/unit/explain/explain-similarity.spec.ts`.
+- **Fingerprint refresh.** E1, S6, task 10.9 and `proposal.md` → Impact (Seed) agree on the list of refreshed files and on "no `cache:build`".
+- **Tie scenarios.** The Postgres scenario uses explicit ids and expects E. The double uses random ids and expects the greater one in byte order. Task 4.7 mirrors the double scenario and task 5.5 mirrors the Postgres one.
+
+## 7. Contradictions with the project
+
+Clean.
+- **Fingerprint policy.** E1 gives the reasoned exception to the `docs/project-context.md` order `seed:build` → `cache:build` → `drift:build`: no input of `ANSWER_FINGERPRINT_FILES` or `DRIFT_FINGERPRINT_FILES` changes, and the precedent is DIS-94. I confirmed it against `answer-fingerprint.ts:13-26` and `drift-golden-file.ts:160-170`: no file this change edits is listed there.
+- **Merge.** Task 14.7 is conditioned on `docs/AUTONOMOUS-RUN.md` §5, which agrees with rule 9 of `docs/base-standards.md` §3.
+- **Earlier findings.** The §5 edit, the Expand → Contract exception (S6) and the budget rule are unchanged and consistent.
+- **Main specs.** No delta duplicates a main spec, and `answer-cache` stays untouched (S12).
+
+## 8. Contrast with the real code
+
+Clean.
+- **Double.** `tests/support/in-memory-store.ts:555` orders by similarity, then `createdAt`, then `byteOrder(id)` descending, and `:557` compares with `minSimilarity`. Task 4.7 is expected to pass at once, as the task says.
+- **Postgres.** `FIND_SIMILAR_CACHE_ENTRY` (`packages/adapters/store-postgres/src/queries.ts:452-464`) is the `MATERIALIZED` CTE of S3. It orders by `s.distance, s.created_at DESC, s.id DESC`. C, D and E share one embedding, so their float4 distances are identical, and Postgres compares `uuid` bytewise. That matches the expectation of task 5.5.
+- **TSDoc.** The TSDoc to fix in 6.11(a) is at `packages/core/src/cache/similarity-cache.ts:19-20`, as planned.
+- **Abstractions.** No duplicated abstraction is introduced.
+
+## 9. Task size
+
+Clean. The open tasks are small:
+- 4.7 and 5.5: one assertion each, with a temporary red;
+- 6.11: one TSDoc line and four added assertions;
+- 7.4: a listing and a grep;
+- 10.9: one command and some checks;
+- 10.10: the suite, indicators and an addendum.
+
+The pre-merge tasks 14.2–14.7 are single procedures.
+
+## 10. Mandatory steps
+
+Clean.
+- **Branch.** Step 0 is the branch (`feature/dis-67-semantic-cache`, matching `BRANCH_PREFIX`), verified in 0.2.
+- **Labels.** Groups 7, 9 and 10 are `(MANDATORY)`; 11 and 12 also carry `AGENT MUST EXECUTE`; 14 is Pre-merge and comes last.
+- **Group order.** Group 9 precedes group 10, with the reason stated (the docs gate in 10.3).
+- **Reports.** The reports are created in 10.7 and 11.8, and the addendum in 10.10.
+- **Restoration.** Restoration is present in 10.6, 11.7, 10.9 (the two tracked files, no reseed of the shared database) and 10.10 (re-check of the indicators).
+- **Pre-merge.** The order is 14.3 → 14.4 → 14.5, with fixes on the same PR and the archive commit before the merge.
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| semantic-cache · Similarity threshold and embedded text | The threshold is 0.85 and inclusive | 1.1, 1.2 |
+| | Only one finite non-zero vector of the schema's dimension is usable | 1.3 |
+| | (`skipCode` classification, unit cases, no scenario of its own) | 1.4 |
+| semantic-cache · Similarity lookup in explain | A rephrased question is answered from the similar entry | 6.2, 6.3 |
+| | A question on another topic is answered live and saved with its embedding | 6.4 |
+| | The threshold is inclusive at the boundary | 6.4 |
+| | An exact hit requests no embedding | 6.4 |
+| | The most similar entry of the project wins | 6.5, 6.11(b), 7.4 |
+| | An entry without an embedding is never a similarity hit | 6.5, 7.4 |
+| | Equal similarities go to the most recent entry | 6.5 |
+| | A rejected similar entry is a miss without trying the next | 6.5 |
+| | Evaluation mode requests no embedding | 6.4 |
+| | Turning the cache off embeds only for the save (both cases) | 6.4 |
+| | A question without anchor requests no embedding | 6.4 |
+| | A failing similarity lookup or hit record stops before the model | 6.5 |
+| semantic-cache · Degradation without embeddings | Without an embedding model the call is answered as today | 6.6 |
+| | An unavailable endpoint or an unusable vector degrades with an event | 6.6, 6.11(b), 7.4 |
+| | A spent daily budget skips the lookup and the answer call still fails | 6.6 |
+| | Another embedding error propagates before the model | 6.6 |
+| | The skip event carries nothing of the question or the error | 6.7 |
+| | The embedding request is not counted in the usage or the row | 6.7 |
+| semantic-cache · Embedding of a saved answer | A live answer is saved with its embedding and found by a rephrasing | 6.7, 6.11(b), 7.4 |
+| | (non-normative model-change note) | 9.3, 9.4, 9.5 |
+| explain · Precedence and UNKNOWN answers | A live miss requests one embedding before the pack (new) | 6.8 |
+| | unchanged scenarios (the three "0 calls" scenarios count completions) | 7.3 |
+| explain · Answer cache | A similarity hit over the database counts in its entry and its row (new) | 6.9 |
+| | unchanged scenarios | 7.3 |
+| explain · Explain events and logging | The skip event comes before the sanitisation events (new) | 6.8 |
+| | unchanged scenarios | 7.3 |
+| explain · Query log | 15 unchanged scenarios; new no-row cases pinned by semantic-cache scenarios | 7.3 (6.5, 6.6) |
+| graph-store · Answer cache entries | A saved embedding is found by similarity within its project | 5.1, 5.2 |
+| | The most similar entry wins and ties go to the most recent | 5.3, 5.5, 7.4 |
+| | The similarity search is exact whatever the other projects hold | 5.3 |
+| | Invalid cache arguments are rejected before querying (modified) | 5.3 (4.6 for the double) |
+| | Cache calls on an unknown project fail without writing (modified) | 5.3 |
+| | The in-memory double searches by similarity like the database | 4.1, 4.3, 4.7, 7.4 |
+| | 10 unchanged scenarios | 5.4 |
+| graph-schema · Roll back the latest migration | Roll back only the latest migration (modified) | 3.1, 3.2 |
+| | Roll back the query log verification migration (new) | 3.1 |
+| | L1 / both / every-migration rollback (unchanged) | 3.4 |
+| graph-schema · L1 column contract | Migrated schema matches the column contract | 3.1 |
+| | An embedding of another dimension is rejected by the column | 3.3 |
+| | Defaults apply on a minimal insert (unchanged) | 3.4 |
+| graph-schema · History, claim, usage and cache column contract | Migrated schema matches the history, claim, usage and cache column contract | 3.1 |
+| | Defaults apply on a minimal claim, query log and cache entry (unchanged) | 3.4 |
+| llm-adapter · The client waits as long as the configured timeout | Without an injected fetch the request does not use the global fetch | 2.3 |
+| | timeouts/refusals/redirects; response after 300 s (unchanged) | 2.4, 7.3 |
+| llm-adapter · Completion request and response | A null usage reports zero tokens | 2.3 |
+| | other unchanged scenarios | 2.4 |
+| llm-adapter · Embedding request, order and dimension | Embeddings are returned in input order; missing or duplicated indexes; A vector of another dimension is rejected | 2.3 |
+| | The schema dimension is 768 | 2.1, 2.2 |
+| | Embeddings without usage / for no texts (unchanged) | 2.4 |
+
+The table has no empty rows.
+
+---
+
+## Corrections to apply
+
+None of these block the apply of the open tasks.
+
+### `openspec/changes/semantic-cache/tasks.md`
+1. **I1.** In 10.9, after "The `verify` evidence is the CI `verify` job of PR #105 on the head commit", insert: "(in the 10.10 addendum, the run on the latest pushed commit, named by its SHA; 14.2 confirms it on the final head)".
+
+### `openspec/changes/semantic-cache/design.md`
+1. Follow-ups, table "Relaunch of the autonomous run (2026-11-04)": add a row "Run 3 · I1" (**A**) for the clarification above, marked as the agent's text.
+
+### Linear (in Spanish; the `[original]` block is not touched)
+- **DIS-67, new comment:**
+  > *Texto del agente (auditoría de spec del relanzamiento, tercera ejecución, 2026-11-04).* Veredicto `APPROVED`, sin bloqueantes. Los hallazgos de la segunda ejecución (B1, I1 e I2) están resueltos en los artefactos. Queda una mejora, I1: la tarea 10.9 debe decir en qué commit se toma la evidencia del job `verify` de CI. En el anexo de 10.10 se cita la ejecución sobre el último commit subido, con su SHA, y 14.2 la confirma sobre la cabeza final. Los commits siguientes no tocan ninguna entrada de huella. Pueden empezar las tareas abiertas 4.7, 5.5, 6.11, 7.4, 10.9 y 10.10.
