@@ -89,6 +89,7 @@
 72. [Destruir la conexión del pool tras un fallo en el ejecutor de transacciones (DIS-110)](#72-destruir-la-conexión-del-pool-tras-un-fallo-en-el-ejecutor-de-transacciones-dis-110)
 73. [Segunda ronda golden de DIS-110: regenerar task-api Q1 (DIS-110 r2)](#73-segunda-ronda-golden-de-dis-110-regenerar-task-api-q1-dis-110-r2)
 74. [Quitar la carrera del test «Every connection is released after a run» (DIS-110)](#74-quitar-la-carrera-del-test-every-connection-is-released-after-a-run-dis-110)
+75. [Quitar las carreras de la suite de integración en paralelo (DIS-110)](#75-quitar-las-carreras-de-la-suite-de-integración-en-paralelo-dis-110)
 76. [Grafo de impacto: dependientes y tests de un cambio desde el grafo determinista (DIS-89)](#76-grafo-de-impacto-dependientes-y-tests-de-un-cambio-desde-el-grafo-determinista-dis-89)
 77. [Riesgo, fila de `query_log` y comando `impact` (DIS-90)](#77-riesgo-fila-de-query_log-y-comando-impact-dis-90)
 78. [Historial por co-cambio y documentación con `stale` en el informe de impacto (DIS-94)](#78-historial-por-co-cambio-y-documentación-con-stale-en-el-informe-de-impacto-dis-94)
@@ -102,6 +103,8 @@
 86. [Detección de deriva: afirmaciones de los docs contra el código (DIS-71)](#86-detección-de-deriva-afirmaciones-de-los-docs-contra-el-código-dis-71)
 87. [Búsqueda por similitud en la caché de respuestas (DIS-67)](#87-búsqueda-por-similitud-en-la-caché-de-respuestas-dis-67)
 88. [Tasa de aciertos de caché del proyecto y vectores de las respuestas golden (DIS-69)](#88-tasa-de-aciertos-de-caché-del-proyecto-y-vectores-de-las-respuestas-golden-dis-69)
+89. [Ajustes finales de la entrega: readme, repositorio privado y guía de evaluación](#89-ajustes-finales-de-la-entrega-readme-repositorio-privado-y-guía-de-evaluación)
+90. [Comando `drift` en la CLI e informe golden de deriva (DIS-73)](#90-comando-drift-en-la-cli-e-informe-golden-de-deriva-dis-73)
 
 ---
 
@@ -118,6 +121,8 @@
 | Planificación de historias, propuestas y redacción larga (Entrega 2) | Claude (Cowork / chat) | Opus | El backlog en jerarquía para Linear y los prompts de cada hito, antes de abrir el repositorio |
 | Implementación, tests, revisión y orquestación de subagentes (Entrega 2) | Claude Code | Opus | Todo el ciclo SDD de cada ticket: `/enrich-us`, OpenSpec, TDD, las tres revisiones y el archivo; y, en el experimento de [§57](#57-experimento-workflow-autónomo-para-cerrar-la-entrega-2-dis-101), la orquestación del workflow |
 | Subagentes de pasos mecánicos (Entrega 2) | Claude Code | Sonnet | PR, archivo, merge y cierre en Linear dentro del workflow: pasos fáciles de verificar y de rehacer |
+| Ejecuciones autónomas por bloques de tickets (Entrega 3) | Claude Code, perfil autónomo (`CLAUDE_CONFIG_DIR`) con el workflow guardado `autonomous-sdd` | Opus en `/enrich-us`, propuesta, auditoría, revisiones y resolución de paneles; Sonnet en el apply, la CI, el archivo y el merge | El reparto lo fija el propio script (`.claude/workflows/autonomous-sdd.js`): lo que exige criterio va a Opus y lo que se comprueba con la CI y las revisiones posteriores, a Sonnet ([readme §8.7](readme.md#87-ejecuciones-autónomas-de-la-entrega-3)) |
+| Paneles de revisión independiente (Entrega 3) | Claude Code, dentro del workflow | `claude-opus-5-5` y `claude-sonnet-5-5`, con un resolutor Opus | La anotación de sitios de llamada (DIS-80) y la revisión de las respuestas (DIS-33, DIS-82) necesitaban dos revisores que no se leyeran entre sí |
 | Sesiones de criterio y redacción | Cursor | — | Decisiones de producto conversadas, como la del 5 de septiembre (§8, lección 6) |
 
 En la Entrega 1 esta tabla recogía solo las fases de documentación y anunciaba para el código «Cursor con Sonnet para implementación y tests, Claude Code con Opus para revisión». No fue así: la implementación y los tests se hicieron en Claude Code con Opus, dentro del flujo del kit, y Sonnet quedó para los subagentes de pasos mecánicos. El flujo completo está en la sección 8 del readme.
@@ -132,6 +137,8 @@ Antes de arrancar el desarrollo construí un **harness propio de Spec-Driven Dev
 
 **En la Entrega 2** el repositorio tiene 29 skills, 9 subagentes y **10 hooks**: los 9 de la Entrega 1, que eran ciertos entonces, más `spec-audit-gate`, que llegó con el PR #35 (commit `2de2630`) para que ningún change pase al apply sin el informe del `spec-auditor`. Qué impide cada hook y cuántas veces disparó está en la sección 8.1 del readme.
 
+**En la Entrega 3** son **12 hooks**: DIS-106 añadió `autonomous-merge-gate`, que solo deja fusionar a un agente con el change archivado, la CI en verde y la base protegida, y `log-permission-denied`, que registra cada denegación. Llegó también el workflow guardado `.claude/workflows/autonomous-sdd.js` (PR #73), con el que se lanzaron las ejecuciones autónomas de esta entrega. Skills y subagentes siguen siendo 29 y 9.
+
 **Procedencia.** El kit es de creación propia: nace de lo que estoy aprendiendo en el Máster AI4Devs de LIDR Academy, al que entregaré CODEMIND como proyecto final. Toma como punto de partida ideas y convenciones de [`LIDR-academy/lidr-specboot`](https://github.com/LIDR-academy/lidr-specboot) (MIT), el repositorio de referencia del máster: la disposición de `ai-specs/` con skills y subagentes como fuente canónica, los estándares en `docs/`, y los ficheros de memoria por copiloto —`CLAUDE.md`, `AGENTS.md`— apuntando a una doctrina única. Lo añadido por mí es el instalable con detección de stack, los 9 hooks deterministas, los adaptadores, el `doctor`, el soporte en Windows y los gates de secretos. Queda declarado en el `CREDITS.md` y el `LICENSE` del kit, que conserva el aviso de copyright de specboot.
 
 **Lo que hubo que hacer para este proyecto.** El kit traía adaptadores para Laravel, AdonisJS y React, y CODEMIND es **Fastify sobre un monorepo hexagonal**: no había ninguno que sirviera. Escribí el adaptador `fastify`, y su guarda de arquitectura codifica la regla de dependencias de la sección 2.3 del readme — si un fichero de `packages/core` menciona `adapters/` o `analyzers/`, el hook avisa al guardar.
@@ -140,7 +147,7 @@ Antes de arrancar el desarrollo construí un **harness propio de Spec-Driven Dev
 
 ### Recursos concretos
 
-**Usado en esta entrega:**
+**Usado en la Entrega 1:**
 
 | Recurso | Tipo | Para qué |
 |---|---|---|
@@ -159,6 +166,14 @@ Antes de arrancar el desarrollo construí un **harness propio de Spec-Driven Dev
 | `/pr-describe`, `/update-docs`, `/adr-new`, `/privacy-ethics-check` | Skills | Descripción del PR en español, documentación desfasada, ADR y comprobación de privacidad |
 | Linear y Context7 | Servidores MCP | Leer y actualizar los tickets; documentación de librerías |
 | Workflow de Claude Code | Orquestación | El experimento de la [§57](#57-experimento-workflow-autónomo-para-cerrar-la-entrega-2-dis-101) |
+
+**Usado en la Entrega 3** (el detalle está en la sección 8.7 del readme):
+
+| Recurso | Tipo | Para qué |
+|---|---|---|
+| `autonomous-sdd` | Workflow guardado de Claude Code | Llevar un bloque de tickets de Linear de `/enrich-us` al merge, con rondas de corrección del `spec-auditor` (como mucho 5) y paradas limpias cuando algo no cabe en el contrato |
+| Interruptor `KIT_AUTONOMOUS_RUN` y `autonomous-merge-gate` | Configuración y hook del kit | Activar a mano el modo autónomo y dejar el merge solo cuando se cumplen sus condiciones (DIS-106) |
+| Paneles de agentes | Pasos del workflow | Juicios que necesitan independencia: anotación de sitios de llamada y revisión de respuestas, con medida de acuerdo |
 
 Lo que la Entrega 1 dejó **previsto** y no se usó, y por qué: `/revisar-arquitectura` (comando de Cursor) lo sustituyeron el hook `post-edit-quality`, que avisa al guardar, y `dependency-cruiser` en CI; el subagente `verificador-de-evidencias` no hizo falta, porque el verificador se diseñó con OpenSpec y sus escenarios; y las reglas de estilo de `.cursorrules` las cubren las reglas que el kit instala en `.cursor/rules/` y los estándares de `docs/`.
 
@@ -669,15 +684,15 @@ del proyecto es la demo alojada y el arranque local.
 
 # 7. Pull Requests
 
-En la Entrega 1 no había código, y esta sección quedó vacía a propósito. En la Entrega 2 hay 52 pull requests fusionadas, listadas en la sección 7 del readme con su ticket y su change de OpenSpec.
+En la Entrega 1 no había código, y esta sección quedó vacía a propósito. A 04-11-2026 hay **106 pull requests fusionadas**: 59 en la Entrega 2 y 47 en la Entrega 3, listadas en la sección 7 del readme con su ticket y su change de OpenSpec.
 
-No hay un prompt de PR que merezca registrarse aparte: ninguna descripción se escribió con un prompt propio. Todas salen de la skill `/pr-describe`, que lee el change, los commits y los informes de revisión y deja sin rellenar el porqué, que en el flujo normal escribe la autora; en el experimento de la [§57](#57-experimento-workflow-autónomo-para-cerrar-la-entrega-2-dis-101) lo escribió el agente, marcado como decisión suya. El texto de cada descripción se guarda en el change, en `openspec/changes/archive/*/reports/pr-description.md`, y los prompts que dieron forma a cada PR están en la sección de su ticket (§12 en adelante).
+No hay un prompt de PR que merezca registrarse aparte: ninguna descripción se escribió con un prompt propio. Todas salen de la skill `/pr-describe`, que lee el change, los commits y los informes de revisión y deja sin rellenar el porqué, que en el flujo normal escribe la autora; en el experimento de la [§57](#57-experimento-workflow-autónomo-para-cerrar-la-entrega-2-dis-101) y en las ejecuciones autónomas de la Entrega 3 lo escribió el agente, marcado como texto suyo. El texto de cada descripción se guarda en el change, en `openspec/changes/archive/*/reports/pr-description.md`, y los prompts que dieron forma a cada PR están en la sección de su ticket (§12 en adelante).
 
 ---
 
 # 8. Lecciones sobre el uso de IA en este proyecto
 
-Cinco cosas que aprendí, incluyendo las que salieron mal.
+Lo que aprendí, incluyendo lo que salió mal. Las lecciones de los agentes autónomos, que son las de la Entrega 3, están en las secciones 8.6 y 8.7 del readme, junto a la evidencia de cada parada.
 
 **1. El error más caro fue no dar el contexto de evaluación.** Pedí una auditoría de mi propuesta sin adjuntar el enunciado del proyecto. Recibí una crítica excelente y calibrada al objetivo equivocado, que me habría llevado a construir una tesis de investigación en lugar del MVP que se me pedía. El modelo no podía saberlo. Lo detecté al leer el documento oficial de indicaciones, y la corrección exigió reescribir la propuesta entera. **Antes de pedir una evaluación, hay que dar el criterio con el que a ti te evalúan.**
 
@@ -5738,3 +5753,96 @@ Ollama sin decidir nada de producto (texto del agente).
 
 **Ajuste humano.** Ninguno: ejecución autónoma (texto del agente).
 
+---
+
+# 89. Ajustes finales de la entrega: readme, repositorio privado y guía de evaluación
+
+Sesión interactiva del 04-11 y el 05-11-2026, rama `feature/final-delivery-adjustments` (PR #109), sin ticket de
+Linear: la autora en el bucle y el agente en Claude Code con Opus.
+
+### Prompt 1 — Revisar el readme como documento de la entrega final
+
+```
+crea una rama para últimos ajustes previos a la entrega final, donde primero vamos a revisar el archivo `readme.md`:
+- Este documento ahora pertenece a la entrega 3
+- revísalo entero y dime que cambios habría que hacer que ya no cumplen con lo realizado (si lo hay)
+```
+
+**Por qué funcionó.** Pedir primero la lista y no los cambios separó el diagnóstico de la decisión: cuatro agentes
+revisaron el readme por partes contra el código, Linear y GitHub, y devolvieron unos 43 cambios obligatorios y 64
+recomendados antes de tocar una línea.
+
+**Ajuste humano.** La autora aprobó la lista y añadió lo que el agente no podía saber: que las historias y los tickets
+del readme eran de muestra de la Entrega 1 y había que sustituirlos por el backlog real de Linear, con sus cifras y el
+enlace a `docs/ai-sessions/03-planificacion-historias-de-usuario.md`, y explicar que algunas historias cambiaron por el
+camino. Entre las dos opciones que propuso el agente eligió sustituirlas por tres historias y tres tickets reales.
+
+### Prompt 2 — La prueba con el repositorio privado
+
+Dos mensajes seguidos. La ruta del segundo se omite aquí porque nombra el proyecto, que es privado:
+
+```
+Nos falta la prueba con un repositorio propio Laravel que nombra el punto 0.5 ¿no?
+```
+
+```
+Si, hazla ahora, la ruta al repo privado es: `[ruta omitida]`
+```
+
+**Por qué funcionó.** La pregunta obligó a buscar la evidencia antes de responder: el readme daba la prueba por hecha
+en tres sitios y el repositorio no tenía ninguna constancia. El agente indexó el repositorio en local, probó `impact`,
+`ask` y `drift`, y publicó solo cifras agregadas en `docs/measurements/private-repo-observation.md`.
+
+**Ajuste humano.** La prueba destapó una afirmación falsa del readme: el repositorio no era un «proyecto personal sin
+contribuidores ajenos», sino uno con 17 autores en su historial. Se corrigió el texto y la autora pidió borrar el
+proyecto de la base de datos local al terminar.
+
+### Prompt 3 — Comprobar que quien evalúa sabe probarlo todo
+
+```
+mientras, voy a intentar hacer la demo en vivo, primero desde la guía del readme 1.4 instrucciones de instalación.
+Aunque ¿crees que queda bien claro como deben hacer los evaluadores para probar el sistema completo? Analiza esta parte y dime primero si toda es correcta y si propondrías cambios para que quede bien claro cómo hacer el paso a paso y probar todo el sistema
+```
+
+**Por qué funcionó.** El agente ejecutó cada comando de la sección en modo evaluación y comparó la salida con el texto,
+en lugar de leerlo. Encontró diez problemas: un paso del recorrido que no funciona sin modelo, un falso positivo del
+informe de deriva sin avisar, la terminal que `npm run up` deja ocupada, que un proyecto propio no aparece en la web, el
+`--` que PowerShell se come, y otros. De ahí salió la guía de evaluación paso a paso al principio de §1.4.
+
+**Ajuste humano.** La autora añadió que el clon tenía que indicar la rama, porque `main` solo tiene la plantilla, y
+preguntó si cada rama correspondía a una entrega. El agente respondió que no, porque al listar las ramas remotas había
+filtrado las que empiezan por `feature/` y no vio `feature/entrega-1-CRN` ni `feature/entrega-2-CRN`; lo descubrió al
+escribir esta sección y corrigió el párrafo de §0.5 del readme. La intuición de la autora era la correcta. También
+puso en el readme la URL de la rama que pide el formulario de entrega. La demo en vivo, en un clon nuevo y siguiendo la
+guía, salió sin incidencias.
+
+---
+
+# 90. Comando `drift` en la CLI e informe golden de deriva (DIS-73)
+
+Esta sección se escribió el 05-11-2026, en la sesión de la §89, para cerrar uno de los dos huecos del registro que
+señala el readme (§8.2): el bloque autónomo de la deriva no la dejó escrita. El prompt es el encargo literal del paso
+de apply que el workflow guardado genera para este change (`.claude/workflows/autonomous-sdd.js`), igual que en las
+§86–§88; el resto sale de los informes del change archivado
+(`openspec/changes/archive/2026-11-04-add-cli-drift/`).
+
+### Prompt 1 — Paso de apply del cambio `add-cli-drift` en la ejecución autónoma
+
+Extracto literal del encargo que recibió el subagente:
+
+```
+Run /opsx:apply on change add-cli-drift: every task in TDD (failing test first, then implementation, in the layer order), marking tasks.md as you go, with the mandatory verification steps. Run the tests, lint and typecheck. Commit, push and open the PR to final-project-CRN with /pr-describe (write the "why" yourself and mark it as agent-written). Return pr.
+```
+
+**Por qué funcionó.** La auditoría necesitó tres rondas (dos `CHANGES REQUIRED` y un `APPROVED`). Sus hallazgos
+fijaron antes del apply el orden de la lectura del reloj, qué rechazos escriben fila en `query_log`, que el golden se
+genere después de las tareas que tocan sus huellas, y cómo forzar el modo evaluación en la captura de PowerShell, así
+que el apply no tuvo que decidir nada de producto (texto del agente).
+
+**Ajuste humano.** Ninguno en el apply: ejecución autónoma, PR #107. `npm run drift:build` falló en la primera
+ejecución porque Ollama servía con 2 048 tokens de contexto y recortaba los prompts; el agente paró la segunda para leer
+las salidas en bruto, Ollama se reinició con `OLLAMA_CONTEXT_LENGTH=16384`, y la tercera escribió el informe en 7
+minutos. El informe no está revisado: encuentra la
+deriva del envío gratis (50 € frente a 75 €), no encuentra la del impuesto antes del descuento, y una de sus dos
+contradicciones es un falso positivo. Se publica así, y lo dicen `fixtures/README.md`, `docs/DEMO.md` y la guía de
+evaluación del readme.
