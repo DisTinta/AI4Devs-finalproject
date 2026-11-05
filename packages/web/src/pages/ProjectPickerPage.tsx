@@ -57,7 +57,7 @@ export function ProjectPickerPage(): ReactElement {
       <p className="mt-4 text-sm text-accent">+ Indexar mi propio repositorio</p>
       <p className="mt-2">
         <code className="rounded-button bg-canvas px-2 py-0.5 font-mono text-xs text-ink-muted">
-          npm run cli -- index &lt;carpeta&gt; --name &lt;nombre&gt; --language &lt;php|typescript&gt;
+          npm run cli '--' index &lt;carpeta&gt; --name &lt;nombre&gt; --language &lt;php|typescript&gt;
         </code>
       </p>
       <p className="mt-2 text-xs text-ink-subtle">

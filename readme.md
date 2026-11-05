@@ -72,7 +72,7 @@ Se diferencia de un asistente de código convencional en tres comportamientos ve
 
 La evidencia ejecutable es el propio repositorio público, levantado en local:
 
-https://github.com/DisTinta/AI4Devs-finalproject — clonar y seguir [1.4](#14-instrucciones-de-instalación) (`npm run up`).
+https://github.com/DisTinta/AI4Devs-finalproject/tree/final-project-CRN — clonar esa rama (`final-project-CRN`) y seguir la [guía de evaluación](#guía-de-evaluación-paso-a-paso) de 1.4 (`npm run up`).
 
 No hay URL de servicio web alojado: quien evalúa prueba en su máquina con Docker y Node.
 
@@ -80,7 +80,13 @@ No hay URL de servicio web alojado: quien evalúa prueba en su máquina con Dock
 
 ### 0.5. URL o archivo comprimido del repositorio
 
-https://github.com/DisTinta/AI4Devs-finalproject — **público**. Fork de `LIDR-academy/AI4Devs-finalproject`.
+https://github.com/DisTinta/AI4Devs-finalproject/tree/final-project-CRN — **público**, rama de la entrega. Fork de `LIDR-academy/AI4Devs-finalproject`.
+
+**Rama de la entrega: `final-project-CRN`.** `main` conserva la plantilla del máster tal como llegó con el fork (este readme y `prompts.md` sin rellenar), así que clonar sin indicar la rama deja una carpeta sin el proyecto. Todo CODEMIND vive en `final-project-CRN`, la misma rama para las tres entregas: cada entrega es el estado de la rama en su fecha, y las ramas `feature/…` de cada ticket se fusionan en ella por pull request ([sección 7](#7-pull-requests)). Para clonarla directamente:
+
+```shell
+git clone -b final-project-CRN https://github.com/DisTinta/AI4Devs-finalproject
+```
 
 En el proyecto intervienen **tres repositorios distintos**, y conviene no confundirlos:
 
@@ -189,6 +195,8 @@ Con `npm run up` (web en http://localhost:5173), los pasos 1 a 4 y el 6 del reco
 
 El principio de diseño es que **la fiabilidad y el coste sean legibles en la propia respuesta**, no un detalle escondido en un log.
 
+*Los wireframes son de la Entrega 1 y sus cifras son ilustrativas* (número de aristas, tokens, riesgo, PR citadas): no coinciden con la semilla real. Lo que imprime de verdad cada paso está en [`docs/DEMO.md`](docs/DEMO.md).
+
 **Pantalla 1 — Selección de proyecto**
 
 ![Pantalla 1 — Selección de proyecto](images/pantalla-1-seleccion.svg)
@@ -285,26 +293,44 @@ Cada elemento del informe de impacto indica su **origen**: `[grafo]` para lo der
 | 2 | Pulsar una evidencia | La cita resuelve a un fragmento real del código |
 | 3 | Preguntar algo que el repositorio no puede responder | **El sistema responde `UNKNOWN` en lugar de inventar** |
 | 4 | Pedir el impacto de cambiar los descuentos | Separación entre grafo determinista y señal histórica |
-| 5 | Repetir el paso 1 reformulando la pregunta («¿Cómo se calcula el precio total de un pedido?») | Acierto de caché por similitud sobre la respuesta *golden* sembrada, coste 0 (solo con `LLM_EMBED_MODEL=nomic-embed-text` configurado; sin él, o en modo evaluación, solo hay acierto exacto), y la línea «Caché del proyecto» del panel de uso con la tasa de aciertos del proyecto |
+| 5 | *Solo con un modelo de embeddings configurado.* Repetir el paso 1 reformulando la pregunta («¿Cómo se calcula el precio total de un pedido?») | Acierto de caché por similitud sobre la respuesta *golden* sembrada, coste 0 (solo con `LLM_EMBED_MODEL=nomic-embed-text` configurado; sin él, o en modo evaluación, solo hay acierto exacto), y la línea «Caché del proyecto» del panel de uso con la tasa de aciertos del proyecto |
 | 6 | Cambiar a `task-api` y repetir el paso 1 | **El mismo núcleo sobre TypeScript**, con un grafo de más cobertura y sin aristas heurísticas (Tabla 2 de [2.6](#26-tests): cobertura 100 % frente al 77,4 % de PHP, precisión 100 % en ambos) |
 | 7 | Comprobar si la documentación contradice el código (`drift acme-shop`) | Deriva entre documentación y código, con la cita de los dos lados (F6) |
 
 El paso 3 es el más característico: un sistema que sabe callarse.
 
+Con el `.env` de `.env.example` (modo evaluación, sin modelo), **el paso 5 responde `UNKNOWN (llm-required)`**: la reformulación solo acierta por similitud con `LLM_EMBED_MODEL=nomic-embed-text` configurado; sin modelo solo hay acierto exacto. En el paso 7, el informe *golden* trae dos contradicciones y **una es un falso positivo del modelo** que lo generó: la del `README.md` del fixture, que dice algo cierto. La real es la de `docs/pricing.md` (envío gratis desde 50 € frente a los 75 € del código). El informe no está revisado y se publica tal cual ([`docs/DEMO.md`, paso 7](docs/DEMO.md#paso-7--comprobar-si-la-documentación-contradice-el-código-drift)).
+
 ### **1.4. Instrucciones de instalación:**
 
 Al ser el arranque local **la única evidencia de que el sistema funciona ante quien evalúa**, esta sección se trata como crítica. El camino corto no requiere nada más que **Docker y Node 22.12 o posterior**: ni PHP instalado, ni clonar repositorios ajenos, ni esperar un indexado, **ni una API key de LLM**. Para indexar un repositorio hace falta además **Git 2.45.1 o posterior** (o las versiones de mantenimiento de mayo de 2024 2.43.4 y 2.44.1): las anteriores ignoran `GIT_NO_LAZY_FETCH`, que impide que un *partial clone* ejecute el programa de su remoto al leer un objeto que falta, o no leen `attr.tree`, que hace que los atributos salgan siempre del `.gitattributes` de `HEAD`.
 
+#### Guía de evaluación paso a paso
+
+El recorrido completo, en orden. Cada paso remite a su detalle más abajo o en [`docs/DEMO.md`](docs/DEMO.md), que trae la salida real de cada comando. Del 1 al 6 no hace falta ninguna cuenta ni ningún modelo.
+
+| Paso | Qué hacer | Qué se espera |
+|---|---|---|
+| 1 | **Arrancar** ([Camino corto](#camino-corto--sistema-operativo-en-cuatro-comandos)): clonar la rama `final-project-CRN`, copiar `.env.example` a `.env` y `npm run up` | La línea `Server listening at http://127.0.0.1:3000` y la web en http://localhost:5173. **Esa terminal queda ocupada** con la API y la web: lo demás va en una segunda terminal, en la carpeta del clon |
+| 2 | **Comprobar la instalación** ([Verificación](#verificación-de-la-instalación)): `npm run verify` | Sale con código `0`: las seis preguntas *golden* coinciden con lo esperado |
+| 3 | **Web**: abrir http://localhost:5173 y seguir los pasos 1 a 4 y 6 del [recorrido de demostración](#recorrido-de-demostración) | Pantalla 1, pregunta con evidencia y panel de uso (pantalla 2), un `UNKNOWN` y el informe de impacto (pantalla 3). El paso 5 necesita un modelo de embeddings |
+| 4 | **CLI** ([El mismo flujo por CLI](#el-mismo-flujo-por-cli)): `projects`, `ask`, `impact` y `drift` | Las mismas respuestas que en la web, más el informe de deriva (con un falso positivo conocido) |
+| 5 | **API**: abrir http://localhost:3000/docs | La documentación OpenAPI de la API, con «Try it out» |
+| 6 | **Tests** ([Pasar los tests](#pasar-los-tests)): `npm test`, con o sin base de datos de pruebas | Todo en verde; sin base de datos, los de integración se saltan con un aviso |
+| 7 | *Opcional.* **Indexar un repositorio propio** ([Camino completo](#camino-completo--indexar-tu-propio-repositorio-o-pregunta-libre)) | Su informe de indexado, y `impact` sobre él. **Solo por CLI y API**: la web muestra únicamente los dos proyectos de muestra |
+| 8 | *Opcional.* **Preguntar libremente con un modelo real** ([Probar con un modelo real](#probar-con-un-modelo-real)) | Respuestas nuevas, de varios minutos en CPU |
+| 9 | **Parar** ([Parar el sistema](#parar-el-sistema)): Ctrl+C en la primera terminal y `npm run down` | El contenedor se para; los datos se conservan para el siguiente arranque |
+
 #### Camino corto — sistema operativo en cuatro comandos
 
 ```shell
-git clone https://github.com/DisTinta/AI4Devs-finalproject
+git clone -b final-project-CRN https://github.com/DisTinta/AI4Devs-finalproject
 cd AI4Devs-finalproject
 cp .env.example .env
 npm run up
 ```
 
-Los cuatro comandos son los mismos en PowerShell y en Bash. `.env.example` trae el `DATABASE_URL` del contenedor local y deja vacías las variables `LLM_*` (modo evaluación; ver las variables abajo). Si el puerto 5432 ya está ocupado, `docs/DEMO.md` → [Antes de empezar](docs/DEMO.md#antes-de-empezar) explica cómo cambiarlo (`POSTGRES_PORT`).
+Los cuatro comandos son los mismos en PowerShell y en Bash. El `-b final-project-CRN` es necesario: `main` solo tiene la plantilla del máster (ver [0.5](#05-url-o-archivo-comprimido-del-repositorio)). En PowerShell, `cp` es un alias de `Copy-Item` y funciona igual. `.env.example` trae el `DATABASE_URL` del contenedor local y deja vacías las variables `LLM_*` (modo evaluación; ver las variables abajo). Si el puerto 5432 ya está ocupado, `docs/DEMO.md` → [Antes de empezar](docs/DEMO.md#antes-de-empezar) explica cómo cambiarlo (`POSTGRES_PORT`).
 
 `npm run up` (`scripts/up.mjs`) carga `.env` y encapsula la secuencia completa, escribiendo una línea `[up] <comando>` antes de cada paso; `make up` hace lo mismo desde Git Bash o WSL:
 
@@ -351,9 +377,19 @@ task-api: 28 commits, 3 authors -> <repo>\fixtures\task-api\.git
 
 `docker-compose.yml` solo levanta PostgreSQL 16 con pgvector; la API y la web corren en la máquina con `npm run dev`. No hay `Dockerfile`.
 
+**`npm run up` no devuelve la terminal**: termina dejando la API y la web en marcha en primer plano. Los comandos de los apartados siguientes se escriben en **una segunda terminal**, en la misma carpeta.
+
+#### Verificación de la instalación
+
+```bash
+npm run verify
+```
+
+Hace cada pregunta golden de los repositorios de muestra (versionadas en `seeds/cache/`) y compara la estructura de la respuesta servida con la esperada: tipos de afirmación, verificación y citas, nunca el texto (**determinista: no llama al LLM**). Antes comprueba que la semilla y las golden corresponden al código actual (huellas). Necesita `DATABASE_URL` de una base cargada con `npm run db:seed` y sale con `0` solo si todas coinciden. Sirve como prueba de humo para quien evalúa y como test de integración en CI (job `verify`, con su propia base). El job `e2e` también siembra su propia base (`e2e`) y recorre la web con Playwright.
+
 #### El mismo flujo por CLI
 
-Sin necesidad de abrir la web (`projects`, `ask`, `impact` y `drift` leen `DATABASE_URL` de `.env`):
+Sin necesidad de abrir la web, en la segunda terminal. La CLI va directa a la base de datos, así que **no necesita la API arrancada**; basta con que el contenedor de PostgreSQL esté en marcha (`projects`, `ask`, `impact` y `drift` leen `DATABASE_URL` de `.env`):
 
 ```shell
 npm run cli -- projects
@@ -362,6 +398,8 @@ npm run cli -- impact acme-shop "cambiar los descuentos de DiscountService"
 npm run cli -- drift acme-shop
 npm run cli -- ask task-api "¿Cómo valida taskRoutes las peticiones entrantes?"
 ```
+
+Como se dice en el [recorrido](#recorrido-de-demostración), de las dos contradicciones del informe de `drift acme-shop` la del `README.md` del fixture es un falso positivo del modelo; la de `docs/pricing.md` es la deriva plantada.
 
 Cada línea de `projects` termina con el campo `cache <aciertos>/<consultas> (<tasa>%)` (DIS-69): las consultas `explain` del proyecto y las que se sirvieron desde la caché de respuestas, por clave exacta o por similitud (`cache 0/0` si el proyecto aún no tiene consultas; `impact` y `drift` no cuentan), por ejemplo `acme-shop  a794456d-6d1b-5b55-a360-13fec83dc7bc  php/laravel  174 nodes · 170 edges  2024-05-06T09:31:00.000Z  cache 3/4 (75%) sample`.
 
@@ -410,18 +448,30 @@ El nivel es `HIGH` porque cuatro de los seis componentes directos no tienen un t
 
 #### Camino completo — indexar tu propio repositorio o pregunta libre
 
-**Indexar no necesita LLM ni PHP**: el analizador PHP usa Tree-sitter (WebAssembly) y solo lee los objetos de Git del repositorio, sin ejecutar nada de él. Hacen falta `ALLOWED_REPOS_DIR`, `AUTHOR_HASH_SALT` y `DATABASE_URL`, y el repositorio tiene que estar **dentro** de `ALLOWED_REPOS_DIR` (la ruta puede ser absoluta dentro de él o relativa a él). Se indexa PHP (`--language php`) y TypeScript (`--language typescript`), cada uno con su analizador; el de TypeScript usa la API del compilador de TypeScript. La CLI `index` solo crea proyectos nuevos y falla con un nombre de proyecto repetido; un proyecto ya indexado se reindexa con `POST /api/projects/{id}/index` (incremental por omisión, completo con `{"incremental": false}`; DIS-9, DIS-10). Preguntar (`ask`) sí requiere un LLM configurado (recomendado en desarrollo: **Ollama** local):
+**Indexar no necesita LLM ni PHP**: el analizador PHP usa Tree-sitter (WebAssembly) y solo lee los objetos de Git del repositorio, sin ejecutar nada de él. Se indexa PHP (`--language php`) y TypeScript (`--language typescript`), cada uno con su analizador; el de TypeScript usa la API del compilador de TypeScript.
 
-```bash
-# Indexar: ALLOWED_REPOS_DIR=/ruta/a/repos  AUTHOR_HASH_SALT=…  DATABASE_URL=postgres://…
-npm run cli -- index mi-repo --name mi-proyecto --language php            # informe en texto
-npm run cli -- index mi-repo --name otro --language php --framework none --json   # informe en JSON
+Antes de indexar, **edita `.env`**, que en `.env.example` trae vacías las dos variables que hacen falta:
 
-# Preguntar — Ollama (ejemplo, sin clave): DATABASE_URL=postgres://…  LLM_BASE_URL=http://localhost:11434/v1  LLM_MODEL=…
+1. `ALLOWED_REPOS_DIR`: la carpeta que **contiene** el repositorio, en ruta absoluta (por ejemplo `C:/repos` o `/home/yo/repos`). El repositorio tiene que estar dentro; en el comando, su ruta puede ser absoluta o relativa a esa carpeta.
+2. `AUTHOR_HASH_SALT`: cualquier cadena larga y aleatoria. Es la clave con la que se seudonimiza el autor de cada commit; no se versiona.
+
+El repositorio tiene que ser un clon de Git, no una carpeta descomprimida de un ZIP. Qué se puede hacer después:
+
+- **`impact` funciona sin modelo** sobre el proyecto nuevo: no llama nunca al LLM.
+- **`ask` y `drift` necesitan un LLM configurado** (recomendado: **Ollama** local; ver [Probar con un modelo real](#probar-con-un-modelo-real)); sin él responden `UNKNOWN (llm-required)`, porque solo los proyectos de muestra tienen respuestas e informe *golden*. Sobre un repositorio real el prompt es mayor que sobre los de muestra: en CPU, sube `LLM_TIMEOUT_MS` (con el valor por defecto, 120 s, una pregunta sobre un repositorio Laravel de 2 690 ficheros agotó el tiempo; con 600 s respondió en 107 s, ver la [observación](docs/measurements/private-repo-observation.md)).
+- **El proyecto solo se ve por la CLI y la API**: la web muestra únicamente los dos proyectos de muestra, que lee de una constante generada con la semilla ([4](#4-especificación-de-la-api)).
+- La CLI `index` solo crea proyectos nuevos y falla con un nombre repetido; un proyecto ya indexado se reindexa con `POST /api/projects/{id}/index` (incremental por omisión, completo con `{"incremental": false}`; DIS-9, DIS-10).
+
+```shell
+npm run cli '--' index mi-repo --name mi-proyecto --language php
+npm run cli '--' index mi-repo --name otro --language php --framework none --json
+npm run cli -- impact mi-proyecto "cambiar el cálculo de los pagos"
 npm run cli -- ask mi-proyecto "¿Cómo funciona el módulo de pagos?"
 ```
 
-En PowerShell (5.1 y 7), `npm` es el script `npm.ps1` y PowerShell se come el `--` suelto, así que las opciones (`--name`, `--language`, `--json`…) le llegan a npm y no a la CLI (`required option '--name <name>' not specified`): escribe `'--'` entre comillas (`npm run cli '--' index mi-repo --name mi-proyecto --language php`) o usa `npm.cmd run cli -- …`. Los comandos sin opciones, como `ask` con su pregunta, funcionan tal cual (DIS-42).
+El primero imprime el informe en texto, el segundo en JSON, y el último necesita un LLM en `.env`.
+
+**Por qué `'--'` entre comillas.** En PowerShell (5.1 y 7), `npm` es el script `npm.ps1` y PowerShell se come el `--` suelto, así que las opciones (`--name`, `--language`, `--json`, `--max-hops`…) le llegan a npm y no a la CLI (`required option '--name <name>' not specified`). Con comillas funciona igual en PowerShell y en Bash, que las quita. Los comandos sin opciones, como `ask` o `impact` con su texto, funcionan con el `--` sin comillas (DIS-42).
 
 `index` escribe el progreso por fase y los eventos de redacción de secretos (JSON por línea) en stderr, y solo el informe en stdout. Sale con `0` si todo va bien, `1` ante un error de dominio, configuración o ejecución (por ejemplo, ruta fuera de `ALLOWED_REPOS_DIR` o nombre de proyecto repetido) y `2` ante un uso incorrecto; el error es una línea `{"error":{"code","message","details"}}` en stderr.
 
@@ -468,13 +518,33 @@ La receta paso a paso, igual en PowerShell y en Bash, está en [`docs/DEMO.md` �
 - **Modelo:** `qwen2.5-coder` (7B). `llama3.2` (3B) no produce el JSON estricto que exige la cuarentena y responde `invalid-model-output`.
 - **Salida con valla:** desde DIS-72 se acepta una única valla ```` ```json ```` que envuelva toda la salida, porque algunos modelos responden así ([2.5](#25-seguridad), práctica 2).
 
-#### Verificación de la instalación
+#### Pasar los tests
 
-```bash
-npm run verify
+`npm test` ejecuta toda la suite de Vitest (unitarios e integración). Sin base de datos de pruebas, los tests de integración se saltan con un aviso y el resto pasa: **2 443 pasan y 301 se saltan** ([2.6](#26-tests)). Para pasarlos todos (**2 796**), crea una base de datos propia para los tests, **nunca la que sembró `npm run up`**, y pásala en el propio comando: la suite no lee `.env`.
+
+```shell
+docker compose exec postgres createdb -U codemind codemind_test
 ```
 
-Hace cada pregunta golden de los repositorios de muestra (versionadas en `seeds/cache/`) y compara la estructura de la respuesta servida con la esperada: tipos de afirmación, verificación y citas, nunca el texto (**determinista: no llama al LLM**). Antes comprueba que la semilla y las golden corresponden al código actual (huellas). Necesita `DATABASE_URL` de una base cargada con `npm run db:seed` y sale con `0` solo si todas coinciden. Sirve como prueba de humo para quien evalúa y como test de integración en CI (job `verify`, con su propia base). El job `e2e` también siembra su propia base (`e2e`) y recorre la web con Playwright.
+```bash
+DATABASE_URL=postgresql://codemind:codemind@localhost:5432/codemind_test npm test
+```
+
+```powershell
+$env:DATABASE_URL='postgresql://codemind:codemind@localhost:5432/codemind_test'; npm test
+```
+
+En PowerShell la variable sigue definida en esa terminal y gana sobre `.env`: después, `Remove-Item Env:DATABASE_URL` o abre otra terminal. El resto de suites (`npm run test:e2e` con Playwright, `npm run test:a11y`, `npm run test:mutation`) y sus requisitos están en [`docs/TESTING.md`](docs/TESTING.md); `test:e2e` necesita parar antes `npm run up`, porque arranca su propia API y su propia web en los mismos puertos.
+
+#### Parar el sistema
+
+Ctrl+C en la terminal de `npm run up`: termina con `[up] stopped (Ctrl+C)` y el código `130`, que es el final esperado (npm puede añadir sus propias líneas de error con `code 130`). Después, en cualquier terminal:
+
+```shell
+npm run down
+```
+
+`npm run down` para y elimina el contenedor; los datos se quedan en el volumen `pgdata`, así que el siguiente `npm run up` no recrea la base de datos desde cero.
 
 #### Variables de entorno
 

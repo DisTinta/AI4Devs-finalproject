@@ -808,7 +808,7 @@ wireframes de `readme.md` §1.3 (`images/pantalla-1-seleccion.svg`, `images/pant
 3. El enlace «Explorar proyecto →» de cada tarjeta abre la pantalla 2 de ese proyecto, con sus tres
    preguntas sugeridas (las golden de ese proyecto).
 4. Debajo de la tarjeta, «+ Indexar mi propio repositorio» es una indicación, no un botón: muestra el
-   comando de la CLI (`npm run cli -- index <carpeta> --name <nombre> --language <php|typescript>`) y sus
+   comando de la CLI (`npm run cli '--' index <carpeta> --name <nombre> --language <php|typescript>`) y sus
    requisitos.
 
 **Pantalla 2 — Consulta con evidencia verificada** (`/p/<id del proyecto>`):
