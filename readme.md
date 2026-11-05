@@ -87,7 +87,7 @@ En el proyecto intervienen **tres repositorios distintos**, y conviene no confun
 | | Repositorio | Visibilidad | Papel |
 |---|---|---|---|
 | **1** | Este — `AI4Devs-finalproject` | Público | **Es la entrega:** CODEMIND, la herramienta que se evalúa |
-| **2** | Un proyecto Laravel propio, ya existente | Privado | Se usa durante el desarrollo para comprobar que el analizador aguanta código real. Es **material de entrada** —como el fichero que se le pasa a un programa— y no forma parte de la entrega |
+| **2** | Un proyecto Laravel real, ya existente | Privado | Sirve para comprobar que el analizador aguanta código real ([observación](docs/measurements/private-repo-observation.md)). Es **material de entrada** —como el fichero que se le pasa a un programa— y no forma parte de la entrega |
 | **3** | `acme-shop` y `task-api` | Públicos, **incluidos dentro del 1** | Repositorios de muestra pequeños, con su grafo ya construido, en `fixtures/`. Son lo que permite reproducir la demo sin credenciales de nadie |
 
 Que el número 2 sea privado **no obliga a que CODEMIND sea público o privado**: el repositorio analizado es dato de entrada, no el producto entregado. Pero tiene una consecuencia de diseño, y es la que explica el número 3: nadie ajeno puede abrir el número 2, así que no sirve para demostrar nada. Los repositorios de muestra existen para que la evaluación sea reproducible por cualquiera, y por eso viajan dentro de la entrega en lugar de enlazarse desde fuera.
@@ -596,7 +596,7 @@ flowchart TB
 
 **5. Tres pantallas no son un producto terminado.** La web es evidencia de funcionamiento y superficie para probar, no una interfaz completa.
 
-**6. El repositorio de validación real es privado**, así que las cifras obtenidas sobre él no son reproducibles por terceros. Por eso las mediciones publicables se hacen sobre los dos repositorios de muestra públicos, y las del privado se reportan aparte como observación.
+**6. El repositorio de validación real es privado**, así que las cifras obtenidas sobre él no son reproducibles por terceros. Por eso las mediciones publicables se hacen sobre los dos repositorios de muestra públicos, y las del privado se reportan aparte como [observación](docs/measurements/private-repo-observation.md): el indexado aguanta un repositorio real de 7 390 commits en 78 s sin diagnósticos, y la prueba deja a la vista límites que los repositorios de muestra no enseñan (tests de `Feature` casi sin aristas `tested_by`, ruido de documentos archivados y de recursos de terceros, y un modo vivo que con un modelo local pequeño no escala).
 
 ### **2.2. Descripción de componentes principales:**
 
@@ -877,7 +877,7 @@ El historial de Git contiene nombres y direcciones de correo de contribuidores, 
 - El autor de un commit se almacena **seudonimizado** (hash con sal). No se indexan nombres ni correos.
 - **No se realiza ningún análisis por individuo.** Una funcionalidad candidata —detectar qué personas concentran el conocimiento de un módulo— se descartó por este motivo y porque es sensible en el plano laboral.
 - Los repositorios de muestra se generan con autores ficticios.
-- El repositorio privado que se usa como validación es un **proyecto personal de la autora**, así que no hay datos de contribuidores ajenos que tratar. La seudonimización se aplica igualmente: es el comportamiento por defecto del sistema, no una excepción concedida a este caso.
+- El repositorio privado que se usa como validación tiene **17 autores distintos** en su historial. Solo se indexó en local: en la base de datos quedan sus `author_hash`, nunca nombres ni correos, y la [observación](docs/measurements/private-repo-observation.md) publica únicamente cifras agregadas, sin nombre del proyecto, código ni personas.
 
 ### **2.6. Tests**
 
