@@ -441,9 +441,9 @@ describe("Indexing a repository of one's own is a hint, not a control", () => {
 
     // Assert
     const hint = within(main).getByText('+ Indexar mi propio repositorio');
-    const command = within(main).getByText('npm run cli -- index <carpeta> --name <nombre> --language php');
+    const command = within(main).getByText("npm run cli '--' index <carpeta> --name <nombre> --language <php|typescript>");
     const requirements = within(main).getByText(
-      'Desde la terminal · requiere Docker, Node 22.12+ y Git 2.45.1+ · por ahora solo PHP',
+      'Desde la terminal · requiere Docker, Node 22.12+ y Git 2.45.1+ · PHP/Laravel o TypeScript',
     );
     expect(comesAfter(list, hint)).toBe(true);
     expect(comesAfter(hint, command)).toBe(true);

@@ -26,7 +26,7 @@ Commander CLI and a React+Vite web.
 Do not invent product facts from memory. Prefer these files:
 
 - `readme.md` — product and design (canonical delivery doc)
-- `prompts.md` — AI usage log (literals + human adjustments)
+- `prompts.md` — AI usage log: tools, context, workflow, the most significant prompts and lessons; the full log, one file per milestone or ticket, is in `docs/ai-sessions/prompts/`
 - `proposal-codemind/05-propuesta-v4-evidencia-local-hibrido-ollama.md` — evidence/LLM operational
   amendment (proposal `04` is historical on those points)
 - This file — commands, constraints and agent gotchas
@@ -755,17 +755,23 @@ Verified against `package.json` (root and per package). If a command is not here
 Mandatory whenever an agent closes a milestone or a relevant AI-assisted decision:
 
 1. **When:** in the **same** work session — not deferred to “later” or end of project.
-2. **What:** only the **most significant** prompts (initial creation, course correction, relevant
-   feature addition). Max **3 per template section**, as `prompts.md` already states.
-3. **Format** (match existing entries):
+2. **Where:** a new file `docs/ai-sessions/prompts/NN-<slug>.md` (the next number, `# NN. Title` as
+   its heading, the same one-line note under it as the other files) and one line for it in the
+   *Registro completo* list at the end of `prompts.md`. `prompts.md` itself only changes when the
+   entry becomes one of its *Prompts más significativos* or changes sections 0 or 8.
+3. **What:** only the **most significant** prompts (initial creation, course correction, relevant
+   feature addition), at most 3 per file. A bare command (`/opsx:apply`, `/opsx:propose DIS-n`) or an
+   operational reply goes in one line, not in a code block; the standard step prompt of the
+   autonomous workflow is linked, not repeated.
+4. **Format** (match existing entries):
    - Heading `### Prompt N — …`
    - Prompt **literal** in a code block (as sent)
    - Optional: `**Por qué funcionó.**` when useful
    - `**Ajuste humano.**` with what was changed or rejected from the model output
-4. **Forbidden:** reconstructing prompts after the fact and presenting them as a transcript.
-5. Sections marked *(pendiente)* (e.g. §7 Pull Requests): fill **only** when that work actually
+5. **Forbidden:** reconstructing prompts after the fact and presenting them as a transcript.
+6. Sections marked *(pendiente)* (e.g. §7 Pull Requests): fill **only** when that work actually
    exists.
-6. Product decisions made without a literal prompt (e.g. human criterion talk): record them in
+7. Product decisions made without a literal prompt (e.g. human criterion talk): record them in
    `prompts.md` §8 as a lesson/human decision — do not invent a prompt block.
 
 ## Gotchas

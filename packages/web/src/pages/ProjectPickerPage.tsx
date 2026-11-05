@@ -57,11 +57,11 @@ export function ProjectPickerPage(): ReactElement {
       <p className="mt-4 text-sm text-accent">+ Indexar mi propio repositorio</p>
       <p className="mt-2">
         <code className="rounded-button bg-canvas px-2 py-0.5 font-mono text-xs text-ink-muted">
-          npm run cli -- index &lt;carpeta&gt; --name &lt;nombre&gt; --language php
+          npm run cli '--' index &lt;carpeta&gt; --name &lt;nombre&gt; --language &lt;php|typescript&gt;
         </code>
       </p>
       <p className="mt-2 text-xs text-ink-subtle">
-        Desde la terminal · requiere Docker, Node 22.12+ y Git 2.45.1+ · por ahora solo PHP
+        Desde la terminal · requiere Docker, Node 22.12+ y Git 2.45.1+ · PHP/Laravel o TypeScript
       </p>
     </PageFrame>
   );

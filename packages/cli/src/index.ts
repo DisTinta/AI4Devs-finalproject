@@ -25,7 +25,7 @@ if (process.argv[2] === 'index') {
 
   program
     .name('codemind')
-    .description('CODEMIND — knowledge graph for your codebase (pending Ticket 1/2)')
+    .description('CODEMIND — knowledge graph for your codebase')
     .version(CLI_VERSION);
 
   // Listed so `codemind --help` shows it; never reached, since `projects` is delegated above.
