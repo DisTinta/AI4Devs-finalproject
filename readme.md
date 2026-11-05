@@ -203,58 +203,58 @@ El principio de diseño es que **la fiabilidad y el coste sean legibles en la pr
 
 
 
-```
-┌────────────────────────────────────────────────────────────┐
-│  CODEMIND                                                  │
-├────────────────────────────────────────────────────────────┤
-│  Elige un proyecto para explorar:                          │
-│                                                            │
-│  ┌──────────────────────────┐  ┌──────────────────────────┐│
-│  │ 🐘 acme-shop             │  │ 📘 task-api              ││
-│  │ PHP 8.2 / Laravel 11     │  │ TypeScript / Fastify     ││
-│  │ 47 ficheros · 312 símb.  │  │ 38 ficheros · 264 símb.  ││
-│  │ 1 840 aristas · 62 commits│  │ 2 110 aristas · 51 commits││
-│  │ ✓ indexado · listo       │  │ ✓ indexado · listo       ││
-│  └──────────────────────────┘  └──────────────────────────┘│
-│                                                            │
-│  + Indexar mi propio repositorio                           │
-└────────────────────────────────────────────────────────────┘
+```text
+┌──────────────────────────────────────────────────────────────────┐
+│  CODEMIND                                                        │
+├──────────────────────────────────────────────────────────────────┤
+│  Elige un proyecto para explorar:                                │
+│                                                                  │
+│  ┌────────────────────────────┐  ┌────────────────────────────┐  │
+│  │ acme-shop                  │  │ task-api                   │  │
+│  │ PHP 8.2 / Laravel 11       │  │ TypeScript / Fastify       │  │
+│  │ 47 ficheros · 312 símb.    │  │ 38 ficheros · 264 símb.    │  │
+│  │ 1 840 aristas · 62 commits │  │ 2 110 aristas · 51 commits │  │
+│  │ [ok] indexado · listo      │  │ [ok] indexado · listo      │  │
+│  └────────────────────────────┘  └────────────────────────────┘  │
+│                                                                  │
+│  + Indexar mi propio repositorio                                 │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 **Pantalla 2 — Consulta**
 
 ![Pantalla 2 — Consulta con evidencia verificada](images/pantalla-2-consulta.svg)
 
-```
-┌────────────────────────────────────────────────────────────┐
-│  ← acme-shop        PHP/Laravel  ·  1 840 aristas  ·  ⟳    │
-├────────────────────────────────────────────────────────────┤
-│  ¿Cómo se calcula el precio final de un pedido?      [→]   │
-│                                                            │
-│  Prueba:  · ¿Cómo se validan los cupones?                  │
-│           · ¿Qué hace OrderObserver?                       │
-│           · ¿Por qué existe el campo legacy_ref?           │
-├────────────────────────────────────────────────────────────┤
-│  RESPUESTA                                                 │
-│                                                            │
-│  El precio final se calcula en PriceCalculator::compute().  │
-│                                                            │
-│  1. Se obtiene el precio base del artículo.     ✓ verificado│
-│  2. Se aplica el descuento del cliente.         ✓ verificado│
-│  3. Se calculan los impuestos sobre el subtotal.✓ verificado│
-│                                                            │
-│  ⚠ El orden descuento-antes-de-impuestos no está           │
-│    documentado. Se deduce del test y del PR #381. INFERIDO  │
-│                                                            │
-│  EVIDENCIA                                                 │
-│  ▸ app/Services/PriceCalculator.php:42-58    entailed      │
-│  ▸ tests/Unit/PricingTest.php:91-104         entailed      │
-│  ▸ PR #381                                    entailed      │
-│                                                            │
-│  Confianza 0.71                                            │
-│  4 812 tokens · $0.014 · 2.1 s · ahorro 88 % vs contexto   │
-│  bruto (41 200 tokens)                          [caché ✓]  │
-└────────────────────────────────────────────────────────────┘
+```text
+┌───────────────────────────────────────────────────────────────────┐
+│  <- acme-shop    PHP/Laravel  ·  1 840 aristas  ·  (recargar)     │
+├───────────────────────────────────────────────────────────────────┤
+│  ¿Cómo se calcula el precio final de un pedido?          [->]     │
+│                                                                   │
+│  Prueba:  · ¿Cómo se validan los cupones?                         │
+│           · ¿Qué hace OrderObserver?                              │
+│           · ¿Por qué existe el campo legacy_ref?                  │
+├───────────────────────────────────────────────────────────────────┤
+│  RESPUESTA                                                        │
+│                                                                   │
+│  El precio final se calcula en PriceCalculator::compute().        │
+│                                                                   │
+│  1. Se obtiene el precio base del artículo.         [verificado]  │
+│  2. Se aplica el descuento del cliente.             [verificado]  │
+│  3. Se calculan los impuestos sobre el subtotal.    [verificado]  │
+│                                                                   │
+│  (!) El orden descuento-antes-de-impuestos no está documentado.   │
+│      Se deduce del test y del PR #381.                [INFERIDO]  │
+│                                                                   │
+│  EVIDENCIA                                                        │
+│  > app/Services/PriceCalculator.php:42-58    entailed             │
+│  > tests/Unit/PricingTest.php:91-104         entailed             │
+│  > PR #381                                   entailed             │
+│                                                                   │
+│  Confianza 0.71                                                   │
+│  4 812 tokens · $0.014 · 2.1 s · ahorro 88 % vs contexto          │
+│  bruto (41 200 tokens)                              [caché: sí]  │
+└───────────────────────────────────────────────────────────────────┘
 ```
 
 El valor de confianza que aparece al pie de la respuesta **no lo autoinforma el modelo**: se calcula a partir de señales del grafo y del verificador, y se presenta como indicador ordinal, no como probabilidad. El cálculo está en [3.2](#32-descripción-de-entidades-principales).
@@ -263,22 +263,22 @@ El valor de confianza que aparece al pie de la respuesta **no lo autoinforma el 
 
 ![Pantalla 3 — Análisis de impacto](images/pantalla-3-impacto.svg)
 
-```
-┌────────────────────────────────────────────────────────────┐
-│  IMPACTO DE: "cambiar el cálculo de descuentos"            │
-├────────────────────────────────────────────────────────────┤
-│  DIRECTO       PriceCalculator · DiscountService   [grafo] │
-│  INDIRECTO     OrderService · OrdersController     [grafo] │
-│  TESTS         PricingTest · OrderPricingTest      [grafo] │
-│  DOCUMENTACIÓN docs/pricing.md         ⚠ desactualizada    │
-│  HISTORIAL     PR #381 · PR #402 (co-cambian 80 %) [git]   │
-│                                                            │
-│  RIESGO  MEDIO                                             │
-│  4 ficheros afectados, 2 tests que cubren el cambio,       │
-│  1 documento desalineado desde el commit a3f9c21.          │
-│                                                            │
-│  3 140 tokens · $0.009                                     │
-└────────────────────────────────────────────────────────────┘
+```text
+┌───────────────────────────────────────────────────────────────┐
+│  IMPACTO DE: "cambiar el cálculo de descuentos"               │
+├───────────────────────────────────────────────────────────────┤
+│  DIRECTO       PriceCalculator · DiscountService     [grafo]  │
+│  INDIRECTO     OrderService · OrdersController       [grafo]  │
+│  TESTS         PricingTest · OrderPricingTest        [grafo]  │
+│  DOCUMENTACIÓN docs/pricing.md   (!) desactualizada           │
+│  HISTORIAL     PR #381 · PR #402 (co-cambian 80 %)   [git]    │
+│                                                               │
+│  RIESGO  MEDIO                                                │
+│  4 ficheros afectados, 2 tests que cubren el cambio,          │
+│  1 documento desalineado desde el commit a3f9c21.             │
+│                                                               │
+│  3 140 tokens · $0.009                                        │
+└───────────────────────────────────────────────────────────────┘
 ```
 
 Cada elemento del informe de impacto indica su **origen**: `[grafo]` para lo derivado del análisis determinista, `[git]` para la señal histórica de co-cambio. Mezclarlos sin distinguir haría el informe imposible de calibrar — quien lo lee no sabría cuánto confiar en cada línea y acabaría desconfiando de todas.
